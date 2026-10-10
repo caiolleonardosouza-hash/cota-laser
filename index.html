@@ -95,7 +95,22 @@ tfoot td{font-weight:700}
 .thumb{border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--surface);cursor:pointer;padding:0;text-align:left}
 .thumb img{display:block;width:100%;aspect-ratio:4/3;object-fit:cover;background:var(--sunk)}
 .thumb span{display:block;padding:6px 8px;font-size:13px}
-canvas#ph{width:100%;height:auto;display:block;border-radius:10px;background:var(--sunk);touch-action:manipulation}
+.stage{position:relative;overflow:hidden;width:100%;background:var(--sunk);border-radius:10px;touch-action:none;user-select:none;-webkit-user-select:none}
+.stage canvas{position:absolute;left:0;top:0;transform-origin:0 0;max-width:none}
+.loupe{position:fixed;z-index:30;width:160px;height:160px;border-radius:50%;border:3px solid #fff;box-shadow:0 4px 18px rgba(0,0,0,.45);pointer-events:none}
+.tools{display:flex;flex-wrap:wrap;gap:6px;margin:12px 0 8px}
+.chip{width:28px;height:28px;border-radius:50%;border:2px solid var(--line);cursor:pointer;padding:0}
+.chip.on{outline:3px solid var(--accent);outline-offset:1px}
+input[type=color]{width:34px;height:30px;border:1px solid var(--line);border-radius:6px;background:none;padding:0}
+.dim.sel{border-color:var(--laser);box-shadow:0 0 0 2px color-mix(in srgb,var(--laser) 25%,transparent)}
+.sw{width:14px;height:14px;border-radius:3px;border:1px solid var(--line);flex:none}
+.pin{border:0;background:none;padding:0;font:700 17px var(--f-num);width:96px;min-width:0}
+.pill{display:inline-block;padding:3px 9px;border-radius:999px;font:700 13px var(--f-num);white-space:nowrap}
+.pill.ok{background:color-mix(in srgb,var(--ok) 18%,transparent);color:var(--ok)}
+.pill.bad{background:color-mix(in srgb,var(--laser) 18%,transparent);color:var(--laser)}
+.minis{display:flex;gap:6px;flex-wrap:wrap}
+.mini{padding:0;border:1px solid var(--line);border-radius:6px;overflow:hidden;width:64px;height:48px;cursor:pointer;background:var(--sunk)}
+.mini img{width:100%;height:100%;object-fit:cover;display:block}
 .confirm{color:#fff!important;background:var(--laser)!important;border-color:var(--laser)!important}
 /* leitor da trena */
 #dock{position:fixed;left:0;right:0;bottom:0;z-index:10;background:var(--surface);border-top:2px solid var(--ink);
@@ -145,6 +160,8 @@ pre.log{font:11px/1.4 var(--f-num);background:var(--sunk);padding:8px;border-rad
 </div>
 <div id="toast" hidden></div>
 <input type="file" id="fileph" accept="image/*" capture="environment" hidden>
+<input type="file" id="fileplan" accept="application/pdf,.pdf,image/*" hidden>
+<canvas id="loupe" class="loupe" hidden></canvas>
 <input type="file" id="filejs" accept="application/json,.json" hidden>
 
 <script>
@@ -163,7 +180,8 @@ const KEY='cotalaser.v1';
 let S;
 function load(){try{S=JSON.parse(localStorage.getItem(KEY))}catch(e){S=null}
   if(!S||!Array.isArray(S.projects)){S={projects:[],free:[],settings:{minOpen:0,dec:3}};seed()}
-  S.free=S.free||[];S.settings=Object.assign({minOpen:0,dec:3},S.settings||{})}
+  S.free=S.free||[];S.settings=Object.assign({minOpen:0,dec:3,tol:1},S.settings||{});
+  for(const p of S.projects)for(const f of p.photos||[]){f.kind=f.kind||'photo';f.dims=(f.dims||[]).map(d=>Object.assign({id:uid(),ph:[]},d))}}
 function save(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){toast('Não consegui salvar no aparelho (memória cheia?)')}}
 function newRoom(name){return{id:uid(),name,mode:'rect',a:null,b:null,h:null,walls:[{len:null,ang:90}],openings:[],objects:[]}}
 function seed(){const r=newRoom('Sala (exemplo)');r.a=4.2;r.b=3.1;r.h=2.7;
@@ -233,25 +251,82 @@ const idb=(()=>{let dp;const db=()=>dp||(dp=new Promise((res,rej)=>{const q=inde
   return{get:k=>tx('readonly',s=>s.get(k)),put:(k,v)=>tx('readwrite',s=>s.put(v,k)),del:k=>tx('readwrite',s=>s.delete(k))}})();
 const IMG=new Map();
 async function img(id){if(IMG.has(id))return IMG.get(id);const d=await idb.get(id);if(!d)return null;const im=new Image();await new Promise(r=>{im.onload=r;im.onerror=r;im.src=d});IMG.set(id,im);return im}
-async function addPhoto(file){const p=P(V.pid);if(!p)return;const raw=await new Promise(r=>{const fr=new FileReader();fr.onload=()=>r(fr.result);fr.readAsDataURL(file)});
-  const im=new Image();await new Promise(r=>{im.onload=r;im.src=raw});const k=Math.min(1,1600/Math.max(im.width,im.height));
-  const c=document.createElement('canvas');c.width=Math.round(im.width*k);c.height=Math.round(im.height*k);c.getContext('2d').drawImage(im,0,0,c.width,c.height);
-  const data=c.toDataURL('image/jpeg',0.85);const id=uid();await idb.put(id,data);
-  p.photos.push({id,name:'Foto '+(p.photos.length+1),dims:[],t:Date.now()});save();go({v:'photo',pid:p.id,phid:id})}
-function drawDims(ctx,im,ph,{sel=null,pend=null}={}){const W=im.width,H=im.height;ctx.drawImage(im,0,0,W,H);
-  const u=Math.max(W,H)/600,lw=Math.max(2,2.2*u),fs=Math.round(15*u);
-  ph.dims.forEach((d,i)=>{const on=sel==='d:'+ph.id+':'+i;const col=on?'#ff3b1f':'#ffd400';
-    const ex=d.x2-d.x1,ey=d.y2-d.y1,L=Math.hypot(ex,ey)||1,nx=-ey/L*8*u,ny=ex/L*8*u;
-    ctx.lineCap='round';
-    for(const[st,w]of[['rgba(0,0,0,.75)',lw+3*u],[col,lw]]){ctx.strokeStyle=st;ctx.lineWidth=w;ctx.beginPath();
+/* ===== pranchas: fotos e plantas com cotas ===== */
+const FONTS={mono:'"JetBrains Mono",ui-monospace,monospace',sans:'Barlow,Arial,sans-serif',cond:'"Barlow Condensed","Arial Narrow",sans-serif',arial:'Arial,Helvetica,sans-serif'};
+const COLORS=['#ffd400','#ff3b1f','#00c2ff','#2ee66b','#ff4fd8','#ffffff','#111111'];
+const CATS={parede:'Parede',janela:'Janela',porta:'Porta',shaft:'Shaft',vao:'Vão',pilar:'Pilar',outro:'Outro'};
+const defStyle=()=>Object.assign({lw:3,fs:16,color:'#ffd400',font:'mono',ortho:true},S.settings.style||{});
+const stOf=sh=>Object.assign(defStyle(),sh.style||{});
+const pxLen=d=>Math.hypot(d.x2-d.x1,d.y2-d.y1);
+function sheetScale(sh){const r=sh.dims.find(d=>d.ref&&d.proj>0&&pxLen(d)>0);return r?r.proj/pxLen(r):null}
+function projOf(sh,d){if(d.proj!=null)return d.proj;const s=sheetScale(sh);return s?pxLen(d)*s:null}
+function deltaCm(sh,d){const p=projOf(sh,d);return(d.val!=null&&p!=null)?(d.val-p)*100:null}
+const tolCm=()=>+S.settings.tol||1;
+const okD=dc=>dc==null?null:Math.abs(dc)<=tolCm()+1e-9;
+
+async function readAsDataURL(file){return new Promise(r=>{const fr=new FileReader();fr.onload=()=>r(fr.result);fr.readAsDataURL(file)})}
+async function toStored(src,max,type,q){const im=new Image();await new Promise((res,rej)=>{im.onload=res;im.onerror=rej;im.src=src});
+  const k=Math.min(1,max/Math.max(im.width,im.height));const c=document.createElement('canvas');c.width=Math.round(im.width*k);c.height=Math.round(im.height*k);
+  const x=c.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,c.width,c.height);x.drawImage(im,0,0,c.width,c.height);return{data:c.toDataURL(type,q),w:c.width,h:c.height}}
+async function addSheet(dataUrl,kind,extra={}){const p=P(V.pid);if(!p)return;
+  const st=await toStored(dataUrl,kind==='plan'?3200:2000,'image/jpeg',kind==='plan'?0.9:0.88);const id=uid();await idb.put(id,st.data);
+  const n=p.photos.filter(x=>(x.kind||'photo')===kind).length+1;
+  const sh=Object.assign({id,kind,name:(kind==='plan'?'Planta ':'Foto ')+n,dims:[],t:Date.now(),w:st.w,h:st.h},kind==='plan'?{style:{fs:Math.max(defStyle().fs,26)}}:{},extra);
+  p.photos.push(sh);save();return sh}
+async function addPhoto(file){const sh=await addSheet(await readAsDataURL(file),'photo',LINK?{rid:LINK.rid||null}:{});
+  if(LINK){const p=P(V.pid),pl=p.photos.find(x=>x.id===LINK.sid),d=pl&&pl.dims.find(x=>x.id===LINK.did);if(d){(d.ph=d.ph||[]).push(sh.id);sh.link={sid:LINK.sid,did:LINK.did};sh.name=(d.label||CATS[d.cat]||'Cota')+' — foto';save()}LINK=null}
+  go({v:'photo',pid:V.pid,phid:sh.id})}
+let LINK=null,PDFP=null;
+async function addPlan(file){if(file.type==='application/pdf'||/\.pdf$/i.test(file.name)){
+    try{toast('Abrindo PDF…');if(!window.pdfjsLib){await loadScript('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js');pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'}
+      const doc=await pdfjsLib.getDocument({data:new Uint8Array(await file.arrayBuffer())}).promise;
+      if(doc.numPages===1)return pdfPage(doc,1,file.name);PDFP={doc,name:file.name};render()}
+    catch(e){toast('Não consegui abrir o PDF (precisa de internet na 1ª vez). Tente imagem PNG/JPG.')}return}
+  const sh=await addSheet(await readAsDataURL(file),'plan',{name:file.name.replace(/\.[^.]+$/,'')});go({v:'photo',pid:V.pid,phid:sh.id})}
+async function pdfPage(doc,n,name){toast('Renderizando página '+n+'…');const pg=await doc.getPage(n);const v1=pg.getViewport({scale:1});const sc=Math.min(4,3200/Math.max(v1.width,v1.height));
+  const vp=pg.getViewport({scale:sc});const c=document.createElement('canvas');c.width=vp.width;c.height=vp.height;const x=c.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,c.width,c.height);
+  await pg.render({canvasContext:x,viewport:vp}).promise;PDFP=null;
+  const sh=await addSheet(c.toDataURL('image/png'),'plan',{name:name.replace(/\.[^.]+$/,'')+(doc.numPages>1?' p'+n:'')});go({v:'photo',pid:V.pid,phid:sh.id})}
+
+function dimText(sh,d){const dec=S.settings.dec>2?3:2,isPlan=sh.kind==='plan';
+  const l1=(d.label?d.label+'  ':isPlan&&d.cat&&d.cat!=='outro'?CATS[d.cat]+'  ':'')+(d.val!=null?nf(d.val,dec)+' m':isPlan&&projOf(sh,d)!=null?'proj. '+nf(projOf(sh,d),dec)+' m':'? m');
+  let l2=null,ok=null;
+  if(isPlan){const p=projOf(sh,d),dc=deltaCm(sh,d);
+    if(d.ref)l2='ESCALA · proj. '+nf(d.proj,dec)+' m';
+    else if(d.val!=null&&p!=null){ok=okD(dc);l2='proj. '+nf(p,dec)+'  Δ '+(dc>0?'+':'')+nf(dc,1)+' cm'}
+    if(d.ph&&d.ph.length)l2=(l2?l2+'  ·  ':'')+d.ph.length+' foto'+(d.ph.length>1?'s':'')}
+  return{l1,l2,ok}}
+function drawSheet(ctx,im,sh,o={}){const W=sh.w||im.width,H=sh.h||im.height,st=stOf(sh);
+  if(!o.noImg)ctx.drawImage(im,0,0,W,H);
+  const u=Math.max(W,H)/1000,lw=Math.max(1,st.lw*u),fs=Math.max(8,st.fs*u),hr=o.hr||10*u;
+  sh.dims.forEach((d,i)=>{if(o.skip===i)return;if(o.only!=null&&o.only!==i)return;
+    const sel=o.sel===d.id,col=d.ref?'#00c2ff':(d.color||st.color);
+    const ex=d.x2-d.x1,ey=d.y2-d.y1,L=Math.hypot(ex,ey)||1,tk=Math.max(5*lw,6*u),nx=-ey/L*tk,ny=ex/L*tk;
+    ctx.lineCap='round';ctx.setLineDash(d.ref?[4*lw,3*lw]:[]);
+    for(const[c,w]of[['rgba(0,0,0,.7)',lw+2.4*u],[col,lw]]){ctx.strokeStyle=c;ctx.lineWidth=w;ctx.beginPath();
       ctx.moveTo(d.x1,d.y1);ctx.lineTo(d.x2,d.y2);ctx.moveTo(d.x1-nx,d.y1-ny);ctx.lineTo(d.x1+nx,d.y1+ny);ctx.moveTo(d.x2-nx,d.y2-ny);ctx.lineTo(d.x2+nx,d.y2+ny);ctx.stroke()}
-    const txt=(d.label?d.label+' ':'')+(d.val==null?'? m':nf(d.val,S.settings.dec>2?3:2)+' m');
-    ctx.font=`700 ${fs}px "JetBrains Mono",monospace`;const tw=ctx.measureText(txt).width,pd=5*u,mx=(d.x1+d.x2)/2,my=(d.y1+d.y2)/2;
-    ctx.fillStyle='rgba(0,0,0,.8)';ctx.fillRect(mx-tw/2-pd,my-fs/2-pd,tw+2*pd,fs+2*pd);ctx.fillStyle=col;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(txt,mx,my+1)});
-  if(pend){ctx.fillStyle='#ff3b1f';ctx.beginPath();ctx.arc(pend[0],pend[1],7*u,0,7);ctx.fill();ctx.strokeStyle='#fff';ctx.lineWidth=2*u;ctx.stroke()}}
-async function photoBlob(ph,max=0){const im=await img(ph.id);if(!im)return null;const c=document.createElement('canvas');c.width=im.width;c.height=im.height;drawDims(c.getContext('2d'),im,ph);
-  if(max&&Math.max(c.width,c.height)>max){const k=max/Math.max(c.width,c.height),c2=document.createElement('canvas');c2.width=c.width*k;c2.height=c.height*k;c2.getContext('2d').drawImage(c,0,0,c2.width,c2.height);return c2.toDataURL('image/jpeg',0.8)}
+    ctx.setLineDash([]);
+    const t=dimText(sh,d);ctx.font=`700 ${fs}px ${FONTS[st.font]||FONTS.mono}`;const f2=fs*0.72;
+    let tw=ctx.measureText(t.l1).width;if(t.l2){ctx.font=`600 ${f2}px ${FONTS[st.font]||FONTS.mono}`;tw=Math.max(tw,ctx.measureText(t.l2).width)}
+    const pd=fs*0.3,bh=fs+(t.l2?f2+pd*0.6:0)+2*pd;
+    let n=[-ey/L,ex/L];if(n[1]>0||(Math.abs(n[1])<0.15&&n[0]>0))n=[-n[0],-n[1]];
+    const bw=tw+2*pd,off=Math.abs(n[0])*bw/2+Math.abs(n[1])*bh/2+lw+tk*0.4;let cx=(d.x1+d.x2)/2+n[0]*off,cy=(d.y1+d.y2)/2+n[1]*off;
+    cx=Math.min(W-bw/2-2,Math.max(bw/2+2,cx));cy=Math.min(H-bh/2-2,Math.max(bh/2+2,cy));
+    ctx.fillStyle='rgba(0,0,0,.8)';ctx.fillRect(cx-tw/2-pd,cy-bh/2,tw+2*pd,bh);
+    if(sel){ctx.strokeStyle='#fff';ctx.lineWidth=Math.max(1,u*1.5);ctx.strokeRect(cx-tw/2-pd,cy-bh/2,tw+2*pd,bh)}
+    ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillStyle=col;ctx.font=`700 ${fs}px ${FONTS[st.font]||FONTS.mono}`;
+    ctx.fillText(t.l1,cx,cy-bh/2+pd+fs/2+1);
+    if(t.l2){ctx.font=`600 ${f2}px ${FONTS[st.font]||FONTS.mono}`;ctx.fillStyle=t.ok===true?'#2ee66b':t.ok===false?'#ff5a3c':'#e8e8e8';ctx.fillText(t.l2,cx,cy+bh/2-pd-f2/2)}
+    d._box=[cx-tw/2-pd,cy-bh/2,tw+2*pd,bh];
+    if(sel)for(const[x,y]of[[d.x1,d.y1],[d.x2,d.y2]]){ctx.beginPath();ctx.arc(x,y,hr,0,7);ctx.fillStyle='rgba(255,255,255,.35)';ctx.fill();ctx.lineWidth=Math.max(1.5,hr*0.18);ctx.strokeStyle=col;ctx.stroke();
+      ctx.beginPath();ctx.arc(x,y,Math.max(1.5,hr*0.15),0,7);ctx.fillStyle=col;ctx.fill()}});
+  if(o.pend){ctx.fillStyle='#ff3b1f';ctx.beginPath();ctx.arc(o.pend[0],o.pend[1],hr*0.6,0,7);ctx.fill();ctx.strokeStyle='#fff';ctx.lineWidth=hr*0.15;ctx.stroke()}}
+async function photoBlob(ph,max=0){const im=await img(ph.id);if(!im)return null;const c=document.createElement('canvas');c.width=ph.w||im.width;c.height=ph.h||im.height;drawSheet(c.getContext('2d'),im,ph);
+  if(max&&Math.max(c.width,c.height)>max){const k=max/Math.max(c.width,c.height),c2=document.createElement('canvas');c2.width=c.width*k;c2.height=c.height*k;c2.getContext('2d').drawImage(c,0,0,c2.width,c2.height);return c2.toDataURL('image/jpeg',0.82)}
+  if(max)return c.toDataURL('image/jpeg',0.85);
   return new Promise(r=>c.toBlob(r,'image/jpeg',0.92))}
+function catSummary(sh){const g={};for(const d of sh.dims){if(d.ref)continue;const k=d.cat||'outro';const a=g[k]||(g[k]={n:0,p:0,r:0,cmp:0,pp:0,rr:0,bad:0});a.n++;
+    const p=projOf(sh,d);if(p!=null)a.p+=p;if(d.val!=null)a.r+=d.val;if(p!=null&&d.val!=null){a.cmp++;a.pp+=p;a.rr+=d.val;if(!okD(deltaCm(sh,d)))a.bad++}}return g}
 
 /* ===== arquivos ===== */
 async function saveBlob(blob,name){try{const f=new File([blob],name,{type:blob.type});if(navigator.canShare&&navigator.canShare({files:[f]})){await navigator.share({files:[f],title:name});return}}catch(e){if(e&&e.name==='AbortError')return}
@@ -265,10 +340,12 @@ function rowsFor(p){const d=S.settings.dec,R3=n=>n==null?null:+(+n).toFixed(3);
   const op=[['Cômodo','Tipo','Parede','Qtd','Largura (m)','Altura (m)','Área total (m²)']];for(const r of p.rooms)r.openings.forEach(o=>op.push([r.name,o.t,o.wall==null?'':'P'+(o.wall+1),o.q||1,R3(o.w),R3(o.h),R3((o.w||0)*(o.h||0)*(o.q||1))]));
   const ob=[['Cômodo','Objeto','C (m)','L (m)','A (m)','Área (m²)','Volume (m³)']];for(const r of p.rooms)r.objects.forEach(o=>ob.push([r.name,o.n||'',R3(o.a),R3(o.b),R3(o.c),R3((o.a||0)*(o.b||0)),R3((o.a||0)*(o.b||0)*(o.c||0))]));
   const fr=[['Data/hora','Descrição','Medida (m)']];S.free.filter(f=>f.pid===p.id).forEach(f=>fr.push([new Date(f.t).toLocaleString('pt-BR'),f.label||'',R3(f.v)]));
-  return{Resumo:res,Paredes:wl,Aberturas:op,Objetos:ob,Avulsas:fr}}
+  const px=[['Planta','Cota','Categoria','Descrição','Projeto (m)','Real (m)','Δ (cm)','Status','Fotos']];
+  for(const pl of p.photos.filter(f=>f.kind==='plan'))pl.dims.forEach((d,i)=>{const dc=deltaCm(pl,d),ok=okD(dc);px.push([pl.name,'C'+(i+1),d.ref?'Escala':CATS[d.cat||'outro'],d.label||'',R3(projOf(pl,d)),R3(d.val),dc==null?null:+dc.toFixed(1),ok==null?'':ok?'OK':'FORA',(d.ph||[]).length])});
+  return{Resumo:res,'Projeto x Real':px,Paredes:wl,Aberturas:op,Objetos:ob,Avulsas:fr}}
 function loadScript(src){return new Promise((res,rej)=>{const s=document.createElement('script');s.src=src;s.onload=res;s.onerror=rej;document.head.appendChild(s)})}
 async function exportXlsx(p){const sh=rowsFor(p);try{if(!window.XLSX)await loadScript('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js');
-    const wb=XLSX.utils.book_new();for(const[n,rows]of Object.entries(sh)){const ws=XLSX.utils.aoa_to_sheet(rows);ws['!cols']=rows[0].map((h,i)=>({wch:i===0?24:Math.max(12,String(h).length+2)}));XLSX.utils.book_append_sheet(wb,ws,n)}
+    const wb=XLSX.utils.book_new();for(const[n,rows]of Object.entries(sh)){const ws=XLSX.utils.aoa_to_sheet(rows);ws['!cols']=rows[0].map((h,i)=>({wch:i===0?24:Math.max(12,String(h).length+2)}));XLSX.utils.book_append_sheet(wb,ws,n.slice(0,31))}
     const out=XLSX.write(wb,{bookType:'xlsx',type:'array'});await saveBlob(new Blob([out],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}),slug(p.name)+'_medicoes.xlsx')}
   catch(e){toast('Sem internet para gerar .xlsx — gerei CSV');exportCsv(p)}}
 function exportCsv(p){const sh=rowsFor(p);const cell=v=>v==null?'':typeof v==='number'?String(v).replace('.',','):'"'+String(v).replace(/"/g,'""')+'"';
@@ -344,7 +421,7 @@ function render(){REG=new Map();ORDER=[];const app=$('#app');let h='';
   else if(V.v==='report'){$('#ttl').textContent='Relatório';h=vReport(p)}
   else{V={v:'project',pid:p.id};return render()}
   app.innerHTML=h;if(target&&!REG.has(target))target=null;updateDock();after()}
-function after(){if(V.v==='photo')drawPhoto();if(V.v==='report')fillReportPhotos()}
+function after(){RT=null;hideLoupe();if(V.v==='photo')setupEditor();if(V.v==='report')fillReportPhotos()}
 
 function vHome(){const ps=S.projects;let h=`<h2>Obras</h2><div class="list">`;
   if(!ps.length)h+=`<p class="hint">Nenhuma obra ainda. Crie a primeira abaixo.</p>`;
@@ -373,14 +450,19 @@ function vProject(p){const tab=V.tab||'rooms',t=totals(p);
    <div class="stat"><small>Parede líquida</small><b>${nf(t.net,2)}<i>m²</i></b></div>
    <div class="stat"><small>Perímetro</small><b>${nf(t.perim,2)}<i>m</i></b></div>
    <div class="stat"><small>Volume</small><b>${nf(t.vol,2)}<i>m³</i></b></div></div>
-  <div class="tabs">${[['rooms','Cômodos'],['photos','Fotos'],['free','Avulsas'],['cfg','Obra']].map(([k,n])=>`<button class="tab${tab===k?' on':''}" data-act="ptab" data-k="${k}" type="button">${n}</button>`).join('')}</div>`;
+  <div class="tabs">${[['rooms','Cômodos'],['plans','Plantas'],['photos','Fotos'],['free','Avulsas'],['cfg','Obra']].map(([k,n])=>`<button class="tab${tab===k?' on':''}" data-act="ptab" data-k="${k}" type="button">${n}</button>`).join('')}</div>`;
   if(tab==='rooms'){h+=`<div class="list" style="margin-top:10px">`;
     for(const r of p.rooms){const c=calc(r);h+=`<button class="item" data-act="openR" data-id="${r.id}"><div class="grow"><b>${esc(r.name)}</b><div class="sub">${r.mode==='rect'?'Retângulo':'Paredes em série'} · PD ${nf(r.h,2)} m · ${r.openings.length} abertura(s)</div></div><div class="num" style="text-align:right">${nf(c.area,2)} m²<div class="sub">${nf(c.perim,2)} m</div></div></button>`}
     if(!p.rooms.length)h+=`<p class="hint">Nenhum cômodo. Adicione abaixo.</p>`;
     h+=`</div><form class="row" data-form="newR" style="margin-top:10px"><input class="txt grow" id="nr" placeholder="Nome do cômodo (ex.: Suíte 1)" required><button class="btn pri">Adicionar</button></form>
     <div class="row noprint" style="margin-top:16px"><button class="btn pri" data-act="report" type="button">Relatório / PDF</button><button class="btn" data-act="xlsx" type="button">Excel (.xlsx)</button><button class="btn" data-act="csv" type="button">CSV</button></div>`}
-  if(tab==='photos'){h+=`<p class="hint">Tire a foto, marque dois pontos e meça com a trena: a cota fica gravada na imagem.</p><div class="thumbs">`;
-    for(const f of p.photos)h+=`<button class="thumb" data-act="openPh" data-id="${f.id}" type="button"><img data-ph="${f.id}" alt="${esc(f.name)}"><span>${esc(f.name)} · ${f.dims.length} cota(s)</span></button>`;
+  if(tab==='plans'){const pls=p.photos.filter(f=>f.kind==='plan');
+    h+=`<p class="hint">Importe a planta do projeto (PDF ou imagem), calibre a escala e compare cada cota do projeto com a medida real da trena. Fotos das paredes ficam ligadas às cotas.</p>`;
+    if(PDFP)h+=`<div class="card list"><b>PDF com ${PDFP.doc.numPages} páginas — escolha a página:</b><div class="row">${Array.from({length:PDFP.doc.numPages},(_,k)=>`<button class="btn sm" data-act="pdfPg" data-k="${k+1}" type="button">${k+1}</button>`).join('')}</div></div>`;
+    h+=`<div class="thumbs">`+pls.map(f=>{const g=catSummary(f);const bad=Object.values(g).reduce((s,a)=>s+a.bad,0);return`<button class="thumb" data-act="openPh" data-id="${f.id}" type="button"><img data-ph="${f.id}" alt="${esc(f.name)}"><span>${esc(f.name)} · ${f.dims.length} cota(s)${bad?` · <b style="color:var(--laser)">${bad} fora</b>`:''}</span></button>`}).join('')+`</div>
+    <button class="btn pri" data-act="addPlan" type="button" style="margin-top:10px">+ Importar planta (PDF ou imagem)</button>`;setTimeout(thumbs,0)}
+  if(tab==='photos'){h+=`<p class="hint">Tire a foto, arraste de uma ponta à outra e meça com a trena: a cota fica gravada na imagem.</p><div class="thumbs">`;
+    for(const f of p.photos.filter(f=>(f.kind||'photo')==='photo'))h+=`<button class="thumb" data-act="openPh" data-id="${f.id}" type="button"><img data-ph="${f.id}" alt="${esc(f.name)}"><span>${esc(f.name)} · ${f.dims.length} cota(s)</span></button>`;
     h+=`</div><button class="btn pri" data-act="addPh" type="button" style="margin-top:10px">+ Foto com cota</button>`;setTimeout(thumbs,0)}
   if(tab==='free'){const fr=S.free.filter(f=>f.pid===p.id);h+=`<p class="hint">Leituras feitas sem campo selecionado nesta obra.</p>`+(fr.length?freeList(fr):`<p class="hint">Nenhuma ainda.</p>`)}
   if(tab==='cfg'){h+=`<div class="card list" style="margin-top:10px"><label>Nome da obra<input class="txt" data-act="pname" value="${esc(p.name)}"></label>
@@ -429,17 +511,117 @@ function vRoom(p,r){const tab=V.tab||'med',c=calc(r),d=S.settings.dec;
     <p class="hint">Cálculos geométricos: área pelo método de Gauss (shoelace) sobre o polígono das paredes; parede = perímetro × pé-direito − aberturas.</p>`}
   return h}
 
+/* ===== editor de cotas (foto e planta) ===== */
 let PEND=null;
-function vPhoto(p,ph){let h=`<div class="row" style="margin:12px 0"><input class="txt grow" data-act="phName" value="${esc(ph.name)}" aria-label="Nome da foto">
-  <select data-act="phRoom" aria-label="Cômodo"><option value="">sem cômodo</option>${p.rooms.map(r=>`<option value="${r.id}"${ph.rid===r.id?' selected':''}>${esc(r.name)}</option>`).join('')}</select></div>
-  <p class="hint">${PEND?'Toque o <b>segundo ponto</b> da cota.':'Toque dois pontos na foto para criar uma cota. Depois meça com a trena.'}</p>
-  <canvas id="ph"></canvas><div class="list" style="margin-top:10px">`;
-  ph.dims.forEach((d,i)=>{h+=`<div class="row">${F('d:'+ph.id+':'+i,'Cota '+(i+1),d.val,v=>ph.dims[i].val=v)}<input class="txt grow" data-act="dLbl" data-i="${i}" value="${esc(d.label||'')}" placeholder="descrição (ex.: vão porta)"><button class="btn sm del" data-act="delD" data-i="${i}" type="button">✕</button></div>`});
-  h+=`</div><div class="row" style="margin-top:12px"><button class="btn pri" data-act="phSave" type="button">Salvar foto com cotas</button><button class="btn del" data-act="delPh" type="button">Excluir foto</button></div>`;return h}
-async function drawPhoto(){const p=P(V.pid),ph=p&&p.photos.find(x=>x.id===V.phid),cv=$('#ph');if(!ph||!cv)return;const im=await img(ph.id);if(!im)return;
-  cv.width=im.width;cv.height=im.height;drawDims(cv.getContext('2d'),im,ph,{sel:target,pend:PEND});
-  cv.onclick=e=>{const b=cv.getBoundingClientRect(),x=(e.clientX-b.left)/b.width*cv.width,y=(e.clientY-b.top)/b.height*cv.height;
-    if(!PEND){PEND=[x,y];render()}else{ph.dims.push({x1:PEND[0],y1:PEND[1],x2:x,y2:y,val:null,label:''});PEND=null;save();render();target='d:'+ph.id+':'+(ph.dims.length-1);render()}}}
+const ED={id:null,z:1,X:0,Y:0,fit:1,mode:'add',sel:null,styleOpen:false,lastCat:'parede'};
+let RT=null;
+function vPhoto(p,ph){const isPlan=ph.kind==='plan',st=stOf(ph),dec=S.settings.dec;
+  let h=`<div class="tools noprint">
+    <button class="btn sm${ED.mode==='add'?' pri':''}" data-act="edMode" data-k="add" type="button">✚ Cotar</button>
+    <button class="btn sm${ED.mode==='pan'?' pri':''}" data-act="edMode" data-k="pan" type="button">✋ Mover</button>
+    <button class="btn sm" data-act="zoom" data-k="0.67" type="button" aria-label="Diminuir zoom">−</button>
+    <button class="btn sm" data-act="zoom" data-k="1.5" type="button" aria-label="Aumentar zoom">+</button>
+    <button class="btn sm" data-act="zoomFit" type="button">Ajustar</button>
+    <button class="btn sm${ED.styleOpen?' pri':''}" data-act="stOpen" type="button">Estilo</button></div>
+  <div class="stage" id="stage"><canvas id="ph"></canvas></div>
+  <p class="hint" id="edhint">${PEND?'Toque o <b>segundo ponto</b> (ou arraste de um ponto ao outro).':ED.mode==='add'?'Arraste de uma ponta à outra para criar a cota (a lupa ajuda na precisão). Toque numa cota para selecionar; arraste as bolinhas para ajustar ou o texto para mover. Dois dedos: zoom.':'Modo mover: arraste para navegar, dois dedos para zoom.'}</p>`;
+  if(ED.styleOpen)h+=`<div class="card list">
+    <label class="row"><span style="width:110px">Espessura</span><input type="range" class="grow" min="1" max="12" step="0.5" id="stLw" value="${st.lw}"><span class="num" style="width:34px">${st.lw}</span></label>
+    <label class="row"><span style="width:110px">Tamanho texto</span><input type="range" class="grow" min="8" max="48" step="1" id="stFs" value="${st.fs}"><span class="num" style="width:34px">${st.fs}</span></label>
+    <label class="row"><span style="width:110px">Fonte</span><select id="stFont" class="grow">${[['mono','Mono (técnica)'],['sans','Barlow'],['cond','Condensada'],['arial','Arial']].map(([k,n])=>`<option value="${k}"${st.font===k?' selected':''}>${n}</option>`).join('')}</select></label>
+    <div class="row"><span style="width:110px">Cor padrão</span>${COLORS.map(c=>`<button type="button" class="chip${st.color===c?' on':''}" style="background:${c}" data-act="stCol" data-c="${c}" aria-label="cor ${c}"></button>`).join('')}<input type="color" id="stColX" value="${st.color}" aria-label="outra cor"></div>
+    <label class="row"><input type="checkbox" id="stOrtho"${st.ortho?' checked':''}> <span class="grow">Travar na horizontal/vertical automaticamente (até 6°)</span></label>
+    <button class="btn sm" data-act="stDef" type="button">Usar este estilo como padrão nas novas fotos/plantas</button></div>`;
+  if(isPlan){const sc=sheetScale(ph);
+    h+=`<div class="card list" style="margin-top:10px">${sc?`<div class="okbox">Escala definida pela cota de referência: 1 m = ${nf(1/sc,1)} px da imagem.</div>`:`<div class="warnbox">Sem escala. Crie uma cota sobre uma medida conhecida do projeto (de preferência a maior), digite o valor em <b>Projeto</b> e marque <b>Usar como escala</b>. As demais cotas passam a mostrar a medida do projeto automaticamente.</div>`}
+      <div class="row"><label class="row grow">Nova cota como <select data-act="lastCat">${Object.entries(CATS).map(([k,n])=>`<option value="${k}"${ED.lastCat===k?' selected':''}>${n}</option>`).join('')}</select></label>
+      <label class="row">Tolerância ± <input class="txt num" style="width:64px" id="stol" inputmode="decimal" value="${nf(tolCm(),1)}"> cm</label></div>
+      <p class="hint" style="margin:0">Tolerância é o seu critério de aceite (defina conforme projeto/contrato). Verde = dentro; vermelho = fora.</p></div>`;
+    const g=catSummary(ph),ks=Object.keys(g);
+    if(ks.length)h+=`<div class="tbl" style="margin-top:10px"><table><thead><tr><th>Categoria</th><th>Qtd</th><th>Σ Projeto (m)</th><th>Σ Real (m)</th><th>Δ (cm)</th><th>Fora</th></tr></thead><tbody>${ks.map(k=>{const a=g[k];const dc=a.cmp?(a.rr-a.pp)*100:null;return`<tr><td>${CATS[k]}${k==='parede'?' (perímetro)':''}</td><td>${a.n}</td><td>${nf(a.p,2)}</td><td>${nf(a.r,2)}</td><td>${dc==null?'—':(dc>0?'+':'')+nf(dc,1)}</td><td>${a.bad?`<span class="pill bad">${a.bad}</span>`:a.cmp?'<span class="pill ok">0</span>':'—'}</td></tr>`}).join('')}</tbody></table></div><p class="hint">Δ somado só entre cotas que têm projeto e real.</p>`}
+  h+=`<div class="list" style="margin-top:10px">`;
+  ph.dims.forEach((d,i)=>{const sel=ED.sel===d.id,col=d.ref?'#00c2ff':(d.color||st.color),dc=isPlan?deltaCm(ph,d):null,ok=okD(dc);
+    h+=`<div class="card dim${sel?' sel':''}" data-act="selD" data-i="${i}"><div class="row"><span class="sw" style="background:${col}"></span><b class="num">C${i+1}</b>
+      ${isPlan?`<select data-act="dCat" data-i="${i}" aria-label="Categoria">${Object.entries(CATS).map(([k,n])=>`<option value="${k}"${(d.cat||'outro')===k?' selected':''}>${n}</option>`).join('')}</select>`:''}
+      <input class="txt grow" data-act="dLbl" data-i="${i}" value="${esc(d.label||'')}" placeholder="descrição"><button class="btn sm del" data-act="delD" data-i="${i}" type="button" aria-label="Apagar cota">✕</button></div>
+      <div class="row">${isPlan?`<label class="mf" style="cursor:text"><span class="mfl">Projeto</span><input class="pin num" data-act="dProj" data-i="${i}" inputmode="decimal" value="${d.proj!=null?nf(d.proj,dec):''}" placeholder="${projOf(ph,d)!=null&&d.proj==null?nf(projOf(ph,d),dec)+' (escala)':'digite'}"></label>`:''}
+      ${F('d:'+ph.id+':'+i,isPlan?'Real (trena)':'Medida',d.val,v=>ph.dims[i].val=v)}
+      ${isPlan&&dc!=null?`<span class="pill ${ok?'ok':'bad'}">Δ ${(dc>0?'+':'')+nf(dc,1)} cm</span>`:''}</div>
+      ${sel?`<div class="row">${COLORS.map(c=>`<button type="button" class="chip${d.color===c?' on':''}" style="background:${c}" data-act="dCol" data-i="${i}" data-c="${c}" aria-label="cor"></button>`).join('')}<button type="button" class="btn sm" data-act="dCol" data-i="${i}" data-c="">padrão</button></div>`:''}
+      ${isPlan?`<div class="row"><label class="row"><input type="checkbox" data-act="dRef" data-i="${i}"${d.ref?' checked':''}> Usar como escala</label><span class="grow"></span><button class="btn sm" data-act="dPh" data-i="${i}" type="button">+ Foto da parede</button></div>
+      ${(d.ph||[]).length?`<div class="minis">${d.ph.map(id=>{const f=p.photos.find(x=>x.id===id);return f?`<button class="mini" data-act="openPh" data-id="${id}" type="button"><img data-ph="${id}" alt="${esc(f.name)}"></button>`:''}).join('')}</div>`:''}`:''}</div>`});
+  if(!ph.dims.length)h+=`<p class="hint">Nenhuma cota ainda.</p>`;
+  h+=`</div><div class="card list" style="margin-top:12px"><div class="row"><input class="txt grow" data-act="phName" value="${esc(ph.name)}" aria-label="Nome">
+    <select data-act="phRoom" aria-label="Cômodo"><option value="">sem cômodo</option>${p.rooms.map(r=>`<option value="${r.id}"${ph.rid===r.id?' selected':''}>${esc(r.name)}</option>`).join('')}</select></div>
+    ${ph.link?(()=>{const pl=p.photos.find(x=>x.id===ph.link.sid);const k=pl?pl.dims.findIndex(x=>x.id===ph.link.did):-1;return pl?`<div class="row"><span class="hint grow">Vinculada a <b>${esc(pl.name)}</b>${k>=0?' › C'+(k+1):''}</span><button class="btn sm" data-act="openPh" data-id="${pl.id}" type="button">Abrir planta</button></div>`:''})():''}
+    <div class="row"><button class="btn pri" data-act="phSave" type="button">Salvar imagem com cotas</button><button class="btn del" data-act="delPh" type="button">Excluir</button></div></div>`;
+  setTimeout(thumbs,0);return h}
+
+const sc=()=>ED.fit*ED.z;
+function clampXY(){const R=RT;if(!R)return;const sw=R.stage.clientWidth,shh=R.stage.clientHeight,dw=R.sh.w*sc(),dh=R.sh.h*sc();
+  ED.X=dw>sw?Math.min(0,Math.max(sw-dw,ED.X)):(sw-dw)/2;ED.Y=dh>shh?Math.min(0,Math.max(shh-dh,ED.Y)):(shh-dh)/2}
+function applyT(){if(!RT)return;clampXY();RT.cv.style.transform=`translate(${ED.X}px,${ED.Y}px) scale(${ED.z})`}
+function toImg(e){const r=RT.stage.getBoundingClientRect();return{x:(e.clientX-r.left-ED.X)/sc(),y:(e.clientY-r.top-ED.Y)/sc()}}
+function edDraw(){const R=RT;if(!R)return;const o={sel:ED.sel,pend:PEND,hr:12/sc()};
+  if(R.base&&R.drag){R.ctx.drawImage(R.base,0,0);drawSheet(R.ctx,R.im,R.sh,Object.assign(o,{noImg:true,only:R.drag.i}))}else drawSheet(R.ctx,R.im,R.sh,o)}
+function sched(){if(RT&&!RT.raf)RT.raf=requestAnimationFrame(()=>{RT.raf=0;edDraw();if(RT.lp)loupe(RT.lp)})}
+function buildBase(i){const R=RT,c=document.createElement('canvas');c.width=R.sh.w;c.height=R.sh.h;drawSheet(c.getContext('2d'),R.im,R.sh,{skip:i,sel:null});R.base=c}
+function loupe(lp){const L=$('#loupe'),dpr=window.devicePixelRatio||1,S0=160;L.hidden=false;
+  if(L.width!==S0*dpr){L.width=S0*dpr;L.height=S0*dpr}
+  let top=lp.cy-S0-70;if(top<8)top=lp.cy+50;L.style.left=Math.min(window.innerWidth-S0-6,Math.max(6,lp.cx-S0/2))+'px';L.style.top=top+'px';
+  const x=L.getContext('2d'),k=1/(sc()*3),sw=S0*k;x.fillStyle='#222';x.fillRect(0,0,L.width,L.height);
+  x.drawImage(RT.cv,lp.pt.x-sw/2,lp.pt.y-sw/2,sw,sw,0,0,L.width,L.height);
+  const c=L.width/2;x.strokeStyle='#ff3b1f';x.lineWidth=1.5*dpr;x.beginPath();x.moveTo(c,c-18*dpr);x.lineTo(c,c-4*dpr);x.moveTo(c,c+4*dpr);x.lineTo(c,c+18*dpr);x.moveTo(c-18*dpr,c);x.lineTo(c-4*dpr,c);x.moveTo(c+4*dpr,c);x.lineTo(c+18*dpr,c);x.stroke()}
+function hideLoupe(){const L=$('#loupe');if(L)L.hidden=true;if(RT)RT.lp=null}
+function snap(ax,ay,bx,by){if(!stOf(RT.sh).ortho)return[bx,by];const dx=bx-ax,dy=by-ay,L=Math.hypot(dx,dy);if(L<1)return[bx,by];
+  if(Math.abs(dy)/L<0.1045)return[bx,ay];if(Math.abs(dx)/L<0.1045)return[ax,by];return[bx,by]}
+function segDist(p,d){const ex=d.x2-d.x1,ey=d.y2-d.y1,L2=ex*ex+ey*ey||1;let t=((p.x-d.x1)*ex+(p.y-d.y1)*ey)/L2;t=Math.max(0,Math.min(1,t));return Math.hypot(p.x-(d.x1+t*ex),p.y-(d.y1+t*ey))}
+function hit(pt){const ds=RT.sh.dims,s=sc(),hr=26/s,lr=16/s;const si=ds.findIndex(d=>d.id===ED.sel);
+  if(si>=0){const d=ds[si];if(Math.hypot(pt.x-d.x1,pt.y-d.y1)<hr)return{i:si,end:1};if(Math.hypot(pt.x-d.x2,pt.y-d.y2)<hr)return{i:si,end:2}}
+  let best=null,bd=1e9;ds.forEach((d,i)=>{const b=d._box;const inBox=b&&pt.x>=b[0]&&pt.x<=b[0]+b[2]&&pt.y>=b[1]&&pt.y<=b[1]+b[3];const sd=inBox?0:segDist(pt,d);if(sd<lr&&sd<bd){bd=sd;best={i,body:true}}});return best}
+function newDim(x1,y1,x2,y2){const sh=RT.sh;return{id:uid(),x1,y1,x2,y2,val:null,label:'',cat:sh.kind==='plan'?ED.lastCat:undefined,proj:null,ref:false,color:null,ph:[]}}
+function selectDim(i){const sh=RT.sh;ED.sel=sh.dims[i].id;target='d:'+sh.id+':'+i;render();const c=document.querySelectorAll('.dim')[i];c&&c.scrollIntoView({block:'nearest',behavior:'smooth'})}
+function tapEmpty(pt){const sh=RT.sh;if(ED.sel){ED.sel=null;target=null;render();return}if(ED.mode!=='add')return;
+  if(!PEND){PEND=[pt.x,pt.y];$('#edhint').innerHTML='Toque o <b>segundo ponto</b> (ou arraste de um ponto ao outro).';edDraw();return}
+  const[b,c]=snap(PEND[0],PEND[1],pt.x,pt.y);sh.dims.push(newDim(PEND[0],PEND[1],b,c));PEND=null;save();selectDim(sh.dims.length-1)}
+async function setupEditor(){const p=P(V.pid),sh=p&&p.photos.find(x=>x.id===V.phid),cv=$('#ph'),stage=$('#stage');if(!sh||!cv)return;
+  const fresh=ED.id!==sh.id;if(fresh){Object.assign(ED,{id:sh.id,z:1,sel:null});PEND=null}
+  const im=await img(sh.id);if(!im||!document.contains(cv))return;if(!sh.w){sh.w=im.width;sh.h=im.height;save()}
+  cv.width=sh.w;cv.height=sh.h;const sw=stage.clientWidth,maxH=Math.max(260,Math.min(window.innerHeight*0.6,900));
+  ED.fit=Math.min(sw/sh.w,maxH/sh.h);stage.style.height=Math.round(sh.h*ED.fit)+'px';cv.style.width=sh.w*ED.fit+'px';cv.style.height=sh.h*ED.fit+'px';
+  RT={sh,im,cv,stage,ctx:cv.getContext('2d'),ptrs:new Map(),drag:null,pinch:null,base:null,raf:0,lp:null};
+  if(fresh){ED.X=-1e9;ED.Y=-1e9}applyT();edDraw();
+  stage.onpointerdown=pdown;stage.onpointermove=pmove;stage.onpointerup=pup;stage.onpointercancel=pup;
+  stage.onwheel=e=>{e.preventDefault();zoomAt(e.deltaY<0?1.15:1/1.15,e.clientX,e.clientY)}}
+function zoomAt(f,cx,cy){const r=RT.stage.getBoundingClientRect();if(cx==null){cx=r.left+r.width/2;cy=r.top+r.height/2}
+  const ix=(cx-r.left-ED.X)/sc(),iy=(cy-r.top-ED.Y)/sc();ED.z=Math.max(1,Math.min(12,ED.z*f));ED.X=cx-r.left-ix*sc();ED.Y=cy-r.top-iy*sc();applyT();edDraw()}
+function pdown(e){const R=RT;if(!R)return;e.preventDefault();try{R.stage.setPointerCapture(e.pointerId)}catch(_){}R.ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});
+  if(R.ptrs.size===2){if(R.drag&&R.drag.type==='new')R.sh.dims.pop();R.drag=null;R.base=null;hideLoupe();
+    const[a,b]=[...R.ptrs.values()],r=R.stage.getBoundingClientRect();R.pinch={d0:Math.hypot(a.x-b.x,a.y-b.y)||1,z0:ED.z,X0:ED.X,Y0:ED.Y,mx:(a.x+b.x)/2-r.left,my:(a.y+b.y)/2-r.top};edDraw();return}
+  if(R.ptrs.size>2)return;
+  const pt=toImg(e),h=hit(pt),base={sx:e.clientX,sy:e.clientY,moved:false};
+  if(h&&h.end)R.drag=Object.assign(base,{type:'h',i:h.i,end:h.end});
+  else if(h&&h.body)R.drag=R.sh.dims[h.i].id===ED.sel?Object.assign(base,{type:'mv',i:h.i,p0:pt,o:Object.assign({},R.sh.dims[h.i])}):Object.assign(base,{type:'tap',i:h.i});
+  else if(ED.mode==='add'&&!PEND){R.sh.dims.push(newDim(pt.x,pt.y,pt.x,pt.y));R.drag=Object.assign(base,{type:'new',i:R.sh.dims.length-1,end:2})}
+  else R.drag=Object.assign(base,{type:'pan',X0:ED.X,Y0:ED.Y});
+  if(['h','mv','new'].includes(R.drag.type))buildBase(R.drag.i)}
+function pmove(e){const R=RT;if(!R||!R.ptrs.has(e.pointerId))return;R.ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});
+  if(R.pinch){if(R.ptrs.size<2)return;const[a,b]=[...R.ptrs.values()],r=R.stage.getBoundingClientRect(),P0=R.pinch;
+    const z=Math.max(1,Math.min(12,P0.z0*Math.hypot(a.x-b.x,a.y-b.y)/P0.d0)),mx=(a.x+b.x)/2-r.left,my=(a.y+b.y)/2-r.top;
+    const ix=(P0.mx-P0.X0)/(ED.fit*P0.z0),iy=(P0.my-P0.Y0)/(ED.fit*P0.z0);ED.z=z;ED.X=mx-ix*sc();ED.Y=my-iy*sc();applyT();return}
+  const dr=R.drag;if(!dr)return;if(Math.hypot(e.clientX-dr.sx,e.clientY-dr.sy)>6)dr.moved=true;if(!dr.moved)return;
+  const d=R.sh.dims[dr.i],pt=toImg(e);
+  if(dr.type==='h'||dr.type==='new'){if(dr.end===1){const[x,y]=snap(d.x2,d.y2,pt.x,pt.y);d.x1=x;d.y1=y}else{const[x,y]=snap(d.x1,d.y1,pt.x,pt.y);d.x2=x;d.y2=y}
+    R.lp={cx:e.clientX,cy:e.clientY,pt:dr.end===1?{x:d.x1,y:d.y1}:{x:d.x2,y:d.y2}};sched()}
+  else if(dr.type==='mv'){const dx=pt.x-dr.p0.x,dy=pt.y-dr.p0.y;d.x1=dr.o.x1+dx;d.y1=dr.o.y1+dy;d.x2=dr.o.x2+dx;d.y2=dr.o.y2+dy;sched()}
+  else if(dr.type==='pan'){ED.X=dr.X0+(e.clientX-dr.sx);ED.Y=dr.Y0+(e.clientY-dr.sy);applyT()}}
+function pup(e){const R=RT;if(!R)return;R.ptrs.delete(e.pointerId);if(R.pinch){if(R.ptrs.size<2){R.pinch=null;R.drag=null}return}
+  const dr=R.drag;R.drag=null;R.base=null;hideLoupe();if(!dr)return;const sh=R.sh;
+  if(dr.type==='new'){if(!dr.moved){sh.dims.pop();return tapEmpty(toImg(e))}const d=sh.dims[dr.i];if(pxLen(d)*sc()<12){sh.dims.pop();edDraw();return}
+    PEND=null;save();return selectDim(dr.i)}
+  if(dr.type==='tap')return selectDim(dr.i);
+  if(dr.type==='h'||dr.type==='mv'){if(dr.moved){save();render()}else edDraw();return}
+  if(dr.type==='pan'&&!dr.moved)return tapEmpty(toImg(e))}
 
 function vReport(p){const t=totals(p),d=new Date();
   let h=`<div class="row noprint" style="margin:12px 0"><button class="btn pri" data-act="print" type="button">Imprimir / salvar PDF</button><button class="btn" data-act="xlsx" type="button">Excel (.xlsx)</button><button class="btn" data-act="csv" type="button">CSV</button></div>
@@ -453,11 +635,20 @@ function vReport(p){const t=totals(p),d=new Date();
     ${r.openings.map(o=>`<tr><td>${o.t==='vao'?'Vão':o.t[0].toUpperCase()+o.t.slice(1)}${o.wall!=null?' (P'+(o.wall+1)+')':''}${(o.q||1)>1?' ×'+o.q:''}</td><td>${nf(o.w,2)} × ${nf(o.h,2)} m</td></tr>`).join('')}
     ${r.objects.map(o=>`<tr><td>${esc(o.n||'Objeto')}</td><td>${nf(o.a,2)} × ${nf(o.b,2)} × ${nf(o.c,2)} m</td></tr>`).join('')}
     ${r.mode==='poly'&&c.g.ws.length>=3?`<tr><td>Erro de fechamento</td><td>${nf(c.g.err*100,1)} cm</td></tr>`:''}</tbody></table></div></div></div>`;
-    const phs=p.photos.filter(f=>f.rid===r.id);if(phs.length)h+=`<div class="two" style="margin-top:8px">${phs.map(f=>`<figure style="margin:0"><img data-rph="${f.id}" alt="${esc(f.name)}"><figcaption class="hint">${esc(f.name)}</figcaption></figure>`).join('')}</div>`;h+=`</div>`}
-  const loose=p.photos.filter(f=>!f.rid||!R(p,f.rid));if(loose.length)h+=`<h2>Fotos</h2><div class="two">${loose.map(f=>`<figure style="margin:0"><img data-rph="${f.id}" alt="${esc(f.name)}"><figcaption class="hint">${esc(f.name)}</figcaption></figure>`).join('')}</div>`;
+    const phs=p.photos.filter(f=>f.rid===r.id&&(f.kind||'photo')==='photo'&&!f.link);if(phs.length)h+=`<div class="two" style="margin-top:8px">${phs.map(f=>`<figure style="margin:0"><img data-rph="${f.id}" alt="${esc(f.name)}"><figcaption class="hint">${esc(f.name)}</figcaption></figure>`).join('')}</div>`;h+=`</div>`}
+  for(const pl of p.photos.filter(f=>f.kind==='plan')){const g=catSummary(pl),ks=Object.keys(g),dec=S.settings.dec;
+    h+=`<div class="room"><h3>${esc(pl.name)} — projeto × real</h3><img data-rph="${pl.id}" alt="${esc(pl.name)}">`;
+    if(ks.length)h+=`<div class="tbl" style="margin-top:8px"><table><thead><tr><th>Categoria</th><th>Qtd</th><th>Σ Projeto (m)</th><th>Σ Real (m)</th><th>Δ (cm)</th><th>Fora</th></tr></thead><tbody>${ks.map(k=>{const a=g[k],dc=a.cmp?(a.rr-a.pp)*100:null;return`<tr><td>${CATS[k]}${k==='parede'?' (perímetro)':''}</td><td>${a.n}</td><td>${nf(a.p,2)}</td><td>${nf(a.r,2)}</td><td>${dc==null?'—':(dc>0?'+':'')+nf(dc,1)}</td><td>${a.bad}</td></tr>`}).join('')}</tbody></table></div>`;
+    h+=`<div class="tbl" style="margin-top:8px"><table><thead><tr><th>Cota</th><th>Categoria</th><th>Projeto (m)</th><th>Real (m)</th><th>Δ (cm)</th><th>Status</th></tr></thead><tbody>${pl.dims.map((d,i)=>{const pj=projOf(pl,d),dc=deltaCm(pl,d),ok=okD(dc);
+      return`<tr><td>C${i+1}${d.label?' '+esc(d.label):''}</td><td>${d.ref?'Escala':CATS[d.cat||'outro']}</td><td>${nf(pj,dec)}</td><td>${nf(d.val,dec)}</td><td>${dc==null?'—':(dc>0?'+':'')+nf(dc,1)}</td><td>${ok==null?'—':ok?'<span class="pill ok">OK</span>':'<span class="pill bad">FORA</span>'}</td></tr>`}).join('')}</tbody></table></div>
+      <p class="hint">Tolerância usada: ± ${nf(tolCm(),1)} cm (critério definido pelo usuário).</p>`;
+    const lk=pl.dims.flatMap((d,i)=>(d.ph||[]).map(id=>({id,i,d}))).filter(x=>p.photos.some(f=>f.id===x.id));
+    if(lk.length)h+=`<div class="two" style="margin-top:8px">${lk.map(x=>{const f=p.photos.find(y=>y.id===x.id);return`<figure style="margin:0"><img data-rph="${f.id}" alt="${esc(f.name)}"><figcaption class="hint">C${x.i+1} ${esc(x.d.label||CATS[x.d.cat||'outro'])} — ${esc(f.name)}</figcaption></figure>`}).join('')}</div>`;
+    h+=`</div>`}
+  const loose=p.photos.filter(f=>(f.kind||'photo')==='photo'&&!f.link&&(!f.rid||!R(p,f.rid)));if(loose.length)h+=`<h2>Fotos</h2><div class="two">${loose.map(f=>`<figure style="margin:0"><img data-rph="${f.id}" alt="${esc(f.name)}"><figcaption class="hint">${esc(f.name)}</figcaption></figure>`).join('')}</div>`;
   const fr=S.free.filter(f=>f.pid===p.id);if(fr.length)h+=`<h2>Medidas avulsas</h2><div class="tbl"><table><tbody>${fr.map(f=>`<tr><td>${esc(f.label||'—')}</td><td>${nf(f.v,S.settings.dec)} m</td></tr>`).join('')}</tbody></table></div>`;
   h+=`<p class="hint" style="margin-top:16px">Parede líquida = perímetro × pé-direito − aberturas (limite de desconto: ${nf(+S.settings.minOpen,2)} m²). Rodapé = perímetro − larguras de portas e vãos. Área pelo método de Gauss sobre as paredes medidas.</p></div>`;return h}
-async function fillReportPhotos(){const p=P(V.pid);for(const el of document.querySelectorAll('img[data-rph]')){const ph=p.photos.find(x=>x.id===el.dataset.rph);const u=ph&&await photoBlob(ph,1000);if(u)el.src=u}}
+async function fillReportPhotos(){const p=P(V.pid);for(const el of document.querySelectorAll('img[data-rph]')){const ph=p.photos.find(x=>x.id===el.dataset.rph);const u=ph&&await photoBlob(ph,ph.kind==='plan'?2000:1000);if(u)el.src=u}}
 
 /* ===== eventos ===== */
 document.addEventListener('click',async e=>{const t=e.target.closest('[data-t],[data-act]');if(!t)return;
@@ -465,6 +656,7 @@ document.addEventListener('click',async e=>{const t=e.target.closest('[data-t],[
   const a=t.dataset.act,p=P(V.pid),r=R(p,V.rid),i=+t.dataset.i;
   if(t.tagName==='SELECT'||t.tagName==='INPUT')return;
   const armed=()=>{if(t.classList.contains('confirm'))return true;t.classList.add('confirm');const o=t.textContent;t.textContent='Toque de novo p/ confirmar';setTimeout(()=>{t.classList.remove('confirm');t.textContent=o},3000);return false};
+  if(a==='selD'&&e.target.closest('label,input,select,textarea'))return;
   switch(a){
     case'openP':return go({v:'project',pid:t.dataset.id});
     case'openR':return go({v:'room',pid:p.id,rid:t.dataset.id});
@@ -478,7 +670,18 @@ document.addEventListener('click',async e=>{const t=e.target.closest('[data-t],[
     case'backup':return exportBackup();
     case'btAll':return BT.connect(true);
     case'restore':return $('#filejs').click();
-    case'addPh':return $('#fileph').click();
+    case'addPh':LINK=null;return $('#fileph').click();
+    case'addPlan':return $('#fileplan').click();
+    case'pdfPg':return PDFP&&pdfPage(PDFP.doc,+t.dataset.k,PDFP.name);
+    case'edMode':ED.mode=t.dataset.k;PEND=null;return render();
+    case'zoom':return RT&&zoomAt(+t.dataset.k);
+    case'zoomFit':ED.z=1;return RT&&(applyT(),edDraw());
+    case'stOpen':ED.styleOpen=!ED.styleOpen;return render();
+    case'stCol':{const sh=p.photos.find(x=>x.id===V.phid);sh.style=Object.assign(stOf(sh),{color:t.dataset.c});save();return render()}
+    case'stDef':{const sh=p.photos.find(x=>x.id===V.phid);S.settings.style=stOf(sh);save();return toast('Estilo salvo como padrão')}
+    case'selD':return RT&&selectDim(i);
+    case'dCol':{const sh=p.photos.find(x=>x.id===V.phid);sh.dims[i].color=t.dataset.c||null;save();return render()}
+    case'dPh':{const sh=p.photos.find(x=>x.id===V.phid);LINK={sid:sh.id,did:sh.dims[i].id,rid:sh.rid};return $('#fileph').click()}
     case'delP':if(!armed())return;for(const f of p.photos)idb.del(f.id);S.projects=S.projects.filter(x=>x!==p);S.free=S.free.filter(f=>f.pid!==p.id);save();HIST.length=0;return go({v:'home'},false);
     case'delR':if(!armed())return;p.rooms=p.rooms.filter(x=>x!==r);save();return back();
     case'mode':r.mode=t.dataset.k;if(r.mode==='poly'&&!r.walls.some(w=>w.len>0)&&r.a&&r.b)r.walls=[{len:r.a,ang:90},{len:r.b,ang:90},{len:r.a,ang:90},{len:r.b,ang:90},{len:null,ang:90}];save();return render();
@@ -493,8 +696,9 @@ document.addEventListener('click',async e=>{const t=e.target.closest('[data-t],[
     case'copySum':{const c=calc(r);const s=`${r.name}\nPé-direito: ${nf(r.h,2)} m\nÁrea piso: ${nf(c.area,2)} m²\nPerímetro: ${nf(c.perim,2)} m\nParede bruta: ${nf(c.gross,2)} m²\nAberturas: ${nf(c.openA,2)} m²\nParede líquida: ${nf(c.net,2)} m²\nRodapé: ${nf(c.rodape,2)} m\nVolume: ${nf(c.vol,2)} m³`;
       try{await navigator.clipboard.writeText(s);toast('Resumo copiado')}catch(err){toast('Não consegui copiar')}return}
     case'phSave':{const ph=p.photos.find(x=>x.id===V.phid);const b=await photoBlob(ph);return b&&saveBlob(b,slug(p.name)+'_'+slug(ph.name)+'.jpg')}
-    case'delPh':{if(!armed())return;idb.del(V.phid);IMG.delete(V.phid);p.photos=p.photos.filter(x=>x.id!==V.phid);save();return back()}
-    case'delD':{const ph=p.photos.find(x=>x.id===V.phid);ph.dims.splice(i,1);save();target=null;return render()}
+    case'delPh':{if(!armed())return;const id=V.phid;idb.del(id);IMG.delete(id);p.photos=p.photos.filter(x=>x.id!==id);
+      for(const f of p.photos){for(const d of f.dims)if(d.ph)d.ph=d.ph.filter(x=>x!==id);if(f.link&&f.link.sid===id)delete f.link}save();return back()}
+    case'delD':{const ph=p.photos.find(x=>x.id===V.phid);const d=ph.dims[i];if(d&&d.id===ED.sel)ED.sel=null;ph.dims.splice(i,1);save();target=null;return render()}
   }});
 document.addEventListener('change',e=>{const t=e.target,a=t.dataset.act;if(!a&&!t.id)return;const p=P(V.pid),r=R(p,V.rid),i=+t.dataset.i;
   const ph=p&&p.photos.find(x=>x.id===V.phid);
@@ -510,8 +714,15 @@ document.addEventListener('change',e=>{const t=e.target,a=t.dataset.act;if(!a&&!
     case'phName':ph.name=t.value.trim()||ph.name;break;
     case'phRoom':ph.rid=t.value||null;break;
     case'dLbl':ph.dims[i].label=t.value;break;
+    case'dCat':ph.dims[i].cat=t.value;break;
+    case'lastCat':ED.lastCat=t.value;return;
+    case'dProj':ph.dims[i].proj=pn(t.value);if(ph.dims[i].ref&&!(ph.dims[i].proj>0))ph.dims[i].ref=false;break;
+    case'dRef':if(t.checked){if(!(ph.dims[i].proj>0)){t.checked=false;toast('Digite primeiro a medida do projeto desta cota');return}ph.dims.forEach((d,k)=>d.ref=k===i)}else ph.dims[i].ref=false;break;
     default:
       if(t.id==='sdec'){S.settings.dec=+t.value;break}
+      if(t.id==='stol'){S.settings.tol=Math.max(0,pn(t.value)||0);break}
+      if(['stLw','stFs','stFont','stColX','stOrtho'].includes(t.id)){const k={stLw:'lw',stFs:'fs',stFont:'font',stColX:'color',stOrtho:'ortho'}[t.id];ph.style=Object.assign(stOf(ph),{[k]:t.type==='checkbox'?t.checked:t.type==='range'?+t.value:t.value});break}
+      if(t.id==='fileplan'&&t.files[0]){addPlan(t.files[0]);t.value='';return}
       if(t.id==='smin'){S.settings.minOpen=Math.max(0,pn(t.value)||0);break}
       if(t.id==='fileph'&&t.files[0]){addPhoto(t.files[0]);t.value='';return}
       if(t.id==='filejs'&&t.files[0]){importBackup(t.files[0]);t.value='';return}
@@ -520,6 +731,7 @@ document.addEventListener('change',e=>{const t=e.target,a=t.dataset.act;if(!a&&!
 document.addEventListener('submit',e=>{e.preventDefault();const f=e.target.dataset.form;
   if(f==='newP'){const n=$('#np').value.trim();if(!n)return;const p={id:uid(),name:n,created:Date.now(),rooms:[],photos:[]};S.projects.unshift(p);save();go({v:'project',pid:p.id})}
   if(f==='newR'){const n=$('#nr').value.trim();if(!n)return;const p=P(V.pid),r=newRoom(n);p.rooms.push(r);save();go({v:'room',pid:p.id,rid:r.id});target='h';render()}});
+document.addEventListener('input',e=>{const t=e.target;if(!RT||!['stLw','stFs'].includes(t.id))return;const sh=RT.sh;sh.style=Object.assign(stOf(sh),{[t.id==='stLw'?'lw':'fs']:+t.value});t.nextElementSibling.textContent=t.value;edDraw()});
 $('#bt').onclick=()=>BT.state==='on'?BT.disconnect():BT.state==='off'&&BT.connect();
 const manGo=()=>{const v=pn($('#man').value);if(v==null||v<=0){toast('Digite um valor em metros, ex.: 2,35');return}$('#man').value='';reading(v,false)};
 $('#manok').onclick=manGo;$('#man').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();manGo()}});
