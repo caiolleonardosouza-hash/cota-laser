@@ -290,6 +290,7 @@ async function pdfPage(doc,n,name){toast('Renderizando página '+n+'…');const 
   const sh=await addSheet(c.toDataURL('image/png'),'plan',{name:name.replace(/\.[^.]+$/,'')+(doc.numPages>1?' p'+n:'')});go({v:'photo',pid:V.pid,phid:sh.id})}
 
 function dimText(sh,d){const dec=S.settings.dec>2?3:2,isPlan=sh.kind==='plan';
+  if(stOf(sh).txt==='num'){const v=d.val!=null?d.val:isPlan?projOf(sh,d):null;return{l1:v==null?'?':nf(v,dec),l2:null,ok:null}}
   const l1=(d.label?d.label+'  ':isPlan&&d.cat&&d.cat!=='outro'?CATS[d.cat]+'  ':'')+(d.val!=null?nf(d.val,dec)+' m':isPlan&&projOf(sh,d)!=null?'proj. '+nf(projOf(sh,d),dec)+' m':'? m');
   let l2=null,ok=null;
   if(isPlan){const p=projOf(sh,d),dc=deltaCm(sh,d);
@@ -313,12 +314,14 @@ function drawSheet(ctx,im,sh,o={}){const W=sh.w||im.width,H=sh.h||im.height,st=s
     const ex=d.x2-d.x1,ey=d.y2-d.y1,L=Math.hypot(ex,ey)||1,ux=ex/L,uy=ey/L;
     ctx.lineCap='round';ctx.lineJoin='round';
     if(o.thin===i){ctx.setLineDash([]);ctx.lineWidth=o.thinW;ctx.strokeStyle=col;ctx.beginPath();ctx.moveTo(d.x1,d.y1);ctx.lineTo(d.x2,d.y2);ctx.stroke();return}
-    const dash=d.ref||st.dash==='dash';
+    const dash=d.ref||st.dash==='dash',noLine=d.hide||(st.line==='hide'&&!d.show);
+    if(noLine&&sel&&o.k){ctx.strokeStyle=col;ctx.globalAlpha=0.6;ctx.lineWidth=Math.max(1,lw*0.5);ctx.setLineDash([4*u,4*u]);ctx.beginPath();ctx.moveTo(d.x1,d.y1);ctx.lineTo(d.x2,d.y2);ctx.stroke();ctx.setLineDash([]);ctx.globalAlpha=1}
+    if(!noLine){
     const ek=st.end||'tick';
     for(const[c,w,halo]of[['rgba(0,0,0,.6)',lw+2*u,true],[col,lw,false]]){ctx.strokeStyle=c;
       ctx.lineWidth=w;ctx.setLineDash(dash?[4*lw+5*u,3*lw+4*u]:[]);ctx.beginPath();ctx.moveTo(d.x1,d.y1);ctx.lineTo(d.x2,d.y2);ctx.stroke();ctx.setLineDash([]);
       ctx.lineWidth=(halo&&(ek==='arrow'||ek==='dot'))?Math.max(1,2*u):w;
-      drawEnd(ctx,ek,d.x1,d.y1,-ux,-uy,lw,u,c,halo);drawEnd(ctx,ek,d.x2,d.y2,ux,uy,lw,u,c,halo)}
+      drawEnd(ctx,ek,d.x1,d.y1,-ux,-uy,lw,u,c,halo);drawEnd(ctx,ek,d.x2,d.y2,ux,uy,lw,u,c,halo)}}
     /* texto */
     const t=dimText(sh,d),f2=fs*0.72;ctx.font=`700 ${fs}px ${FF}`;let tw=ctx.measureText(t.l1).width;
     if(t.l2){ctx.font=`600 ${f2}px ${FF}`;tw=Math.max(tw,ctx.measureText(t.l2).width)}
@@ -330,9 +333,10 @@ function drawSheet(ctx,im,sh,o={}){const W=sh.w||im.width,H=sh.h||im.height,st=s
       const off=Math.abs(n[0])*ew/2+Math.abs(n[1])*eh/2+lw+Math.max(5*lw,7*u)*0.4;cx=mx+n[0]*off;cy=my+n[1]*off;
       cx=Math.min(W-ew/2-2,Math.max(ew/2+2,cx));cy=Math.min(H-eh/2-2,Math.max(eh/2+2,cy))}
     if(d.lo){const tt=Math.max(0,Math.min(1,((cx-d.x1)*ex+(cy-d.y1)*ey)/(L*L))),qx=d.x1+tt*ex,qy=d.y1+tt*ey;
-      if(Math.hypot(cx-qx,cy-qy)>bh*0.8){ctx.strokeStyle=col;ctx.lineWidth=Math.max(0.8*k,lw*0.5);ctx.setLineDash([3*u,2*u]);ctx.beginPath();ctx.moveTo(cx,cy);ctx.lineTo(qx,qy);ctx.stroke();ctx.setLineDash([])}}
+      if(!noLine&&Math.hypot(cx-qx,cy-qy)>bh*0.8){ctx.strokeStyle=col;ctx.lineWidth=Math.max(0.8*k,lw*0.5);ctx.setLineDash([3*u,2*u]);ctx.beginPath();ctx.moveTo(cx,cy);ctx.lineTo(qx,qy);ctx.stroke();ctx.setLineDash([])}}
     ctx.save();ctx.translate(cx,cy);ctx.rotate(a);
     const bg=st.bg||'box',tc=bg==='light'?'#111':col;
+    if(bg==='plain'){}
     if(bg==='box'){ctx.fillStyle='rgba(0,0,0,.8)';ctx.fillRect(-bw/2,-bh/2,bw,bh)}
     if(bg==='light'){ctx.fillStyle='rgba(255,255,255,.92)';ctx.fillRect(-bw/2,-bh/2,bw,bh);ctx.strokeStyle=col;ctx.lineWidth=Math.max(0.8*k,u);ctx.strokeRect(-bw/2,-bh/2,bw,bh)}
     if(sel){ctx.strokeStyle='#fff';ctx.lineWidth=Math.max(1*k,1.5*u);ctx.setLineDash([4*k,3*k]);ctx.strokeRect(-bw/2-2*k,-bh/2-2*k,bw+4*k,bh+4*k);ctx.setLineDash([])}
@@ -563,8 +567,10 @@ function vPhoto(p,ph){const isPlan=ph.kind==='plan',st=stOf(ph),dec=S.settings.d
     <label class="row"><span style="width:110px">Fonte</span><select id="stFont" class="grow">${[['mono','Mono (técnica)'],['sans','Barlow'],['cond','Condensada'],['arial','Arial']].map(([k,n])=>`<option value="${k}"${st.font===k?' selected':''}>${n}</option>`).join('')}</select></label>
     <div class="row"><span style="width:110px">Cor padrão</span>${COLORS.map(c=>`<button type="button" class="chip${st.color===c?' on':''}" style="background:${c}" data-act="stCol" data-c="${c}" aria-label="cor ${c}"></button>`).join('')}<input type="color" id="stColX" value="${st.color}" aria-label="outra cor"></div>
     <label class="row"><span style="width:110px">Ponta da cota</span><select id="stEnd" class="grow">${[['tick','Traço'],['slash','Barra 45° (arquitetura)'],['arrow','Seta'],['dot','Ponto']].map(([k,n])=>`<option value="${k}"${(st.end||'tick')===k?' selected':''}>${n}</option>`).join('')}</select></label>
+    <label class="row"><span style="width:110px">Texto mostra</span><select id="stTxt" class="grow"><option value="full"${st.txt!=='num'?' selected':''}>Descrição + medida (+ projeto/Δ)</option><option value="num"${st.txt==='num'?' selected':''}>Só o número</option></select></label>
+    <label class="row"><span style="width:110px">Traço da cota</span><select id="stLine" class="grow"><option value="show"${st.line!=='hide'?' selected':''}>Mostrar</option><option value="hide"${st.line==='hide'?' selected':''}>Ocultar (só texto)</option></select></label>
     <label class="row"><span style="width:110px">Linha</span><select id="stDash" class="grow"><option value="solid"${st.dash!=='dash'?' selected':''}>Contínua</option><option value="dash"${st.dash==='dash'?' selected':''}>Tracejada</option></select></label>
-    <label class="row"><span style="width:110px">Fundo do texto</span><select id="stBg" class="grow">${[['box','Caixa escura'],['light','Caixa clara'],['none','Sem caixa (contorno)']].map(([k,n])=>`<option value="${k}"${(st.bg||'box')===k?' selected':''}>${n}</option>`).join('')}</select></label>
+    <label class="row"><span style="width:110px">Fundo do texto</span><select id="stBg" class="grow">${[['box','Caixa escura'],['light','Caixa clara'],['none','Sem caixa, com contorno'],['plain','Só o texto (sem caixa nem contorno)']].map(([k,n])=>`<option value="${k}"${(st.bg||'box')===k?' selected':''}>${n}</option>`).join('')}</select></label>
     <label class="row"><input type="checkbox" id="stOrtho"${st.ortho?' checked':''}> <span class="grow">Travar na horizontal/vertical automaticamente (até 6°)</span></label>
     <button class="btn sm" data-act="stDef" type="button">Usar este estilo como padrão nas novas fotos/plantas</button></div>`;
   if(isPlan){const sc=sheetScale(ph);
@@ -582,7 +588,7 @@ function vPhoto(p,ph){const isPlan=ph.kind==='plan',st=stOf(ph),dec=S.settings.d
       <div class="row">${isPlan?`<label class="mf" style="cursor:text"><span class="mfl">Projeto</span><input class="pin num" data-act="dProj" data-i="${i}" inputmode="decimal" value="${d.proj!=null?nf(d.proj,dec):''}" placeholder="${projOf(ph,d)!=null&&d.proj==null?nf(projOf(ph,d),dec)+' (escala)':'digite'}"></label>`:''}
       ${F('d:'+ph.id+':'+i,isPlan?'Real (trena)':'Medida',d.val,v=>ph.dims[i].val=v)}
       ${isPlan&&dc!=null?`<span class="pill ${ok?'ok':'bad'}">Δ ${(dc>0?'+':'')+nf(dc,1)} cm</span>`:''}</div>
-      ${sel?`<div class="row"><span class="hint">Texto:</span><button type="button" class="btn sm${!d.la?' pri':''}" data-act="dTxt" data-i="${i}" data-k="h">Horizontal</button><button type="button" class="btn sm${d.la==='line'?' pri':''}" data-act="dTxt" data-i="${i}" data-k="line">Alinhado à cota</button><button type="button" class="btn sm" data-act="dTxt" data-i="${i}" data-k="reset">Posição automática</button></div>`:''}
+      ${sel?`<div class="row"><span class="hint">Texto:</span><button type="button" class="btn sm${!d.la?' pri':''}" data-act="dTxt" data-i="${i}" data-k="h">Horizontal</button><button type="button" class="btn sm${d.la==='line'?' pri':''}" data-act="dTxt" data-i="${i}" data-k="line">Alinhado à cota</button><button type="button" class="btn sm" data-act="dTxt" data-i="${i}" data-k="reset">Posição automática</button><button type="button" class="btn sm${d.hide?' pri':''}" data-act="dHide" data-i="${i}">${d.hide?'Mostrar traço':'Ocultar traço'}</button></div>`:''}
       ${sel?`<div class="row">${COLORS.map(c=>`<button type="button" class="chip${d.color===c?' on':''}" style="background:${c}" data-act="dCol" data-i="${i}" data-c="${c}" aria-label="cor"></button>`).join('')}<button type="button" class="btn sm" data-act="dCol" data-i="${i}" data-c="">padrão</button></div>`:''}
       ${isPlan?`<div class="row"><label class="row"><input type="checkbox" data-act="dRef" data-i="${i}"${d.ref?' checked':''}> Usar como escala</label><span class="grow"></span><button class="btn sm" data-act="dPh" data-i="${i}" type="button">+ Foto da parede</button></div>
       ${(d.ph||[]).length?`<div class="minis">${d.ph.map(id=>{const f=p.photos.find(x=>x.id===id);return f?`<button class="mini" data-act="openPh" data-id="${id}" type="button"><img data-ph="${id}" alt="${esc(f.name)}"></button>`:''}).join('')}</div>`:''}`:''}</div>`});
@@ -598,11 +604,12 @@ function clampXY(){const R=RT;if(!R)return;const sw=R.stage.clientWidth,shh=R.st
   ED.X=dw>sw?Math.min(0,Math.max(sw-dw,ED.X)):(sw-dw)/2;ED.Y=dh>shh?Math.min(0,Math.max(shh-dh,ED.Y)):(shh-dh)/2}
 function applyT(){if(!RT)return;clampXY();RT.cv.style.transform=`translate(${ED.X}px,${ED.Y}px) scale(${ED.z})`}
 function toImg(e){const r=RT.stage.getBoundingClientRect();return{x:(e.clientX-r.left-ED.X)/sc(),y:(e.clientY-r.top-ED.Y)/sc()}}
-function edDraw(){const R=RT;if(!R)return;const o={sel:ED.sel,pend:PEND,hr:12/sc(),k:1/ED.z};
+const edK=()=>1000/(Math.max(RT.sh.w,RT.sh.h)*sc());
+function edDraw(){const R=RT;if(!R)return;const o={sel:ED.sel,pend:PEND,hr:12/sc(),k:edK()};
   const thin=R.drag&&['h','new'].includes(R.drag.type)&&R.drag.moved;if(thin){o.thin=R.drag.i;o.thinW=1.4/sc()}
   if(R.base&&R.drag){R.ctx.drawImage(R.base,0,0);drawSheet(R.ctx,R.im,R.sh,Object.assign(o,{noImg:true,only:R.drag.i}))}else drawSheet(R.ctx,R.im,R.sh,o)}
 function sched(){if(RT&&!RT.raf)RT.raf=requestAnimationFrame(()=>{RT.raf=0;edDraw();if(RT.lp)loupe(RT.lp)})}
-function buildBase(i){const R=RT,c=document.createElement('canvas');c.width=R.sh.w;c.height=R.sh.h;drawSheet(c.getContext('2d'),R.im,R.sh,{skip:i,sel:null,k:1/ED.z});R.base=c}
+function buildBase(i){const R=RT,c=document.createElement('canvas');c.width=R.sh.w;c.height=R.sh.h;drawSheet(c.getContext('2d'),R.im,R.sh,{skip:i,sel:null,k:edK()});R.base=c}
 function loupe(lp){const L=$('#loupe'),dpr=window.devicePixelRatio||1,S0=160;L.hidden=false;
   if(L.width!==S0*dpr){L.width=S0*dpr;L.height=S0*dpr}
   let top=lp.cy-S0-70;if(top<8)top=lp.cy+50;L.style.left=Math.min(window.innerWidth-S0-6,Math.max(6,lp.cx-S0/2))+'px';L.style.top=top+'px';
@@ -728,6 +735,7 @@ document.addEventListener('click',async e=>{const t=e.target.closest('[data-t],[
     case'stDef':{const sh=p.photos.find(x=>x.id===V.phid);S.settings.style=stOf(sh);save();return toast('Estilo salvo como padrão')}
     case'selD':return RT&&selectDim(i);
     case'dTxt':{const sh=p.photos.find(x=>x.id===V.phid),d=sh.dims[i],k=t.dataset.k;if(k==='h')d.la=null;if(k==='line')d.la='line';if(k==='reset'){d.lo=null}save();return render()}
+    case'dHide':{const sh=p.photos.find(x=>x.id===V.phid);sh.dims[i].hide=!sh.dims[i].hide;save();return render()}
     case'dCol':{const sh=p.photos.find(x=>x.id===V.phid);sh.dims[i].color=t.dataset.c||null;save();return render()}
     case'dPh':{const sh=p.photos.find(x=>x.id===V.phid);LINK={sid:sh.id,did:sh.dims[i].id,rid:sh.rid};return $('#fileph').click()}
     case'delP':if(!armed())return;for(const f of p.photos)idb.del(f.id);S.projects=S.projects.filter(x=>x!==p);S.free=S.free.filter(f=>f.pid!==p.id);save();HIST.length=0;return go({v:'home'},false);
@@ -769,7 +777,7 @@ document.addEventListener('change',e=>{const t=e.target,a=t.dataset.act;if(!a&&!
     default:
       if(t.id==='sdec'){S.settings.dec=+t.value;break}
       if(t.id==='stol'){S.settings.tol=Math.max(0,pn(t.value)||0);break}
-      if(['stLw','stFs','stFont','stColX','stOrtho','stEnd','stDash','stBg'].includes(t.id)){const k={stLw:'lw',stFs:'fs',stFont:'font',stColX:'color',stOrtho:'ortho',stEnd:'end',stDash:'dash',stBg:'bg'}[t.id];ph.style=Object.assign(stOf(ph),{[k]:t.type==='checkbox'?t.checked:t.type==='range'?+t.value:t.value});break}
+      if(['stLw','stFs','stFont','stColX','stOrtho','stEnd','stDash','stBg','stTxt','stLine'].includes(t.id)){const k={stLw:'lw',stFs:'fs',stFont:'font',stColX:'color',stOrtho:'ortho',stEnd:'end',stDash:'dash',stBg:'bg',stTxt:'txt',stLine:'line'}[t.id];ph.style=Object.assign(stOf(ph),{[k]:t.type==='checkbox'?t.checked:t.type==='range'?+t.value:t.value});break}
       if(t.id==='fileplan'&&t.files[0]){addPlan(t.files[0]);t.value='';return}
       if(t.id==='smin'){S.settings.minOpen=Math.max(0,pn(t.value)||0);break}
       if(t.id==='fileph'&&t.files[0]){addPhoto(t.files[0]);t.value='';return}
