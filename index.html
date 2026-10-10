@@ -1,0 +1,530 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Cota Laser</title>
+<meta name="theme-color" content="#1d57c9">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&family=JetBrains+Mono:wght@500;700&display=swap">
+<style>
+/* Layout: canteiro — lista de obras > cômodo com abas; leitor da trena fixo no rodapé, sempre à mão */
+:root{
+  --bg:#e9ece8; --surface:#f7f8f5; --sunk:#dfe3de; --ink:#19201d; --muted:#5b6661; --line:#c4cbc5;
+  --accent:#1d57c9; --accent-ink:#ffffff; --laser:#c9321b; --ok:#2b7a4b; --warn:#a86300;
+  --lcd:#d7e2cf; --lcd-ink:#17240f;
+  --f-disp:"Barlow Condensed","Arial Narrow",Arial,sans-serif;
+  --f-body:"Barlow",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --f-num:"JetBrains Mono",ui-monospace,"Roboto Mono",Menlo,monospace;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#121614; --surface:#1b201e; --sunk:#0d100f; --ink:#e4e9e5; --muted:#97a29d; --line:#323a36;
+  --accent:#6d98ff; --accent-ink:#0b1430; --laser:#ff6a50; --ok:#5cc489; --warn:#f0a83a;
+  --lcd:#1f2a1b; --lcd-ink:#c8f0a8; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#121614; --surface:#1b201e; --sunk:#0d100f; --ink:#e4e9e5; --muted:#97a29d; --line:#323a36;
+  --accent:#6d98ff; --accent-ink:#0b1430; --laser:#ff6a50; --ok:#5cc489; --warn:#f0a83a;
+  --lcd:#1f2a1b; --lcd-ink:#c8f0a8; color-scheme:dark}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 var(--f-body);-webkit-tap-highlight-color:transparent}
+button,input,select{font:inherit;color:inherit}
+[hidden]{display:none!important}
+.wrap{max-width:760px;margin:0 auto;padding-inline:16px;padding-block:0 210px}
+header.top{position:sticky;top:0;z-index:5;background:var(--bg);border-bottom:1px solid var(--line);
+  padding:calc(env(safe-area-inset-top,0px) + 10px) 16px 10px;display:flex;align-items:center;gap:10px}
+header.top h1{font:700 22px/1.1 var(--f-disp);letter-spacing:.02em;margin:0;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-transform:uppercase}
+.back{border:1px solid var(--line);background:var(--surface);border-radius:8px;width:40px;height:40px;font-size:20px;cursor:pointer}
+h2{font:600 18px/1.2 var(--f-disp);text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:22px 0 10px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px}
+.list{display:grid;gap:8px}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.grow{flex:1;min-width:0}
+.btn{border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:9px 14px;cursor:pointer;font-weight:600}
+.btn.pri{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn.sm{padding:6px 10px;font-size:13px}
+.btn.del{color:var(--laser)}
+.btn.arm{background:var(--laser);border-color:var(--laser);color:#fff}
+.btn:focus-visible,.mf:focus-visible,select:focus-visible,input:focus-visible,.tab:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+input.txt,select{border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:9px 10px;min-width:0}
+input.txt{width:100%}
+.tabs{display:flex;gap:4px;overflow-x:auto;margin:12px 0 4px;border-bottom:1px solid var(--line)}
+.tab{border:0;background:none;padding:10px 12px;font:600 15px var(--f-disp);text-transform:uppercase;letter-spacing:.06em;color:var(--muted);border-bottom:3px solid transparent;cursor:pointer;white-space:nowrap}
+.tab.on{color:var(--ink);border-bottom-color:var(--accent)}
+.item{display:flex;align-items:center;gap:12px;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:12px 14px;cursor:pointer;text-align:left;width:100%}
+.item b{font:600 17px var(--f-disp);letter-spacing:.02em}
+.item .sub{color:var(--muted);font-size:13px}
+.num{font-family:var(--f-num);font-variant-numeric:tabular-nums}
+/* campo de medida */
+.mf{display:flex;flex-direction:column;align-items:flex-start;gap:0;border:1.5px solid var(--line);background:var(--surface);border-radius:8px;padding:5px 10px;min-width:92px;cursor:pointer;text-align:left}
+.mf .mfl{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+.mf .mfv{font:700 17px var(--f-num);font-variant-numeric:tabular-nums}
+.mf.empty .mfv{color:var(--muted)}
+.mf.on{border-color:var(--laser);box-shadow:0 0 0 3px color-mix(in srgb,var(--laser) 22%,transparent)}
+.mf.on .mfl{color:var(--laser)}
+.wall{display:grid;grid-template-columns:auto 1fr auto;gap:8px;align-items:center;padding:8px 0;border-bottom:1px dashed var(--line)}
+.wall:last-child{border-bottom:0}
+.tag{font:700 13px var(--f-num);background:var(--sunk);border-radius:6px;padding:4px 7px;min-width:36px;text-align:center}
+.kv{display:grid;grid-template-columns:1fr auto;gap:6px 14px}
+.kv dt{color:var(--muted)}
+.kv dd{margin:0;text-align:right;font-family:var(--f-num);font-variant-numeric:tabular-nums;font-weight:700}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px}
+.stat{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+.stat small{display:block;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.06em}
+.stat b{font:700 20px var(--f-num)}
+.stat b i{font-style:normal;font-size:12px;color:var(--muted);margin-left:3px}
+.hint{color:var(--muted);font-size:13px;margin:6px 0}
+.warnbox{border-left:4px solid var(--warn);background:color-mix(in srgb,var(--warn) 12%,var(--surface));padding:8px 12px;border-radius:6px;font-size:13px}
+.okbox{border-left:4px solid var(--ok);background:color-mix(in srgb,var(--ok) 12%,var(--surface));padding:8px 12px;border-radius:6px;font-size:13px}
+.plan{background:var(--surface);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.plan svg{display:block;width:100%;height:auto}
+.plan-empty{padding:30px 16px;text-align:center;color:var(--muted)}
+.tbl{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th,td{border-bottom:1px solid var(--line);padding:6px 8px;text-align:right;white-space:nowrap}
+th:first-child,td:first-child{text-align:left}
+th{font:600 12px var(--f-disp);text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+td{font-family:var(--f-num);font-variant-numeric:tabular-nums}
+td:first-child{font-family:var(--f-body)}
+tfoot td{font-weight:700}
+.thumbs{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
+.thumb{border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--surface);cursor:pointer;padding:0;text-align:left}
+.thumb img{display:block;width:100%;aspect-ratio:4/3;object-fit:cover;background:var(--sunk)}
+.thumb span{display:block;padding:6px 8px;font-size:13px}
+canvas#ph{width:100%;height:auto;display:block;border-radius:10px;background:var(--sunk);touch-action:manipulation}
+.confirm{color:#fff!important;background:var(--laser)!important;border-color:var(--laser)!important}
+/* leitor da trena */
+#dock{position:fixed;left:0;right:0;bottom:0;z-index:10;background:var(--surface);border-top:2px solid var(--ink);
+  padding:10px 16px calc(env(safe-area-inset-bottom,0px) + 10px)}
+#dock .in{max-width:760px;margin:0 auto;display:grid;grid-template-columns:1fr auto;gap:8px 10px;align-items:center}
+.lcd{background:var(--lcd);color:var(--lcd-ink);border-radius:8px;padding:6px 12px;display:flex;align-items:baseline;gap:8px;min-width:0}
+.lcd #rv{font:700 32px/1.1 var(--f-num);font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.lcd small{font:600 14px var(--f-num)}
+.lcd.flash{animation:fl .5s}
+@keyframes fl{0%{background:var(--laser);color:#fff}100%{}}
+.dot{width:10px;height:10px;border-radius:50%;background:var(--muted);flex:none;align-self:center}
+.dot.on{background:var(--ok);box-shadow:0 0 0 3px color-mix(in srgb,var(--ok) 25%,transparent)}
+.dot.busy{background:var(--warn)}
+#tgt{grid-column:1/-1;font-size:13px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#tgt b{color:var(--laser)}
+.man{grid-column:1/-1;display:flex;gap:6px}
+.man input{flex:1;min-width:0}
+#toast{position:fixed;left:50%;transform:translateX(-50%);bottom:190px;background:var(--ink);color:var(--bg);padding:8px 14px;border-radius:8px;font-size:14px;z-index:20;max-width:90vw}
+details summary{cursor:pointer;font-weight:600}
+pre.log{font:11px/1.4 var(--f-num);background:var(--sunk);padding:8px;border-radius:6px;overflow-x:auto;max-height:200px}
+@media (prefers-reduced-motion:reduce){.lcd.flash{animation:none}}
+/* relatório / impressão */
+.rep h1{font:700 26px var(--f-disp);text-transform:uppercase;margin:16px 0 2px}
+.rep .room{break-inside:avoid;margin-top:18px}
+.rep .room h3{font:600 18px var(--f-disp);text-transform:uppercase;margin:0 0 6px;border-bottom:2px solid var(--ink)}
+.rep .two{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media (max-width:560px){.rep .two{grid-template-columns:1fr}}
+.rep img{width:100%;border-radius:6px;border:1px solid var(--line)}
+@media print{
+  :root{--bg:#fff;--surface:#fff;--ink:#000;--muted:#444;--line:#999;color-scheme:light}
+  header.top,#dock,.noprint,#toast{display:none!important}
+  .wrap{padding:0;max-width:none}
+}
+</style>
+</head>
+<body>
+<header class="top"><button class="back" id="back" type="button" aria-label="Voltar" hidden>‹</button><h1 id="ttl">Cota Laser</h1></header>
+<main class="wrap" id="app"></main>
+
+<div id="dock">
+  <div class="in">
+    <div class="lcd" id="lcd"><span class="dot" id="dot"></span><span id="rv">—</span><small>m</small></div>
+    <button class="btn pri" id="bt" type="button">Conectar trena</button>
+    <div id="tgt">Toque num campo de medida para receber a leitura</div>
+    <div class="man"><input class="txt num" id="man" inputmode="decimal" placeholder="ou digite a medida (m)" autocomplete="off"><button class="btn" id="manok" type="button">OK</button></div>
+  </div>
+</div>
+<div id="toast" hidden></div>
+<input type="file" id="fileph" accept="image/*" capture="environment" hidden>
+<input type="file" id="filejs" accept="application/json,.json" hidden>
+
+<script>
+'use strict';
+/* ===== utilidades ===== */
+const $=(s,r=document)=>r.querySelector(s);
+const uid=()=>Math.random().toString(36).slice(2,8)+Date.now().toString(36).slice(-5);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const nf=(n,d=2)=>(n==null||!isFinite(n))?'—':n.toLocaleString('pt-BR',{minimumFractionDigits:d,maximumFractionDigits:d});
+const pn=s=>{if(s==null)return null;s=String(s).trim().replace(/\s/g,'').replace(',','.');if(s==='')return null;const v=parseFloat(s);return isFinite(v)?v:null};
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+let toastT;function toast(m){const t=$('#toast');t.textContent=m;t.hidden=false;clearTimeout(toastT);toastT=setTimeout(()=>t.hidden=true,2600)}
+
+/* ===== dados ===== */
+const KEY='cotalaser.v1';
+let S;
+function load(){try{S=JSON.parse(localStorage.getItem(KEY))}catch(e){S=null}
+  if(!S||!Array.isArray(S.projects)){S={projects:[],free:[],settings:{minOpen:0,dec:3}};seed()}
+  S.free=S.free||[];S.settings=Object.assign({minOpen:0,dec:3},S.settings||{})}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){toast('Não consegui salvar no aparelho (memória cheia?)')}}
+function newRoom(name){return{id:uid(),name,mode:'rect',a:null,b:null,h:null,walls:[{len:null,ang:90}],openings:[],objects:[]}}
+function seed(){const r=newRoom('Sala (exemplo)');r.a=4.2;r.b=3.1;r.h=2.7;
+  r.openings=[{id:uid(),t:'porta',w:0.8,h:2.1,q:1,wall:0},{id:uid(),t:'janela',w:1.5,h:1.2,q:1,wall:1}];
+  const r2=newRoom('Quarto em L (exemplo)');r2.mode='poly';r2.h=2.6;
+  r2.walls=[{len:4,ang:90},{len:3.5,ang:90},{len:1.5,ang:-90},{len:1,ang:90},{len:2.5,ang:90},{len:4.5,ang:90},{len:null,ang:90}];
+  S.projects.push({id:uid(),name:'Obra exemplo — apague quando quiser',created:Date.now(),rooms:[r,r2],photos:[]});save()}
+const P=id=>S.projects.find(p=>p.id===id);
+const R=(p,id)=>p&&p.rooms.find(r=>r.id===id);
+
+/* ===== geometria ===== */
+function walls(r){if(r.mode==='rect')return(r.a>0&&r.b>0)?[{len:r.a,ang:90},{len:r.b,ang:90},{len:r.a,ang:90},{len:r.b,ang:90}]:[];
+  return r.walls.filter(w=>w.len>0)}
+function geom(r){const ws=walls(r);let x=0,y=0,h=0;const v=[[0,0]];
+  for(const w of ws){x+=w.len*Math.cos(h*Math.PI/180);y+=w.len*Math.sin(h*Math.PI/180);v.push([x,y]);h+=(+w.ang||0)}
+  let a=0;for(let i=0;i<v.length;i++){const[p,q]=[v[i],v[(i+1)%v.length]];a+=p[0]*q[1]-q[0]*p[1]}
+  const err=ws.length?Math.hypot(x,y):0;
+  return{ws,v,area:ws.length>=3?Math.abs(a)/2:0,err}}
+function calc(r){const g=geom(r),H=r.h||0,min=+S.settings.minOpen||0;
+  const perim=g.ws.reduce((s,w)=>s+w.len,0);let openA=0,ded=0,passW=0;
+  for(const o of r.openings){const a=(o.w||0)*(o.h||0),q=o.q||1;openA+=a*q;if(a>min)ded+=a*q;if(o.t!=='janela')passW+=(o.w||0)*q}
+  const gross=perim*H;let objA=0,objV=0;for(const o of r.objects){objA+=(o.a||0)*(o.b||0);objV+=(o.a||0)*(o.b||0)*(o.c||0)}
+  return{g,perim,area:r.mode==='rect'?(r.a||0)*(r.b||0):g.area,H,gross,openA,ded,net:Math.max(0,gross-ded),rodape:Math.max(0,perim-passW),vol:(r.mode==='rect'?(r.a||0)*(r.b||0):g.area)*H,objA,objV}}
+function totals(p){const t={area:0,perim:0,gross:0,openA:0,net:0,rodape:0,vol:0};for(const r of p.rooms){const c=calc(r);for(const k in t)t[k]+=c[k]}return t}
+
+/* ===== planta (SVG) ===== */
+function planSVG(r,{W=360,H=270,exp=false}={}){
+  const g=geom(r);if(g.ws.length<1)return'';
+  const C=exp?{bg:'#ffffff',fill:'#e8eef9',wall:'#19201d',txt:'#19201d',mut:'#5b6661',acc:'#c9321b',err:'#c9321b'}
+            :{bg:'var(--surface)',fill:'color-mix(in srgb,var(--accent) 10%,transparent)',wall:'var(--ink)',txt:'var(--ink)',mut:'var(--muted)',acc:'var(--laser)',err:'var(--laser)'};
+  const pts=g.v.map(([x,y])=>[x,-y]);const xs=pts.map(p=>p[0]),ys=pts.map(p=>p[1]);
+  const mnx=Math.min(...xs),mxx=Math.max(...xs),mny=Math.min(...ys),mxy=Math.max(...ys);const pad=48;
+  const s=Math.min((W-2*pad)/((mxx-mnx)||1),(H-2*pad)/((mxy-mny)||1));
+  const ox=(W-(mxx-mnx)*s)/2,oy=(H-(mxy-mny)*s)/2;
+  const T=([x,y])=>[ox+(x-mnx)*s,oy+(y-mny)*s];const sp=pts.map(T);
+  let sa=0;for(let i=0;i<sp.length-1;i++)sa+=sp[i][0]*sp[i+1][1]-sp[i+1][0]*sp[i][1];
+  const closed=g.err<0.02&&g.ws.length>=3;
+  const poly=(closed?sp.slice(0,-1):sp).map(p=>p.map(n=>n.toFixed(1)).join(',')).join(' ');
+  const font='font-family="Barlow,Arial,sans-serif"';
+  let o=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" ${font}><rect width="${W}" height="${H}" fill="${C.bg}"/>`;
+  if(closed)o+=`<polygon points="${poly}" fill="${C.fill}" stroke="${C.wall}" stroke-width="3" stroke-linejoin="round"/>`;
+  else{o+=`<polyline points="${poly}" fill="none" stroke="${C.wall}" stroke-width="3" stroke-linejoin="round"/>`;
+    if(g.ws.length>=2){const a=sp[sp.length-1],b=sp[0];o+=`<line x1="${a[0]}" y1="${a[1]}" x2="${b[0]}" y2="${b[1]}" stroke="${C.err}" stroke-width="1.5" stroke-dasharray="5 4"/>`}}
+  g.ws.forEach((w,i)=>{const a=sp[i],b=sp[i+1],ex=b[0]-a[0],ey=b[1]-a[1],L=Math.hypot(ex,ey)||1;
+    const n=sa>0?[ey/L,-ex/L]:[-ey/L,ex/L];const mx=(a[0]+b[0])/2+n[0]*8,my=(a[1]+b[1])/2+n[1]*10;
+    const anc=n[0]>0.5?'start':n[0]<-0.5?'end':'middle';const ix=(a[0]+b[0])/2-n[0]*12,iy=(a[1]+b[1])/2-n[1]*12;
+    o+=`<text x="${mx.toFixed(1)}" y="${(my+4).toFixed(1)}" text-anchor="${anc}" font-size="12" font-weight="700" fill="${C.txt}">${nf(w.len,2)}</text>`;
+    o+=`<text x="${ix.toFixed(1)}" y="${(iy+3).toFixed(1)}" text-anchor="middle" font-size="9" fill="${C.mut}">P${i+1}</text>`;
+    r.openings.filter(op=>op.wall===i&&op.w>0).forEach((op,k,arr)=>{const f=Math.min(1,op.w/w.len);const c=(k+1)/(arr.length+1);
+      const t0=Math.max(0,c-f/2),t1=Math.min(1,c+f/2);
+      o+=`<line x1="${(a[0]+ex*t0).toFixed(1)}" y1="${(a[1]+ey*t0).toFixed(1)}" x2="${(a[0]+ex*t1).toFixed(1)}" y2="${(a[1]+ey*t1).toFixed(1)}" stroke="${C.acc}" stroke-width="6"/>`;
+      const lx=a[0]+ex*c-n[0]*12,ly=a[1]+ey*c-n[1]*12;
+      o+=`<text x="${lx.toFixed(1)}" y="${(ly+3).toFixed(1)}" text-anchor="middle" font-size="9" font-weight="700" fill="${C.acc}">${op.t==='porta'?'PT':op.t==='janela'?'JA':'VÃ'}</text>`})});
+  const c=calc(r);
+  if(closed){const cx=sp.slice(0,-1).reduce((s,p)=>s+p[0],0)/(sp.length-1),cy=sp.slice(0,-1).reduce((s,p)=>s+p[1],0)/(sp.length-1);
+    o+=`<text x="${cx.toFixed(1)}" y="${cy.toFixed(1)}" text-anchor="middle" font-size="14" font-weight="700" fill="${C.txt}">${nf(c.area,2)} m²</text>`;
+    o+=`<text x="${cx.toFixed(1)}" y="${(cy+14).toFixed(1)}" text-anchor="middle" font-size="10" fill="${C.mut}">${esc(r.name)}</text>`}
+  return o+'</svg>'}
+async function svgToPng(svg,scale=3){const img=new Image();const url='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(svg);
+  await new Promise((res,rej)=>{img.onload=res;img.onerror=rej;img.src=url});
+  const c=document.createElement('canvas');c.width=img.width*scale;c.height=img.height*scale;c.getContext('2d').drawImage(img,0,0,c.width,c.height);
+  return new Promise(r=>c.toBlob(r,'image/png'))}
+
+/* ===== fotos (IndexedDB) ===== */
+const idb=(()=>{let dp;const db=()=>dp||(dp=new Promise((res,rej)=>{const q=indexedDB.open('cotalaser',1);q.onupgradeneeded=()=>q.result.createObjectStore('ph');q.onsuccess=()=>res(q.result);q.onerror=()=>rej(q.error)}));
+  const tx=async(m,f)=>{const d=await db();return new Promise((res,rej)=>{const t=d.transaction('ph',m),rq=f(t.objectStore('ph'));t.oncomplete=()=>res(rq&&rq.result);t.onerror=()=>rej(t.error)})};
+  return{get:k=>tx('readonly',s=>s.get(k)),put:(k,v)=>tx('readwrite',s=>s.put(v,k)),del:k=>tx('readwrite',s=>s.delete(k))}})();
+const IMG=new Map();
+async function img(id){if(IMG.has(id))return IMG.get(id);const d=await idb.get(id);if(!d)return null;const im=new Image();await new Promise(r=>{im.onload=r;im.onerror=r;im.src=d});IMG.set(id,im);return im}
+async function addPhoto(file){const p=P(V.pid);if(!p)return;const raw=await new Promise(r=>{const fr=new FileReader();fr.onload=()=>r(fr.result);fr.readAsDataURL(file)});
+  const im=new Image();await new Promise(r=>{im.onload=r;im.src=raw});const k=Math.min(1,1600/Math.max(im.width,im.height));
+  const c=document.createElement('canvas');c.width=Math.round(im.width*k);c.height=Math.round(im.height*k);c.getContext('2d').drawImage(im,0,0,c.width,c.height);
+  const data=c.toDataURL('image/jpeg',0.85);const id=uid();await idb.put(id,data);
+  p.photos.push({id,name:'Foto '+(p.photos.length+1),dims:[],t:Date.now()});save();go({v:'photo',pid:p.id,phid:id})}
+function drawDims(ctx,im,ph,{sel=null,pend=null}={}){const W=im.width,H=im.height;ctx.drawImage(im,0,0,W,H);
+  const u=Math.max(W,H)/600,lw=Math.max(2,2.2*u),fs=Math.round(15*u);
+  ph.dims.forEach((d,i)=>{const on=sel==='d:'+ph.id+':'+i;const col=on?'#ff3b1f':'#ffd400';
+    const ex=d.x2-d.x1,ey=d.y2-d.y1,L=Math.hypot(ex,ey)||1,nx=-ey/L*8*u,ny=ex/L*8*u;
+    ctx.lineCap='round';
+    for(const[st,w]of[['rgba(0,0,0,.75)',lw+3*u],[col,lw]]){ctx.strokeStyle=st;ctx.lineWidth=w;ctx.beginPath();
+      ctx.moveTo(d.x1,d.y1);ctx.lineTo(d.x2,d.y2);ctx.moveTo(d.x1-nx,d.y1-ny);ctx.lineTo(d.x1+nx,d.y1+ny);ctx.moveTo(d.x2-nx,d.y2-ny);ctx.lineTo(d.x2+nx,d.y2+ny);ctx.stroke()}
+    const txt=(d.label?d.label+' ':'')+(d.val==null?'? m':nf(d.val,S.settings.dec>2?3:2)+' m');
+    ctx.font=`700 ${fs}px "JetBrains Mono",monospace`;const tw=ctx.measureText(txt).width,pd=5*u,mx=(d.x1+d.x2)/2,my=(d.y1+d.y2)/2;
+    ctx.fillStyle='rgba(0,0,0,.8)';ctx.fillRect(mx-tw/2-pd,my-fs/2-pd,tw+2*pd,fs+2*pd);ctx.fillStyle=col;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(txt,mx,my+1)});
+  if(pend){ctx.fillStyle='#ff3b1f';ctx.beginPath();ctx.arc(pend[0],pend[1],7*u,0,7);ctx.fill();ctx.strokeStyle='#fff';ctx.lineWidth=2*u;ctx.stroke()}}
+async function photoBlob(ph,max=0){const im=await img(ph.id);if(!im)return null;const c=document.createElement('canvas');c.width=im.width;c.height=im.height;drawDims(c.getContext('2d'),im,ph);
+  if(max&&Math.max(c.width,c.height)>max){const k=max/Math.max(c.width,c.height),c2=document.createElement('canvas');c2.width=c.width*k;c2.height=c.height*k;c2.getContext('2d').drawImage(c,0,0,c2.width,c2.height);return c2.toDataURL('image/jpeg',0.8)}
+  return new Promise(r=>c.toBlob(r,'image/jpeg',0.92))}
+
+/* ===== arquivos ===== */
+async function saveBlob(blob,name){try{const f=new File([blob],name,{type:blob.type});if(navigator.canShare&&navigator.canShare({files:[f]})){await navigator.share({files:[f],title:name});return}}catch(e){if(e&&e.name==='AbortError')return}
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},4000)}
+const slug=s=>String(s).normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^\w]+/g,'_').replace(/^_|_$/g,'').slice(0,40)||'obra';
+function rowsFor(p){const d=S.settings.dec,R3=n=>n==null?null:+(+n).toFixed(3);
+  const res=[['Cômodo','Pé-direito (m)','Área piso (m²)','Perímetro (m)','Parede bruta (m²)','Aberturas (m²)','Parede líquida (m²)','Rodapé (m)','Volume (m³)','Fechamento planta (m)']];
+  for(const r of p.rooms){const c=calc(r);res.push([r.name,R3(r.h),R3(c.area),R3(c.perim),R3(c.gross),R3(c.openA),R3(c.net),R3(c.rodape),R3(c.vol),R3(c.g.err)])}
+  const t=totals(p);res.push(['TOTAL',null,R3(t.area),R3(t.perim),R3(t.gross),R3(t.openA),R3(t.net),R3(t.rodape),R3(t.vol),null]);
+  const wl=[['Cômodo','Parede','Comprimento (m)','Giro após (°)']];for(const r of p.rooms)walls(r).forEach((w,i)=>wl.push([r.name,'P'+(i+1),R3(w.len),r.mode==='rect'?90:+w.ang]));
+  const op=[['Cômodo','Tipo','Parede','Qtd','Largura (m)','Altura (m)','Área total (m²)']];for(const r of p.rooms)r.openings.forEach(o=>op.push([r.name,o.t,o.wall==null?'':'P'+(o.wall+1),o.q||1,R3(o.w),R3(o.h),R3((o.w||0)*(o.h||0)*(o.q||1))]));
+  const ob=[['Cômodo','Objeto','C (m)','L (m)','A (m)','Área (m²)','Volume (m³)']];for(const r of p.rooms)r.objects.forEach(o=>ob.push([r.name,o.n||'',R3(o.a),R3(o.b),R3(o.c),R3((o.a||0)*(o.b||0)),R3((o.a||0)*(o.b||0)*(o.c||0))]));
+  const fr=[['Data/hora','Descrição','Medida (m)']];S.free.filter(f=>f.pid===p.id).forEach(f=>fr.push([new Date(f.t).toLocaleString('pt-BR'),f.label||'',R3(f.v)]));
+  return{Resumo:res,Paredes:wl,Aberturas:op,Objetos:ob,Avulsas:fr}}
+function loadScript(src){return new Promise((res,rej)=>{const s=document.createElement('script');s.src=src;s.onload=res;s.onerror=rej;document.head.appendChild(s)})}
+async function exportXlsx(p){const sh=rowsFor(p);try{if(!window.XLSX)await loadScript('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js');
+    const wb=XLSX.utils.book_new();for(const[n,rows]of Object.entries(sh)){const ws=XLSX.utils.aoa_to_sheet(rows);ws['!cols']=rows[0].map((h,i)=>({wch:i===0?24:Math.max(12,String(h).length+2)}));XLSX.utils.book_append_sheet(wb,ws,n)}
+    const out=XLSX.write(wb,{bookType:'xlsx',type:'array'});await saveBlob(new Blob([out],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}),slug(p.name)+'_medicoes.xlsx')}
+  catch(e){toast('Sem internet para gerar .xlsx — gerei CSV');exportCsv(p)}}
+function exportCsv(p){const sh=rowsFor(p);const cell=v=>v==null?'':typeof v==='number'?String(v).replace('.',','):'"'+String(v).replace(/"/g,'""')+'"';
+  let s='﻿';for(const[n,rows]of Object.entries(sh)){s+=cell(n.toUpperCase())+'\n'+rows.map(r=>r.map(cell).join(';')).join('\n')+'\n\n'}
+  saveBlob(new Blob([s],{type:'text/csv;charset=utf-8'}),slug(p.name)+'_medicoes.csv')}
+async function exportBackup(){const ph={};for(const p of S.projects)for(const f of p.photos){const d=await idb.get(f.id);if(d)ph[f.id]=d}
+  saveBlob(new Blob([JSON.stringify({app:'cotalaser',v:1,data:S,photos:ph})],{type:'application/json'}),'cotalaser_backup_'+new Date().toISOString().slice(0,10)+'.json')}
+async function importBackup(file){try{const j=JSON.parse(await file.text());if(j.app!=='cotalaser'||!j.data)throw 0;
+  const ids=new Set(S.projects.map(p=>p.id));for(const p of j.data.projects)if(!ids.has(p.id))S.projects.push(p);
+  S.free=S.free.concat((j.data.free||[]).filter(f=>!S.free.some(x=>x.id===f.id)));for(const[k,v]of Object.entries(j.photos||{}))await idb.put(k,v);save();toast('Backup importado');render()}
+  catch(e){toast('Arquivo inválido: use um backup gerado pelo Cota Laser')}}
+
+/* ===== trena Bosch GLM (BLE) ===== */
+const SVC='02a6c0d0-0451-4000-b000-fb3210111989',CHR='02a6c0d1-0451-4000-b000-fb3210111989';
+const BT={dev:null,chr:null,state:'off',log:[],last:null,wake:null,
+  hex:dv=>Array.from(new Uint8Array(dv.buffer,dv.byteOffset,dv.byteLength)).map(b=>b.toString(16).padStart(2,'0')).join(' '),
+  push(m){this.log.unshift(new Date().toLocaleTimeString('pt-BR')+'  '+m);this.log.length=Math.min(this.log.length,40);const el=$('#btlog');if(el)el.textContent=this.log.join('\n')},
+  set(s){this.state=s;updateDock()},
+  async connect(){
+    if(!navigator.bluetooth){toast('Bluetooth indisponível aqui. Abra pelo link https no Chrome do Android.');return}
+    try{this.set('busy');
+      this.dev=await navigator.bluetooth.requestDevice({filters:[{namePrefix:'GLM'}],optionalServices:[SVC]});
+      this.dev.addEventListener('gattserverdisconnected',()=>this.lost());
+      await this.link();
+    }catch(e){this.push('ERRO '+(e.message||e));this.set(this.chr?'on':'off');if(e.name!=='NotFoundError')toast('Falha ao conectar: '+(e.message||e))}},
+  async link(){const sv=await this.dev.gatt.connect();const s=await sv.getPrimaryService(SVC);this.chr=await s.getCharacteristic(CHR);
+    this.chr.addEventListener('characteristicvaluechanged',e=>this.onVal(e.target.value));
+    await this.chr.startNotifications();await sleep(400);
+    await this.chr.writeValueWithResponse(new Uint8Array([0xc0,0x55,0x02,0x01,0x00,0x1a]));
+    this.push('conectado: '+(this.dev.name||'GLM'));this.set('on');toast('Trena conectada. Aperte medir na trena.');
+    try{this.wake=await navigator.wakeLock.request('screen')}catch(e){}},
+  onVal(dv){this.push('rx '+this.hex(dv));
+    if(dv.byteLength>=11&&dv.getUint8(0)===0xc0&&dv.getUint8(1)===0x55&&dv.getUint8(2)===0x10&&dv.getUint8(3)===0x06){
+      const m=dv.getFloat32(7,true);if(isFinite(m)&&m>0&&m<300)reading(m,true)}},
+  async lost(){this.chr=null;this.set('busy');this.push('conexão perdida, tentando reconectar…');
+    for(let i=0;i<3;i++){try{await sleep(800);await this.link();return}catch(e){}}
+    this.set('off');toast('Trena desconectada')},
+  disconnect(){try{this.dev&&this.dev.gatt.connected&&this.dev.gatt.disconnect()}catch(e){}this.dev=null;this.chr=null;this.set('off')}};
+document.addEventListener('visibilitychange',async()=>{if(document.visibilityState==='visible'&&BT.state==='on'){try{BT.wake=await navigator.wakeLock.request('screen')}catch(e){}}});
+
+/* ===== campos de medida / alvo ===== */
+let REG=new Map(),ORDER=[],target=null;
+function F(key,label,val,set){REG.set(key,{label,set});ORDER.push(key);
+  return`<button type="button" class="mf${target===key?' on':''}${val==null?' empty':''}" data-t="${esc(key)}"><span class="mfl">${esc(label)}</span><span class="mfv">${val==null?'—':nf(val,S.settings.dec)}</span></button>`}
+function reading(m,fromLaser){m=Math.round(m*1000)/1000;BT.last=m;
+  const l=$('#lcd');l.classList.remove('flash');void l.offsetWidth;l.classList.add('flash');if(fromLaser&&navigator.vibrate)navigator.vibrate(35);
+  if(target&&REG.has(target)){const k=target;REG.get(k).set(m);save();render();const i=ORDER.indexOf(k);target=i>=0&&ORDER[i+1]?ORDER[i+1]:null;render();
+    if(target){const el=document.querySelector(`[data-t="${CSS.escape(target)}"]`);el&&el.scrollIntoView({block:'nearest',behavior:'smooth'})}}
+  else{S.free.unshift({id:uid(),pid:V.pid||null,v:m,label:'',t:Date.now()});save();toast('Medida avulsa salva: '+nf(m,S.settings.dec)+' m');if(V.v==='project'&&V.tab==='free'||V.v==='home')render()}
+  updateDock()}
+function updateDock(){$('#rv').textContent=BT.last==null?'—':nf(BT.last,S.settings.dec);
+  const d=$('#dot');d.className='dot'+(BT.state==='on'?' on':BT.state==='busy'?' busy':'');
+  $('#bt').textContent=BT.state==='on'?'Desconectar':BT.state==='busy'?'Conectando…':'Conectar trena';$('#bt').classList.toggle('pri',BT.state!=='on');
+  $('#tgt').innerHTML=target&&REG.has(target)?'Próxima leitura vai para: <b>'+esc(REG.get(target).label)+'</b>':'Sem campo selecionado: leitura vira <b>medida avulsa</b>'}
+
+/* ===== navegação ===== */
+let V={v:'home'};const HIST=[];
+function go(nv,push=true){if(push)HIST.push(V);V=Object.assign({},nv);target=null;render();window.scrollTo(0,0)}
+function back(){V=HIST.pop()||{v:'home'};target=null;render()}
+$('#back').onclick=back;
+history.replaceState({x:0},'');window.addEventListener('popstate',()=>{if(HIST.length){back();history.pushState({x:1},'')}});history.pushState({x:1},'');
+
+/* ===== telas ===== */
+function render(){REG=new Map();ORDER=[];const app=$('#app');let h='';
+  const p=P(V.pid),r=R(p,V.rid);
+  if(V.v!=='home'&&!p){V={v:'home'}}
+  $('#back').hidden=V.v==='home';
+  if(V.v==='home'){$('#ttl').textContent='Cota Laser';h=vHome()}
+  else if(V.v==='project'){$('#ttl').textContent=p.name;h=vProject(p)}
+  else if(V.v==='room'&&r){$('#ttl').textContent=r.name;h=vRoom(p,r)}
+  else if(V.v==='photo'){const ph=p.photos.find(x=>x.id===V.phid);$('#ttl').textContent=ph?ph.name:'Foto';h=ph?vPhoto(p,ph):''}
+  else if(V.v==='report'){$('#ttl').textContent='Relatório';h=vReport(p)}
+  else{V={v:'project',pid:p.id};return render()}
+  app.innerHTML=h;if(target&&!REG.has(target))target=null;updateDock();after()}
+function after(){if(V.v==='photo')drawPhoto();if(V.v==='report')fillReportPhotos()}
+
+function vHome(){const ps=S.projects;let h=`<h2>Obras</h2><div class="list">`;
+  if(!ps.length)h+=`<p class="hint">Nenhuma obra ainda. Crie a primeira abaixo.</p>`;
+  for(const p of ps){const t=totals(p);h+=`<button class="item" data-act="openP" data-id="${p.id}"><div class="grow"><b>${esc(p.name)}</b><div class="sub">${p.rooms.length} cômodo(s) · ${p.photos.length} foto(s)</div></div><div class="num">${nf(t.area,2)} m²</div></button>`}
+  h+=`</div><form class="row" data-form="newP" style="margin-top:10px"><input class="txt grow" id="np" placeholder="Nome da obra / unidade (ex.: Riviera T2 ap 1204)" required><button class="btn pri">Criar</button></form>`;
+  const fr=S.free.filter(f=>!f.pid);if(fr.length)h+=`<h2>Medidas avulsas sem obra</h2>`+freeList(fr);
+  h+=`<h2>Ajustes</h2><div class="card list">
+   <label class="row"><span class="grow">Casas decimais nas medidas</span><select id="sdec"><option value="2"${S.settings.dec==2?' selected':''}>2 (cm)</option><option value="3"${S.settings.dec==3?' selected':''}>3 (mm)</option></select></label>
+   <label class="row"><span class="grow">Descontar da parede só aberturas com área maior que (m²)<br><small class="hint">0 = desconta todas. Ajuste ao critério do seu orçamento.</small></span><input class="txt num" style="width:90px" id="smin" inputmode="decimal" value="${nf(+S.settings.minOpen,2)}"></label>
+   <div class="row"><button class="btn" data-act="backup" type="button">Exportar backup</button><button class="btn" data-act="restore" type="button">Importar backup</button></div>
+   <details><summary>Diagnóstico Bluetooth</summary><p class="hint">Pacotes recebidos da trena. Se a leitura não chegar, me mande print disto.</p><pre class="log" id="btlog">${esc(BT.log.join('\n'))||'(vazio)'}</pre></details>
+  </div>
+  <h2>Como usar</h2><div class="card hint" style="margin:0">
+   1. Ative o Bluetooth na trena (veja o manual da GLM 50-27 C) e no celular.<br>
+   2. Toque <b>Conectar trena</b> e escolha o aparelho “GLM…”.<br>
+   3. Entre no cômodo, toque no campo a medir (fica vermelho) e aperte medir na trena. O valor entra e o próximo campo é selecionado.<br>
+   4. Sem campo selecionado, a leitura vira medida avulsa da obra.<br>
+   5. Menu do Chrome › <b>Adicionar à tela inicial</b> para usar como app, inclusive offline.</div>`;
+  return h}
+function freeList(fr){return`<div class="card list">`+fr.map(f=>`<div class="row"><span class="num" style="font-weight:700;min-width:90px">${nf(f.v,S.settings.dec)} m</span><input class="txt grow" data-act="freeLbl" data-id="${f.id}" value="${esc(f.label)}" placeholder="descrição"><button class="btn sm del" data-act="delFree" data-id="${f.id}" type="button">✕</button></div>`).join('')+`</div>`}
+
+function vProject(p){const tab=V.tab||'rooms',t=totals(p);
+  let h=`<div class="stats" style="margin-top:14px">
+   <div class="stat"><small>Área de piso</small><b>${nf(t.area,2)}<i>m²</i></b></div>
+   <div class="stat"><small>Parede líquida</small><b>${nf(t.net,2)}<i>m²</i></b></div>
+   <div class="stat"><small>Perímetro</small><b>${nf(t.perim,2)}<i>m</i></b></div>
+   <div class="stat"><small>Volume</small><b>${nf(t.vol,2)}<i>m³</i></b></div></div>
+  <div class="tabs">${[['rooms','Cômodos'],['photos','Fotos'],['free','Avulsas'],['cfg','Obra']].map(([k,n])=>`<button class="tab${tab===k?' on':''}" data-act="ptab" data-k="${k}" type="button">${n}</button>`).join('')}</div>`;
+  if(tab==='rooms'){h+=`<div class="list" style="margin-top:10px">`;
+    for(const r of p.rooms){const c=calc(r);h+=`<button class="item" data-act="openR" data-id="${r.id}"><div class="grow"><b>${esc(r.name)}</b><div class="sub">${r.mode==='rect'?'Retângulo':'Paredes em série'} · PD ${nf(r.h,2)} m · ${r.openings.length} abertura(s)</div></div><div class="num" style="text-align:right">${nf(c.area,2)} m²<div class="sub">${nf(c.perim,2)} m</div></div></button>`}
+    if(!p.rooms.length)h+=`<p class="hint">Nenhum cômodo. Adicione abaixo.</p>`;
+    h+=`</div><form class="row" data-form="newR" style="margin-top:10px"><input class="txt grow" id="nr" placeholder="Nome do cômodo (ex.: Suíte 1)" required><button class="btn pri">Adicionar</button></form>
+    <div class="row noprint" style="margin-top:16px"><button class="btn pri" data-act="report" type="button">Relatório / PDF</button><button class="btn" data-act="xlsx" type="button">Excel (.xlsx)</button><button class="btn" data-act="csv" type="button">CSV</button></div>`}
+  if(tab==='photos'){h+=`<p class="hint">Tire a foto, marque dois pontos e meça com a trena: a cota fica gravada na imagem.</p><div class="thumbs">`;
+    for(const f of p.photos)h+=`<button class="thumb" data-act="openPh" data-id="${f.id}" type="button"><img data-ph="${f.id}" alt="${esc(f.name)}"><span>${esc(f.name)} · ${f.dims.length} cota(s)</span></button>`;
+    h+=`</div><button class="btn pri" data-act="addPh" type="button" style="margin-top:10px">+ Foto com cota</button>`;setTimeout(thumbs,0)}
+  if(tab==='free'){const fr=S.free.filter(f=>f.pid===p.id);h+=`<p class="hint">Leituras feitas sem campo selecionado nesta obra.</p>`+(fr.length?freeList(fr):`<p class="hint">Nenhuma ainda.</p>`)}
+  if(tab==='cfg'){h+=`<div class="card list" style="margin-top:10px"><label>Nome da obra<input class="txt" data-act="pname" value="${esc(p.name)}"></label>
+    <div class="row"><button class="btn del" data-act="delP" type="button">Excluir obra</button></div></div>`}
+  return h}
+async function thumbs(){for(const el of document.querySelectorAll('img[data-ph]')){const p=P(V.pid),ph=p&&p.photos.find(x=>x.id===el.dataset.ph);if(!ph)continue;const u=await photoBlob(ph,500);if(u)el.src=u}}
+
+function vRoom(p,r){const tab=V.tab||'med',c=calc(r),d=S.settings.dec;
+  let h=`<div class="tabs">${[['med','Medidas'],['open','Aberturas'],['obj','Objetos'],['plan','Planta'],['sum','Resumo']].map(([k,n])=>`<button class="tab${tab===k?' on':''}" data-act="rtab" data-k="${k}" type="button">${n}</button>`).join('')}</div>`;
+  if(tab==='med'){
+    h+=`<div class="row" style="margin:10px 0"><button class="btn sm${r.mode==='rect'?' pri':''}" data-act="mode" data-k="rect" type="button">Retângulo</button><button class="btn sm${r.mode==='poly'?' pri':''}" data-act="mode" data-k="poly" type="button">Paredes em série</button></div>`;
+    h+=`<div class="row">`+F('h','Pé-direito',r.h,v=>r.h=v);
+    if(r.mode==='rect')h+=F('a','Comprimento',r.a,v=>r.a=v)+F('b','Largura',r.b,v=>r.b=v)+`</div>`;
+    else{h+=`</div><p class="hint">Percorra as paredes no sentido anti-horário (cômodo à sua esquerda). Canto normal = ↰ esquerda; canto de ressalto (pilar, L) = ↱ direita.</p><div class="card" style="padding:4px 12px">`;
+      r.walls.forEach((w,i)=>{const std=[90,-90,45,-45,135,-135].includes(+w.ang);
+        h+=`<div class="wall"><span class="tag">P${i+1}</span><div class="row">${F('w:'+i,'Parede '+(i+1),w.len,v=>{r.walls[i].len=v;if(i===r.walls.length-1)r.walls.push({len:null,ang:90})})}
+        <select data-act="ang" data-i="${i}" aria-label="Giro após P${i+1}">${[[90,'↰ 90° esq'],[-90,'↱ 90° dir'],[45,'↰ 45° esq'],[-45,'↱ 45° dir'],[135,'↰ 135° esq'],[-135,'↱ 135° dir']].map(([v,n])=>`<option value="${v}"${+w.ang===v?' selected':''}>${n}</option>`).join('')}<option value="x"${std?'':' selected'}>outro…</option></select>
+        ${std?'':`<input class="txt num" style="width:80px" data-act="angx" data-i="${i}" inputmode="decimal" value="${nf(+w.ang,1)}" aria-label="Giro em graus (+ esq, − dir)">`}</div>
+        <button class="btn sm del" data-act="delW" data-i="${i}" type="button" aria-label="Apagar P${i+1}">✕</button></div>`});
+      h+=`</div><button class="btn sm" data-act="addW" type="button" style="margin-top:8px">+ Parede</button>`;
+      const g=c.g;if(g.ws.length>=3)h+=g.err<0.02?`<p class="okbox">Planta fechada. Erro de fechamento: ${nf(g.err*100,1)} cm.</p>`:`<p class="warnbox">Planta não fecha: faltam ${nf(g.err,3)} m entre o fim da última parede e o início. Confira medidas e giros (linha tracejada na planta).</p>`}
+    h+=`<div class="plan" style="margin-top:12px">${planSVG(r)||'<div class="plan-empty">Meça as paredes para desenhar a planta.</div>'}</div>`;
+    h+=`<div class="stats" style="margin-top:10px"><div class="stat"><small>Área piso</small><b>${nf(c.area,2)}<i>m²</i></b></div><div class="stat"><small>Perímetro</small><b>${nf(c.perim,2)}<i>m</i></b></div><div class="stat"><small>Parede líquida</small><b>${nf(c.net,2)}<i>m²</i></b></div><div class="stat"><small>Volume</small><b>${nf(c.vol,2)}<i>m³</i></b></div></div>`}
+  if(tab==='open'){const nW=c.g.ws.length;
+    h+=`<div class="row" style="margin:10px 0"><button class="btn sm" data-act="addO" data-k="porta" type="button">+ Porta</button><button class="btn sm" data-act="addO" data-k="janela" type="button">+ Janela</button><button class="btn sm" data-act="addO" data-k="vao" type="button">+ Vão</button></div><div class="list">`;
+    r.openings.forEach((o,i)=>{h+=`<div class="card list"><div class="row"><select data-act="oT" data-i="${i}">${['porta','janela','vao'].map(t=>`<option value="${t}"${o.t===t?' selected':''}>${t==='vao'?'Vão':t[0].toUpperCase()+t.slice(1)}</option>`).join('')}</select>
+      <select data-act="oW" data-i="${i}" aria-label="Parede"><option value="">sem parede</option>${Array.from({length:nW},(_,k)=>`<option value="${k}"${o.wall===k?' selected':''}>P${k+1}</option>`).join('')}</select>
+      <label class="row">Qtd <input class="txt num" style="width:60px" data-act="oQ" data-i="${i}" inputmode="numeric" value="${o.q||1}"></label><span class="grow"></span><button class="btn sm del" data-act="delO" data-i="${i}" type="button">✕</button></div>
+      <div class="row">${F('o:'+i+':w','Largura',o.w,v=>r.openings[i].w=v)}${F('o:'+i+':h','Altura',o.h,v=>r.openings[i].h=v)}<span class="num hint">${nf((o.w||0)*(o.h||0)*(o.q||1),2)} m²</span></div></div>`});
+    if(!r.openings.length)h+=`<p class="hint">Nenhuma abertura. Portas e vãos descontam do rodapé; todas descontam da área de parede (conforme o limite em Ajustes).</p>`;
+    h+=`</div><p class="hint">Total aberturas: <b class="num">${nf(c.openA,2)} m²</b> · descontado da parede: <b class="num">${nf(c.ded,2)} m²</b></p>`}
+  if(tab==='obj'){h+=`<p class="hint">Móveis, bancadas, pilares, shafts… comprimento × largura × altura.</p><div class="list">`;
+    r.objects.forEach((o,i)=>{h+=`<div class="card list"><div class="row"><input class="txt grow" data-act="obN" data-i="${i}" value="${esc(o.n||'')}" placeholder="nome do objeto"><button class="btn sm del" data-act="delOb" data-i="${i}" type="button">✕</button></div>
+      <div class="row">${F('b:'+i+':a','Comprim.',o.a,v=>r.objects[i].a=v)}${F('b:'+i+':b','Largura',o.b,v=>r.objects[i].b=v)}${F('b:'+i+':c','Altura',o.c,v=>r.objects[i].c=v)}</div>
+      <span class="hint num">${nf((o.a||0)*(o.b||0),2)} m² · ${nf((o.a||0)*(o.b||0)*(o.c||0),3)} m³</span></div>`});
+    h+=`</div><button class="btn sm" data-act="addOb" type="button" style="margin-top:8px">+ Objeto</button>`}
+  if(tab==='plan'){const s=planSVG(r,{W:480,H:380});h+=`<div class="plan" style="margin-top:12px">${s||'<div class="plan-empty">Sem paredes medidas.</div>'}</div><p class="hint">PT porta · JA janela · VÃ vão (marcados na parede escolhida em Aberturas). Desenho em escala a partir das medidas e giros.</p>`;
+    if(s)h+=`<button class="btn pri" data-act="planPng" type="button">Salvar planta (PNG)</button>`}
+  if(tab==='sum'){h+=`<div class="card" style="margin-top:12px"><dl class="kv">
+    <dt>Pé-direito</dt><dd>${nf(r.h,d)} m</dd><dt>Área de piso / forro</dt><dd>${nf(c.area,2)} m²</dd><dt>Perímetro</dt><dd>${nf(c.perim,2)} m</dd>
+    <dt>Parede bruta (perímetro × PD)</dt><dd>${nf(c.gross,2)} m²</dd><dt>Aberturas (total)</dt><dd>${nf(c.openA,2)} m²</dd><dt>Aberturas descontadas</dt><dd>${nf(c.ded,2)} m²</dd>
+    <dt>Parede líquida</dt><dd>${nf(c.net,2)} m²</dd><dt>Rodapé (perímetro − portas/vãos)</dt><dd>${nf(c.rodape,2)} m</dd><dt>Volume</dt><dd>${nf(c.vol,2)} m³</dd>
+    ${r.objects.length?`<dt>Objetos (área / volume)</dt><dd>${nf(c.objA,2)} m² / ${nf(c.objV,3)} m³</dd>`:''}
+    ${r.mode==='poly'&&c.g.ws.length>=3?`<dt>Erro de fechamento</dt><dd>${nf(c.g.err*100,1)} cm</dd>`:''}</dl></div>
+    <div class="row" style="margin-top:10px"><button class="btn" data-act="copySum" type="button">Copiar resumo</button><button class="btn del" data-act="delR" type="button">Excluir cômodo</button></div>
+    <p class="hint">Cálculos geométricos: área pelo método de Gauss (shoelace) sobre o polígono das paredes; parede = perímetro × pé-direito − aberturas.</p>`}
+  return h}
+
+let PEND=null;
+function vPhoto(p,ph){let h=`<div class="row" style="margin:12px 0"><input class="txt grow" data-act="phName" value="${esc(ph.name)}" aria-label="Nome da foto">
+  <select data-act="phRoom" aria-label="Cômodo"><option value="">sem cômodo</option>${p.rooms.map(r=>`<option value="${r.id}"${ph.rid===r.id?' selected':''}>${esc(r.name)}</option>`).join('')}</select></div>
+  <p class="hint">${PEND?'Toque o <b>segundo ponto</b> da cota.':'Toque dois pontos na foto para criar uma cota. Depois meça com a trena.'}</p>
+  <canvas id="ph"></canvas><div class="list" style="margin-top:10px">`;
+  ph.dims.forEach((d,i)=>{h+=`<div class="row">${F('d:'+ph.id+':'+i,'Cota '+(i+1),d.val,v=>ph.dims[i].val=v)}<input class="txt grow" data-act="dLbl" data-i="${i}" value="${esc(d.label||'')}" placeholder="descrição (ex.: vão porta)"><button class="btn sm del" data-act="delD" data-i="${i}" type="button">✕</button></div>`});
+  h+=`</div><div class="row" style="margin-top:12px"><button class="btn pri" data-act="phSave" type="button">Salvar foto com cotas</button><button class="btn del" data-act="delPh" type="button">Excluir foto</button></div>`;return h}
+async function drawPhoto(){const p=P(V.pid),ph=p&&p.photos.find(x=>x.id===V.phid),cv=$('#ph');if(!ph||!cv)return;const im=await img(ph.id);if(!im)return;
+  cv.width=im.width;cv.height=im.height;drawDims(cv.getContext('2d'),im,ph,{sel:target,pend:PEND});
+  cv.onclick=e=>{const b=cv.getBoundingClientRect(),x=(e.clientX-b.left)/b.width*cv.width,y=(e.clientY-b.top)/b.height*cv.height;
+    if(!PEND){PEND=[x,y];render()}else{ph.dims.push({x1:PEND[0],y1:PEND[1],x2:x,y2:y,val:null,label:''});PEND=null;save();render();target='d:'+ph.id+':'+(ph.dims.length-1);render()}}}
+
+function vReport(p){const t=totals(p),d=new Date();
+  let h=`<div class="row noprint" style="margin:12px 0"><button class="btn pri" data-act="print" type="button">Imprimir / salvar PDF</button><button class="btn" data-act="xlsx" type="button">Excel (.xlsx)</button><button class="btn" data-act="csv" type="button">CSV</button></div>
+  <div class="rep"><h1>${esc(p.name)}</h1><div class="hint">Relatório de medição · ${d.toLocaleDateString('pt-BR')} · trena laser + Cota Laser</div>
+  <div class="stats" style="margin-top:12px"><div class="stat"><small>Área de piso</small><b>${nf(t.area,2)}<i>m²</i></b></div><div class="stat"><small>Parede líquida</small><b>${nf(t.net,2)}<i>m²</i></b></div><div class="stat"><small>Rodapé</small><b>${nf(t.rodape,2)}<i>m</i></b></div><div class="stat"><small>Volume</small><b>${nf(t.vol,2)}<i>m³</i></b></div></div>
+  <h2>Quadro resumo</h2><div class="tbl"><table><thead><tr><th>Cômodo</th><th>PD (m)</th><th>Piso (m²)</th><th>Perím. (m)</th><th>Parede bruta (m²)</th><th>Aberturas (m²)</th><th>Parede líq. (m²)</th><th>Rodapé (m)</th><th>Vol. (m³)</th></tr></thead><tbody>`;
+  for(const r of p.rooms){const c=calc(r);h+=`<tr><td>${esc(r.name)}</td><td>${nf(r.h,2)}</td><td>${nf(c.area,2)}</td><td>${nf(c.perim,2)}</td><td>${nf(c.gross,2)}</td><td>${nf(c.openA,2)}</td><td>${nf(c.net,2)}</td><td>${nf(c.rodape,2)}</td><td>${nf(c.vol,2)}</td></tr>`}
+  h+=`</tbody><tfoot><tr><td>Total</td><td></td><td>${nf(t.area,2)}</td><td>${nf(t.perim,2)}</td><td>${nf(t.gross,2)}</td><td>${nf(t.openA,2)}</td><td>${nf(t.net,2)}</td><td>${nf(t.rodape,2)}</td><td>${nf(t.vol,2)}</td></tr></tfoot></table></div>`;
+  for(const r of p.rooms){const c=calc(r);h+=`<div class="room"><h3>${esc(r.name)}</h3><div class="two"><div class="plan">${planSVG(r,{W:360,H:270,exp:true})||'<div class="plan-empty">sem planta</div>'}</div><div>
+    <div class="tbl"><table><tbody>${walls(r).map((w,i)=>`<tr><td>Parede P${i+1}</td><td>${nf(w.len,S.settings.dec)} m</td></tr>`).join('')}
+    ${r.openings.map(o=>`<tr><td>${o.t==='vao'?'Vão':o.t[0].toUpperCase()+o.t.slice(1)}${o.wall!=null?' (P'+(o.wall+1)+')':''}${(o.q||1)>1?' ×'+o.q:''}</td><td>${nf(o.w,2)} × ${nf(o.h,2)} m</td></tr>`).join('')}
+    ${r.objects.map(o=>`<tr><td>${esc(o.n||'Objeto')}</td><td>${nf(o.a,2)} × ${nf(o.b,2)} × ${nf(o.c,2)} m</td></tr>`).join('')}
+    ${r.mode==='poly'&&c.g.ws.length>=3?`<tr><td>Erro de fechamento</td><td>${nf(c.g.err*100,1)} cm</td></tr>`:''}</tbody></table></div></div></div>`;
+    const phs=p.photos.filter(f=>f.rid===r.id);if(phs.length)h+=`<div class="two" style="margin-top:8px">${phs.map(f=>`<figure style="margin:0"><img data-rph="${f.id}" alt="${esc(f.name)}"><figcaption class="hint">${esc(f.name)}</figcaption></figure>`).join('')}</div>`;h+=`</div>`}
+  const loose=p.photos.filter(f=>!f.rid||!R(p,f.rid));if(loose.length)h+=`<h2>Fotos</h2><div class="two">${loose.map(f=>`<figure style="margin:0"><img data-rph="${f.id}" alt="${esc(f.name)}"><figcaption class="hint">${esc(f.name)}</figcaption></figure>`).join('')}</div>`;
+  const fr=S.free.filter(f=>f.pid===p.id);if(fr.length)h+=`<h2>Medidas avulsas</h2><div class="tbl"><table><tbody>${fr.map(f=>`<tr><td>${esc(f.label||'—')}</td><td>${nf(f.v,S.settings.dec)} m</td></tr>`).join('')}</tbody></table></div>`;
+  h+=`<p class="hint" style="margin-top:16px">Parede líquida = perímetro × pé-direito − aberturas (limite de desconto: ${nf(+S.settings.minOpen,2)} m²). Rodapé = perímetro − larguras de portas e vãos. Área pelo método de Gauss sobre as paredes medidas.</p></div>`;return h}
+async function fillReportPhotos(){const p=P(V.pid);for(const el of document.querySelectorAll('img[data-rph]')){const ph=p.photos.find(x=>x.id===el.dataset.rph);const u=ph&&await photoBlob(ph,1000);if(u)el.src=u}}
+
+/* ===== eventos ===== */
+document.addEventListener('click',async e=>{const t=e.target.closest('[data-t],[data-act]');if(!t)return;
+  if(t.dataset.t){target=target===t.dataset.t?null:t.dataset.t;render();return}
+  const a=t.dataset.act,p=P(V.pid),r=R(p,V.rid),i=+t.dataset.i;
+  if(t.tagName==='SELECT'||t.tagName==='INPUT')return;
+  const armed=()=>{if(t.classList.contains('confirm'))return true;t.classList.add('confirm');const o=t.textContent;t.textContent='Toque de novo p/ confirmar';setTimeout(()=>{t.classList.remove('confirm');t.textContent=o},3000);return false};
+  switch(a){
+    case'openP':return go({v:'project',pid:t.dataset.id});
+    case'openR':return go({v:'room',pid:p.id,rid:t.dataset.id});
+    case'openPh':PEND=null;return go({v:'photo',pid:p.id,phid:t.dataset.id});
+    case'ptab':V.tab=t.dataset.k;target=null;return render();
+    case'rtab':V.tab=t.dataset.k;target=null;return render();
+    case'report':return go({v:'report',pid:p.id});
+    case'xlsx':return exportXlsx(p);
+    case'csv':return exportCsv(p);
+    case'print':return window.print();
+    case'backup':return exportBackup();
+    case'restore':return $('#filejs').click();
+    case'addPh':return $('#fileph').click();
+    case'delP':if(!armed())return;for(const f of p.photos)idb.del(f.id);S.projects=S.projects.filter(x=>x!==p);S.free=S.free.filter(f=>f.pid!==p.id);save();HIST.length=0;return go({v:'home'},false);
+    case'delR':if(!armed())return;p.rooms=p.rooms.filter(x=>x!==r);save();return back();
+    case'mode':r.mode=t.dataset.k;if(r.mode==='poly'&&!r.walls.some(w=>w.len>0)&&r.a&&r.b)r.walls=[{len:r.a,ang:90},{len:r.b,ang:90},{len:r.a,ang:90},{len:r.b,ang:90},{len:null,ang:90}];save();return render();
+    case'addW':r.walls.push({len:null,ang:90});save();target='w:'+(r.walls.length-1);return render();
+    case'delW':r.walls.splice(i,1);if(!r.walls.length)r.walls.push({len:null,ang:90});r.openings.forEach(o=>{if(o.wall===i)o.wall=null;else if(o.wall>i)o.wall--});save();return render();
+    case'addO':r.openings.push({id:uid(),t:t.dataset.k,w:null,h:null,q:1,wall:null});save();target='o:'+(r.openings.length-1)+':w';return render();
+    case'delO':r.openings.splice(i,1);save();return render();
+    case'addOb':r.objects.push({n:'',a:null,b:null,c:null});save();target='b:'+(r.objects.length-1)+':a';return render();
+    case'delOb':r.objects.splice(i,1);save();return render();
+    case'delFree':S.free=S.free.filter(f=>f.id!==t.dataset.id);save();return render();
+    case'planPng':{const b=await svgToPng(planSVG(r,{W:480,H:380,exp:true}));return saveBlob(b,slug(p.name)+'_'+slug(r.name)+'_planta.png')}
+    case'copySum':{const c=calc(r);const s=`${r.name}\nPé-direito: ${nf(r.h,2)} m\nÁrea piso: ${nf(c.area,2)} m²\nPerímetro: ${nf(c.perim,2)} m\nParede bruta: ${nf(c.gross,2)} m²\nAberturas: ${nf(c.openA,2)} m²\nParede líquida: ${nf(c.net,2)} m²\nRodapé: ${nf(c.rodape,2)} m\nVolume: ${nf(c.vol,2)} m³`;
+      try{await navigator.clipboard.writeText(s);toast('Resumo copiado')}catch(err){toast('Não consegui copiar')}return}
+    case'phSave':{const ph=p.photos.find(x=>x.id===V.phid);const b=await photoBlob(ph);return b&&saveBlob(b,slug(p.name)+'_'+slug(ph.name)+'.jpg')}
+    case'delPh':{if(!armed())return;idb.del(V.phid);IMG.delete(V.phid);p.photos=p.photos.filter(x=>x.id!==V.phid);save();return back()}
+    case'delD':{const ph=p.photos.find(x=>x.id===V.phid);ph.dims.splice(i,1);save();target=null;return render()}
+  }});
+document.addEventListener('change',e=>{const t=e.target,a=t.dataset.act;if(!a&&!t.id)return;const p=P(V.pid),r=R(p,V.rid),i=+t.dataset.i;
+  const ph=p&&p.photos.find(x=>x.id===V.phid);
+  switch(a){
+    case'ang':if(t.value==='x'){r.walls[i].ang=+r.walls[i].ang+0.0001}else r.walls[i].ang=+t.value;break;
+    case'angx':{const v=pn(t.value);if(v!=null)r.walls[i].ang=v;break}
+    case'oT':r.openings[i].t=t.value;break;
+    case'oW':r.openings[i].wall=t.value===''?null:+t.value;break;
+    case'oQ':r.openings[i].q=Math.max(1,parseInt(t.value)||1);break;
+    case'obN':r.objects[i].n=t.value;break;
+    case'pname':p.name=t.value.trim()||p.name;break;
+    case'freeLbl':{const f=S.free.find(x=>x.id===t.dataset.id);if(f)f.label=t.value;save();return}
+    case'phName':ph.name=t.value.trim()||ph.name;break;
+    case'phRoom':ph.rid=t.value||null;break;
+    case'dLbl':ph.dims[i].label=t.value;break;
+    default:
+      if(t.id==='sdec'){S.settings.dec=+t.value;break}
+      if(t.id==='smin'){S.settings.minOpen=Math.max(0,pn(t.value)||0);break}
+      if(t.id==='fileph'&&t.files[0]){addPhoto(t.files[0]);t.value='';return}
+      if(t.id==='filejs'&&t.files[0]){importBackup(t.files[0]);t.value='';return}
+      return}
+  save();render()});
+document.addEventListener('submit',e=>{e.preventDefault();const f=e.target.dataset.form;
+  if(f==='newP'){const n=$('#np').value.trim();if(!n)return;const p={id:uid(),name:n,created:Date.now(),rooms:[],photos:[]};S.projects.unshift(p);save();go({v:'project',pid:p.id})}
+  if(f==='newR'){const n=$('#nr').value.trim();if(!n)return;const p=P(V.pid),r=newRoom(n);p.rooms.push(r);save();go({v:'room',pid:p.id,rid:r.id});target='h';render()}});
+$('#bt').onclick=()=>BT.state==='on'?BT.disconnect():BT.state==='off'&&BT.connect();
+const manGo=()=>{const v=pn($('#man').value);if(v==null||v<=0){toast('Digite um valor em metros, ex.: 2,35');return}$('#man').value='';reading(v,false)};
+$('#manok').onclick=manGo;$('#man').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();manGo()}});
+
+/* ===== início ===== */
+load();render();
+if('serviceWorker'in navigator&&location.protocol==='https:')navigator.serviceWorker.register('sw.js').catch(()=>{});
+window.__T={geom,calc,reading,S:()=>S,V:()=>V,setTarget:k=>{target=k;render()},go};
+</script>
+</body>
+</html>
