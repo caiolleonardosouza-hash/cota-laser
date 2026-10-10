@@ -287,10 +287,11 @@ const BT={dev:null,chr:null,state:'off',log:[],last:null,wake:null,
   hex:dv=>Array.from(new Uint8Array(dv.buffer,dv.byteOffset,dv.byteLength)).map(b=>b.toString(16).padStart(2,'0')).join(' '),
   push(m){this.log.unshift(new Date().toLocaleTimeString('pt-BR')+'  '+m);this.log.length=Math.min(this.log.length,40);const el=$('#btlog');if(el)el.textContent=this.log.join('\n')},
   set(s){this.state=s;updateDock()},
-  async connect(){
+  async connect(all=false){
     if(!navigator.bluetooth){toast('Bluetooth indisponível aqui. Abra pelo link https no Chrome do Android.');return}
     try{this.set('busy');
-      this.dev=await navigator.bluetooth.requestDevice({filters:[{namePrefix:'GLM'}],optionalServices:[SVC]});
+      this.dev=await navigator.bluetooth.requestDevice(all?{acceptAllDevices:true,optionalServices:[SVC]}:{filters:[{namePrefix:'GLM'},{namePrefix:'Bosch'},{namePrefix:'BOSCH'},{services:[SVC]}],optionalServices:[SVC]});
+      this.push('escolhido: '+(this.dev.name||'(sem nome)'));
       this.dev.addEventListener('gattserverdisconnected',()=>this.lost());
       await this.link();
     }catch(e){this.push('ERRO '+(e.message||e));this.set(this.chr?'on':'off');if(e.name!=='NotFoundError')toast('Falha ao conectar: '+(e.message||e))}},
@@ -354,6 +355,7 @@ function vHome(){const ps=S.projects;let h=`<h2>Obras</h2><div class="list">`;
    <label class="row"><span class="grow">Casas decimais nas medidas</span><select id="sdec"><option value="2"${S.settings.dec==2?' selected':''}>2 (cm)</option><option value="3"${S.settings.dec==3?' selected':''}>3 (mm)</option></select></label>
    <label class="row"><span class="grow">Descontar da parede só aberturas com área maior que (m²)<br><small class="hint">0 = desconta todas. Ajuste ao critério do seu orçamento.</small></span><input class="txt num" style="width:90px" id="smin" inputmode="decimal" value="${nf(+S.settings.minOpen,2)}"></label>
    <div class="row"><button class="btn" data-act="backup" type="button">Exportar backup</button><button class="btn" data-act="restore" type="button">Importar backup</button></div>
+   <button class="btn" data-act="btAll" type="button">Conectar mostrando todos os aparelhos Bluetooth</button>
    <details><summary>Diagnóstico Bluetooth</summary><p class="hint">Pacotes recebidos da trena. Se a leitura não chegar, me mande print disto.</p><pre class="log" id="btlog">${esc(BT.log.join('\n'))||'(vazio)'}</pre></details>
   </div>
   <h2>Como usar</h2><div class="card hint" style="margin:0">
@@ -474,6 +476,7 @@ document.addEventListener('click',async e=>{const t=e.target.closest('[data-t],[
     case'csv':return exportCsv(p);
     case'print':return window.print();
     case'backup':return exportBackup();
+    case'btAll':return BT.connect(true);
     case'restore':return $('#filejs').click();
     case'addPh':return $('#fileph').click();
     case'delP':if(!armed())return;for(const f of p.photos)idb.del(f.id);S.projects=S.projects.filter(x=>x!==p);S.free=S.free.filter(f=>f.pid!==p.id);save();HIST.length=0;return go({v:'home'},false);
