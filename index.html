@@ -238,18 +238,21 @@ function revAreas(r){const a=revAreas0(r),tt={},c=calc(r),g=c.g;a.rows.forEach(x
     if(q.forro>1e-9){a.rows.push({grp:'t',name:'SC'+(si+1)+' · bandeja',rv:b,faixa:'bandeja',area:q.forro});add(b,q.forro)}
     if(q.test>1e-9){a.rows.push({grp:'t',name:'SC'+(si+1)+' · fechamento',rv:f,faixa:'fechamento',area:q.test});add(f,q.test)}});
   return a}
+const trM=()=>{const v=S.settings.trCm;return(v==null?5:+v)/100};
+function hEff(r){const H=r.h||0;if(r.rvT==='Forro de gesso'&&r.fEsp>0)return Math.max(0,Math.min(H,H-r.fEsp+trM()));return H}
+const ovl=(a,b,c,d)=>Math.max(0,Math.min(b,d)-Math.max(a,c));
 function revAreas0(r){const g=geom(r),H=r.h||0,min=+S.settings.minOpen||0,rows=[],tot={},warn=[];if(!(H>0))return{rows,tot,warn:g.ws.length?['Sem pé-direito: revestimento não calculado.']:[]};
-  const addT=(k,v)=>{if(v>1e-9)tot[k]=(tot[k]||0)+v};const nW=g.ws.length,cut=g.ws.map(()=>0),SH=[];
-  for(const sh of r.shafts||[]){if(sh.corner==null||sh.corner>=nW||!(sh.a>0&&sh.b>0))continue;cut[sh.corner]+=sh.a;cut[(sh.corner+1)%nW]+=sh.b;SH.push(sh)}
-  g.ws.forEach((w,i)=>{if(WK(w)!=='p')return;const st=WS(r,i)||{},h1=st.rvH>0?Math.min(st.rvH,H):H,len=Math.max(0,w.len-cut[i]);let lo=len*h1,up=len*(H-h1);
+  const addT=(k,v)=>{if(v>1e-9)tot[k]=(tot[k]||0)+v};const nW=g.ws.length,cut=g.ws.map(()=>0),nc=g.ws.map(()=>0),SH=[],He=hEff(r),tr=trM();
+  for(const sh of r.shafts||[]){if(sh.corner==null||sh.corner>=nW||!(sh.a>0&&sh.b>0))continue;cut[sh.corner]+=sh.a;cut[(sh.corner+1)%nW]+=sh.b;nc[sh.corner]++;nc[(sh.corner+1)%nW]++;SH.push(sh)}
+  g.ws.forEach((w,i)=>{if(WK(w)!=='p')return;const st=WS(r,i)||{},h1=st.rvH>0?Math.min(st.rvH,He):He,len=Math.max(0,Math.min(w.len,w.len-cut[i]+tr*nc[i]));let lo=len*h1,up=len*(He-h1);
     for(const o of r.openings){if(o.wall!==i||!(o.w>0&&o.h>0))continue;const q=o.q||1;if(o.w*o.h<=min)continue;
-      let z0=o.t==='janela'?o.pe:0;if(z0==null){if(h1<H)warn.push('Janela em '+WN(r,i)+' sem peitoril: descontada da faixa de cima.');z0=h1<H?h1:0}
-      const ov=Math.max(0,Math.min(z0+o.h,h1)-Math.max(z0,0));lo-=o.w*q*ov;up-=o.w*q*(o.h-ov)}
-    for(const sc of r.sancas||[]){const q=scGeo(sc,g.ws);if(!q)continue;const L=(q.k===i?q.La:0)+(q.k2===i?q.Lb:0);if(!L)continue;const a=Math.min(q.h,H),ov=Math.max(0,h1-(H-a));lo-=L*ov;up-=L*(a-ov)}
+      let z0=o.t==='janela'?o.pe:0;if(z0==null){if(h1<He)warn.push('Janela em '+WN(r,i)+' sem peitoril: descontada da faixa de cima.');z0=h1<He?h1:0}
+      lo-=o.w*q*ovl(z0,z0+o.h,0,h1);up-=o.w*q*ovl(z0,z0+o.h,h1,He)}
+    for(const sc of r.sancas||[]){const q=scGeo(sc,g.ws);if(!q)continue;const L=(q.k===i?q.La:0)+(q.k2===i?q.Lb:0);if(!L)continue;const zb=H-Math.min(q.h,H)+tr;lo-=L*ovl(zb,He,0,h1);up-=L*ovl(zb,He,h1,He)}
     const rv=st.rv||ND,rs=st.rvS||ND;
-    rows.push({i,name:WN(r,i),rv,faixa:h1<H?'0 a '+fl(h1):'parede toda',area:Math.max(0,lo)});addT(rv,Math.max(0,lo));
-    if(h1<H){rows.push({i,name:WN(r,i),rv:rs,faixa:fl(h1)+' a '+fl(H),area:Math.max(0,up)});addT(rs,Math.max(0,up))}});
-  SH.forEach(sh=>{const si=r.shafts.indexOf(sh);shFaces(sh).forEach(f=>{const A=f.len*H,st=sh[f.k]||{},rv=st.rv||ND,nm='SH'+(si+1)+' · '+f.nome;
+    rows.push({i,name:WN(r,i),rv,faixa:h1<He?'0 a '+fl(h1):He<H-1e-9?'0 a '+fl(He):'parede toda',area:Math.max(0,lo)});addT(rv,Math.max(0,lo));
+    if(h1<He){rows.push({i,name:WN(r,i),rv:rs,faixa:fl(h1)+' a '+fl(He),area:Math.max(0,up)});addT(rs,Math.max(0,up))}});
+  SH.forEach(sh=>{const si=r.shafts.indexOf(sh);shFaces(sh).forEach(f=>{const A=f.len*He,st=sh[f.k]||{},rv=st.rv||ND,nm='SH'+(si+1)+' · '+f.nome;
     if(st.ar>0&&st.ar<A){rows.push({name:nm,rv,faixa:'área informada',area:st.ar});addT(rv,st.ar);const rs=st.rs||ND;rows.push({name:nm,rv:rs,faixa:'restante',area:A-st.ar});addT(rs,A-st.ar)}
     else{rows.push({name:nm,rv,faixa:'face toda',area:A});addT(rv,A)}})});
   if(r.openings.some(o=>o.wall==null&&o.w>0))warn.push('Aberturas sem parede definida não foram descontadas do revestimento.');
@@ -286,12 +289,12 @@ function geom(r){const ws=walls(r);let x=0,y=0,h=0;const v=[[0,0]];
 function calc(r){const g=geom(r),H=r.h||0,min=+S.settings.minOpen||0;
   const perimAll=g.ws.reduce((s,w)=>s+w.len,0),vClose=r.mode==='poly'&&r.autoClose&&g.ws.length>=3&&g.err>=0.02?g.err:0,perim=g.ws.reduce((s,w)=>s+(WK(w)==='p'?w.len:0),0),vaoLen=g.ws.reduce((s,w)=>s+(WK(w)==='v'?w.len:0),0),vLen=perimAll-perim-vaoLen+vClose;let openA=0,ded=0,passW=0;
   for(const o of r.openings){const a=(o.w||0)*(o.h||0),q=o.q||1;openA+=a*q;if(a>min)ded+=a*q;if(o.t!=='janela')passW+=(o.w||0)*q}
-  const gross=perim*H;let objA=0,objV=0;for(const o of r.objects){objA+=(o.a||0)*(o.b||0);objV+=(o.a||0)*(o.b||0)*(o.c||0)}
+  const He=hEff(r),gross=perim*He;let objA=0,objV=0;for(const o of r.objects){objA+=(o.a||0)*(o.b||0);objV+=(o.a||0)*(o.b||0)*(o.c||0)}
   const n=g.ws.length,cut=g.ws.map(()=>0);let shA=0,shL=0;
   let shNR=0;for(const sh of r.shafts||[]){if(sh.corner==null||sh.corner>=n)continue;const a=sh.a||0,b=sh.b||0;cut[sh.corner]+=a;cut[(sh.corner+1)%n]+=b;shA+=a*b;shL+=a+b;if(sh.noRod){if(WK(g.ws[sh.corner])==='p')shNR+=a;if(WK(g.ws[(sh.corner+1)%n])==='p')shNR+=b}}
   const area0=r.mode==='rect'?(r.a||0)*(r.b||0):g.area,area=Math.max(0,area0-shA);
   let scL=0,scF=0,scT=0,scW=0;for(const sc of r.sancas||[]){const q=scGeo(sc,g.ws);if(!q)continue;scL+=q.L;scF+=q.forro;scT+=q.test;const al=Math.min(q.h,H||Infinity);if(WK(g.ws[q.k])==='p')scW+=q.La*al;if(WK(g.ws[q.k2])==='p')scW+=q.Lb*al}
-  const exL=(r.extras||[]).reduce((s,e)=>s+(e.len>0?e.len:0),0);return{g,exL,teto:Math.max(0,area-scF),scL,scF,scT,scW,perim,perimAll,vLen,vaoLen,vClose,area,area0,H,gross,openA,ded,net:Math.max(0,gross-ded-scW),rodape:Math.max(0,perim-passW-shNR),vol:area*H,objA,objV,shA,shL,alv:Math.max(0,perim-shL),cut,netW:g.ws.map((w,i)=>Math.max(0,w.len-cut[i]))}}
+  const exL=(r.extras||[]).reduce((s,e)=>s+(e.len>0?e.len:0),0);return{g,exL,teto:Math.max(0,area-scF),scL,scF,scT,scW,perim,perimAll,vLen,vaoLen,vClose,area,area0,H,gross,openA,ded,net:H>0?Object.values(revAreas0(r).tot).reduce((a,v)=>a+v,0):0,He,rodape:Math.max(0,perim-passW-shNR),vol:area*H,objA,objV,shA,shL,alv:Math.max(0,perim-shL),cut,netW:g.ws.map((w,i)=>Math.max(0,w.len-cut[i]))}}
 function totals(p){const t={area:0,teto:0,perim:0,gross:0,openA:0,net:0,rodape:0,vol:0};for(const r of p.rooms){const c=calc(r);for(const k in t)t[k]+=c[k]}return t}
 
 /* ===== planta (SVG) ===== */
@@ -672,6 +675,7 @@ function vHome(){const ps=S.projects,dt=t=>t?new Date(t).toLocaleDateString('pt-
 function vCfg(){const st=defStyle();return`<h2>Medidas</h2><div class="card list">
    <label class="row"><span class="grow">Unidade e precisão</span><select id="sfmt">${Object.entries(FMTS).map(([k,f])=>`<option value="${k}"${S.settings.fmt===k?' selected':''}>${f.n}</option>`).join('')}</select></label>
    <label class="row"><span class="grow">Tolerância padrão projeto × real (cm)</span><input class="txt num" style="width:90px" id="stol" inputmode="decimal" value="${nf(tolCm(),1)}"></label>
+   <label class="row"><span class="grow">Acabamento passa para dentro de forro, shaft e sanca (cm)</span><input class="txt num" style="width:90px" id="str" inputmode="decimal" value="${nf(trM()*100,1)}"></label>
    <label class="row"><span class="grow">Descontar da parede só aberturas maiores que (m²)</span><input class="txt num" style="width:90px" id="smin" inputmode="decimal" value="${nf(+S.settings.minOpen,2)}"></label>
    <p class="hint" style="margin:0">Excel e CSV saem sempre em metros.</p></div>
   <h2>Trena</h2><div class="card list">
@@ -745,7 +749,7 @@ function vRoom(p,r){RQR=r;const tab=V.tab||'med',c=calc(r),d=S.settings.dec;
   let h=`<div class="tabs">${[['med','Medidas'],['open','Aberturas'],['obj','Objetos'],['plan','Planta'],['sum','Resumo']].map(([k,n])=>`<button class="tab${tab===k?' on':''}" data-act="rtab" data-k="${k}" type="button">${n}</button>`).join('')}</div>`;
   if(tab==='med'){
     h+=`<div class="row" style="margin:10px 0"><button class="btn sm${r.mode==='rect'?' pri':''}" data-act="mode" data-k="rect" type="button">Retângulo</button><button class="btn sm${r.mode==='poly'?' pri':''}" data-act="mode" data-k="poly" type="button">Paredes em série</button></div>`;
-    h+=`<div class="dim"><div class="drow"><span class="tag">PD</span>${F('h','Pé-direito',r.h,v=>r.h=v)}${PJ('h',r.hPj)}${DL(r.h,r.hPj)}</div><div class="drow" style="margin-top:4px"><span class="hint" style="flex:0 0 auto">Teto</span><select class="cs" style="flex:1 1 200px" data-act="rvT" aria-label="Acabamento do teto">${revOpts(REVT,r.rvT)}</select></div></div>`;
+    h+=`<div class="dim"><div class="drow"><span class="tag">PD</span>${F('h','Pé-direito',r.h,v=>r.h=v)}${PJ('h',r.hPj)}${DL(r.h,r.hPj)}</div><div class="drow" style="margin-top:4px"><span class="hint" style="flex:0 0 auto">Teto</span><select class="cs" style="flex:1 1 200px" data-act="rvT" aria-label="Acabamento do teto">${revOpts(REVT,r.rvT)}</select></div>${r.rvT==='Forro de gesso'?`<div class="drow" style="margin-top:4px">${F('fe','Laje → forro',r.fEsp,v=>r.fEsp=v)}<span class="hint grow">${r.h>0&&r.fEsp>0?'acabamento da parede até '+flu(hEff(r))+' (forro + '+nf(trM()*100,0)+' cm)':''}</span></div>`:''}</div>`;
     if(r.mode==='rect'){h+=`<div class="list" style="margin-top:6px"><div class="dim"><div class="drow"><span class="tag">P1/3</span>${F('a','Comprimento',r.a,v=>r.a=v)}${PJ('a',r.aPj)}${DL(r.a,r.aPj)}</div></div>
       <div class="dim"><div class="drow"><span class="tag">P2/4</span>${F('b','Largura',r.b,v=>r.b=v)}${PJ('b',r.bPj)}${DL(r.b,r.bPj)}</div></div>
       <div class="dim"><div class="drow" style="flex-wrap:wrap"><span class="hint">Tipo:</span>${walls(r).length?walls(r).map((w,k)=>`<span class="tag">P${k+1}</span><button class="btn sm wk wk-${WK(w)}" data-act="rOpen" data-i="${k}" type="button">${WKN[WK(w)]}</button>`).join(''):'<span class="hint">meça comprimento e largura</span>'}</div></div>
@@ -791,7 +795,7 @@ function vRoom(p,r){RQR=r;const tab=V.tab||'med',c=calc(r),d=S.settings.dec;
   if(tab==='plan'){const s=planSVG(r,{W:480,H:380});h+=`<div class="plan" style="margin-top:12px">${s||'<div class="plan-empty">Sem paredes medidas.</div>'}</div>`;
     if(s)h+=`<button class="btn pri" data-act="planPng" type="button">Salvar planta (PNG)</button>`}
   if(tab==='sum'){h+=`<div class="card" style="margin-top:12px"><dl class="kv">
-    <dt>Pé-direito</dt><dd>${flu(r.h)}</dd><dt>Área de piso${c.shA?' (− shafts)':''}</dt><dd>${nf(c.area,2)} m²</dd><dt>Área de teto${c.scF?' (− bandeja)':''}</dt><dd>${nf(c.teto,2)} m²</dd><dt>Perímetro${c.vLen?' (só paredes)':''}</dt><dd>${flu(c.perim)}</dd>${c.vLen?`<dt>Trechos sem parede</dt><dd>${flu(c.vLen)}</dd>`:''}${c.vaoLen?`<dt>Vãos abertos</dt><dd>${flu(c.vaoLen)}</dd>`:''}${(()=>{const rq=rqTot(r);return rq.L?`<dt>Requadro (linear)</dt><dd>${flu(rq.L)}</dd><dt>Requadro (área = linear × espessura)</dt><dd>${nf(rq.A,2)} m²</dd>`:''})()}${c.scL?`<dt>Sanca de gesso (linear)</dt><dd>${flu(c.scL)}</dd><dt>Sanca · bandeja (horizontal)</dt><dd>${nf(c.scF,2)} m²</dd><dt>Sanca · fechamento linear</dt><dd>${nf(c.scT,2)} m²</dd><dt>Parede coberta pela sanca (descontada)</dt><dd>${nf(c.scW,2)} m²</dd>`:''}${c.exL?`<dt>Paredes extras (fora do cômodo)</dt><dd>${flu(c.exL)}</dd><dt>Área das paredes extras (× PD)</dt><dd>${nf(c.exL*c.H,2)} m²</dd>`:''}
+    <dt>Pé-direito</dt><dd>${flu(r.h)}</dd>${c.He<c.H-1e-9?`<dt>Altura de acabamento da parede (forro)</dt><dd>${flu(c.He)}</dd>`:''}<dt>Área de piso${c.shA?' (− shafts)':''}</dt><dd>${nf(c.area,2)} m²</dd><dt>Área de teto${c.scF?' (− bandeja)':''}</dt><dd>${nf(c.teto,2)} m²</dd><dt>Perímetro${c.vLen?' (só paredes)':''}</dt><dd>${flu(c.perim)}</dd>${c.vLen?`<dt>Trechos sem parede</dt><dd>${flu(c.vLen)}</dd>`:''}${c.vaoLen?`<dt>Vãos abertos</dt><dd>${flu(c.vaoLen)}</dd>`:''}${(()=>{const rq=rqTot(r);return rq.L?`<dt>Requadro (linear)</dt><dd>${flu(rq.L)}</dd><dt>Requadro (área = linear × espessura)</dt><dd>${nf(rq.A,2)} m²</dd>`:''})()}${c.scL?`<dt>Sanca de gesso (linear)</dt><dd>${flu(c.scL)}</dd><dt>Sanca · bandeja (horizontal)</dt><dd>${nf(c.scF,2)} m²</dd><dt>Sanca · fechamento linear</dt><dd>${nf(c.scT,2)} m²</dd><dt>Parede coberta pela sanca (descontada)</dt><dd>${nf(c.scW,2)} m²</dd>`:''}${c.exL?`<dt>Paredes extras (fora do cômodo)</dt><dd>${flu(c.exL)}</dd><dt>Área das paredes extras (× PD)</dt><dd>${nf(c.exL*c.H,2)} m²</dd>`:''}
     ${c.shL?`<dt>Parede de alvenaria (comprimento)</dt><dd>${flu(c.alv)}</dd><dt>Faces de shaft drywall (comprimento)</dt><dd>${flu(c.shL)}</dd><dt>Área de faces de shaft (× PD)</dt><dd>${nf(c.shL*c.H,2)} m²</dd><dt>Área ocupada por shafts</dt><dd>${nf(c.shA,2)} m²</dd>`:''}
     <dt>Parede bruta (perímetro × PD)</dt><dd>${nf(c.gross,2)} m²</dd><dt>Aberturas (total)</dt><dd>${nf(c.openA,2)} m²</dd><dt>Aberturas descontadas</dt><dd>${nf(c.ded,2)} m²</dd>
     <dt>Parede líquida</dt><dd>${nf(c.net,2)} m²</dd><dt>Rodapé (perímetro − portas/vãos)</dt><dd>${flu(c.rodape)}</dd><dt>Volume</dt><dd>${nf(c.vol,2)} m³</dd>
@@ -1221,6 +1225,7 @@ document.addEventListener('change',e=>{const t=e.target,a=t.dataset.act;if(!a&&!
       if(t.id==='svib'){S.settings.vib=t.checked;break}
       if(t.id==='swake'){S.settings.wake=t.checked;break}
       if(t.id==='sgcid'){S.settings.gcid=t.value.trim();S.settings.gok=0;GTOK=null;if(S.settings.gcid)gisLoad().catch(()=>{});break}
+      if(t.id==='str'){const v=pn(t.value);S.settings.trCm=v==null?5:Math.max(0,v);break}
       if(t.id==='stol'){S.settings.tol=Math.max(0,pn(t.value)||0);break}
       if(['stLw','stFs','stZr','stFont','stColX','stOrtho','stEnd','stDash','stBg','stTxt','stLine'].includes(t.id)){const k={stZr:'zref',stLw:'lw',stFs:'fs',stFont:'font',stColX:'color',stOrtho:'ortho',stEnd:'end',stDash:'dash',stBg:'bg',stTxt:'txt',stLine:'line'}[t.id];ph.style=Object.assign(stOf(ph),{[k]:t.type==='checkbox'?t.checked:t.type==='range'?+t.value:t.value});
         if(k==='color')ph.dims.forEach(d=>d.color=null);if(k==='line')ph.dims.forEach(d=>d.hide=false);break}
