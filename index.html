@@ -155,7 +155,7 @@ pre.log{font:11px/1.4 var(--f-num);background:var(--sunk);padding:8px;border-rad
   <div class="in">
     <div class="lcd" id="lcd"><span class="dot" id="dot"></span><span id="rv">—</span><small>m</small></div>
     <button class="btn pri" id="bt" type="button">Conectar trena</button>
-    <div id="tgt">Toque num campo de medida para receber a leitura</div>
+    <div id="tgt"></div>
     <div class="man"><input class="txt num" id="man" inputmode="decimal" placeholder="ou digite a medida (m)" autocomplete="off"><button class="btn" id="manok" type="button">OK</button></div>
   </div>
 </div>
@@ -437,7 +437,7 @@ function reading(m,fromLaser){m=Math.round(m*1000)/1000;BT.last=m;
 function updateDock(){$('#rv').textContent=BT.last==null?'—':nf(BT.last,S.settings.dec);
   const d=$('#dot');d.className='dot'+(BT.state==='on'?' on':BT.state==='busy'?' busy':'');
   $('#bt').textContent=BT.state==='on'?'Desconectar':BT.state==='busy'?'Conectando…':'Conectar trena';$('#bt').classList.toggle('pri',BT.state!=='on');
-  $('#tgt').innerHTML=target&&REG.has(target)?'Próxima leitura vai para: <b>'+esc(REG.get(target).label)+'</b>':'Sem campo selecionado: leitura vira <b>medida avulsa</b>'}
+  $('#tgt').innerHTML=target&&REG.has(target)?'Leitura → <b>'+esc(REG.get(target).label)+'</b>':'Leitura → <b>avulsa</b>'}
 
 /* ===== navegação ===== */
 let V={v:'home'};const HIST=[];
@@ -461,23 +461,17 @@ function render(){REG=new Map();ORDER=[];const app=$('#app');let h='';
 function after(){RT=null;hideLoupe();if(V.v==='photo')setupEditor();if(V.v==='report')fillReportPhotos()}
 
 function vHome(){const ps=S.projects;let h=`<h2>Obras</h2><div class="list">`;
-  if(!ps.length)h+=`<p class="hint">Nenhuma obra ainda. Crie a primeira abaixo.</p>`;
   for(const p of ps){const t=totals(p);h+=`<button class="item" data-act="openP" data-id="${p.id}"><div class="grow"><b>${esc(p.name)}</b><div class="sub">${p.rooms.length} cômodo(s) · ${p.photos.length} foto(s)</div></div><div class="num">${nf(t.area,2)} m²</div></button>`}
   h+=`</div><form class="row" data-form="newP" style="margin-top:10px"><input class="txt grow" id="np" placeholder="Nome da obra / unidade (ex.: Riviera T2 ap 1204)" required><button class="btn pri">Criar</button></form>`;
   const fr=S.free.filter(f=>!f.pid);if(fr.length)h+=`<h2>Medidas avulsas sem obra</h2>`+freeList(fr);
   h+=`<h2>Ajustes</h2><div class="card list">
    <label class="row"><span class="grow">Casas decimais nas medidas</span><select id="sdec"><option value="2"${S.settings.dec==2?' selected':''}>2 (cm)</option><option value="3"${S.settings.dec==3?' selected':''}>3 (mm)</option></select></label>
-   <label class="row"><span class="grow">Descontar da parede só aberturas com área maior que (m²)<br><small class="hint">0 = desconta todas. Ajuste ao critério do seu orçamento.</small></span><input class="txt num" style="width:90px" id="smin" inputmode="decimal" value="${nf(+S.settings.minOpen,2)}"></label>
+   <label class="row"><span class="grow">Descontar da parede só aberturas com área maior que (m²)</span><input class="txt num" style="width:90px" id="smin" inputmode="decimal" value="${nf(+S.settings.minOpen,2)}"></label>
    <div class="row"><button class="btn" data-act="backup" type="button">Exportar backup</button><button class="btn" data-act="restore" type="button">Importar backup</button></div>
    <button class="btn" data-act="btAll" type="button">Conectar mostrando todos os aparelhos Bluetooth</button>
-   <details><summary>Diagnóstico Bluetooth</summary><p class="hint">Pacotes recebidos da trena. Se a leitura não chegar, me mande print disto.</p><pre class="log" id="btlog">${esc(BT.log.join('\n'))||'(vazio)'}</pre></details>
+   <details><summary>Diagnóstico Bluetooth</summary><pre class="log" id="btlog">${esc(BT.log.join('\n'))||'(vazio)'}</pre></details>
   </div>
-  <h2>Como usar</h2><div class="card hint" style="margin:0">
-   1. Ative o Bluetooth na trena (veja o manual da GLM 50-27 C) e no celular.<br>
-   2. Toque <b>Conectar trena</b> e escolha o aparelho “GLM…”.<br>
-   3. Entre no cômodo, toque no campo a medir (fica vermelho) e aperte medir na trena. O valor entra e o próximo campo é selecionado.<br>
-   4. Sem campo selecionado, a leitura vira medida avulsa da obra.<br>
-   5. Menu do Chrome › <b>Adicionar à tela inicial</b> para usar como app, inclusive offline.</div>`;
+  `;
   return h}
 function freeList(fr){return`<div class="card list">`+fr.map(f=>`<div class="row"><span class="num" style="font-weight:700;min-width:90px">${nf(f.v,S.settings.dec)} m</span><input class="txt grow" data-act="freeLbl" data-id="${f.id}" value="${esc(f.label)}" placeholder="descrição"><button class="btn sm del" data-act="delFree" data-id="${f.id}" type="button">✕</button></div>`).join('')+`</div>`}
 
@@ -490,18 +484,16 @@ function vProject(p){const tab=V.tab||'rooms',t=totals(p);
   <div class="tabs">${[['rooms','Cômodos'],['plans','Plantas'],['photos','Fotos'],['free','Avulsas'],['cfg','Obra']].map(([k,n])=>`<button class="tab${tab===k?' on':''}" data-act="ptab" data-k="${k}" type="button">${n}</button>`).join('')}</div>`;
   if(tab==='rooms'){h+=`<div class="list" style="margin-top:10px">`;
     for(const r of p.rooms){const c=calc(r);h+=`<button class="item" data-act="openR" data-id="${r.id}"><div class="grow"><b>${esc(r.name)}</b><div class="sub">${r.mode==='rect'?'Retângulo':'Paredes em série'} · PD ${nf(r.h,2)} m · ${r.openings.length} abertura(s)</div></div><div class="num" style="text-align:right">${nf(c.area,2)} m²<div class="sub">${nf(c.perim,2)} m</div></div></button>`}
-    if(!p.rooms.length)h+=`<p class="hint">Nenhum cômodo. Adicione abaixo.</p>`;
     h+=`</div><form class="row" data-form="newR" style="margin-top:10px"><input class="txt grow" id="nr" placeholder="Nome do cômodo (ex.: Suíte 1)" required><button class="btn pri">Adicionar</button></form>
     <div class="row noprint" style="margin-top:16px"><button class="btn pri" data-act="report" type="button">Relatório / PDF</button><button class="btn" data-act="xlsx" type="button">Excel (.xlsx)</button><button class="btn" data-act="csv" type="button">CSV</button></div>`}
   if(tab==='plans'){const pls=p.photos.filter(f=>f.kind==='plan');
-    h+=`<p class="hint">Importe a planta do projeto (PDF ou imagem), calibre a escala e compare cada cota do projeto com a medida real da trena. Fotos das paredes ficam ligadas às cotas.</p>`;
     if(PDFP)h+=`<div class="card list"><b>PDF com ${PDFP.doc.numPages} páginas — escolha a página:</b><div class="row">${Array.from({length:PDFP.doc.numPages},(_,k)=>`<button class="btn sm" data-act="pdfPg" data-k="${k+1}" type="button">${k+1}</button>`).join('')}</div></div>`;
     h+=`<div class="thumbs">`+pls.map(f=>{const g=catSummary(f);const bad=Object.values(g).reduce((s,a)=>s+a.bad,0);return`<div class="tw"><button class="thumb" data-act="openPh" data-id="${f.id}" type="button"><img data-ph="${f.id}" alt="${esc(f.name)}"><span>${esc(f.name)} · ${f.dims.length} cota(s)${bad?` · <b style="color:var(--laser)">${bad} fora</b>`:''}</span></button><button class="btn sm del" data-act="delSh" data-id="${f.id}" type="button">Excluir planta</button></div>`}).join('')+`</div>
     <button class="btn pri" data-act="addPlan" type="button" style="margin-top:10px">+ Importar planta (PDF ou imagem)</button>`;setTimeout(thumbs,0)}
-  if(tab==='photos'){h+=`<p class="hint">Tire a foto, arraste de uma ponta à outra e meça com a trena: a cota fica gravada na imagem.</p><div class="thumbs">`;
+  if(tab==='photos'){h+=`<div class="thumbs" style="margin-top:12px">`;
     for(const f of p.photos.filter(f=>(f.kind||'photo')==='photo'))h+=`<div class="tw"><button class="thumb" data-act="openPh" data-id="${f.id}" type="button"><img data-ph="${f.id}" alt="${esc(f.name)}"><span>${esc(f.name)} · ${f.dims.length} cota(s)</span></button><button class="btn sm del" data-act="delSh" data-id="${f.id}" type="button">Excluir foto</button></div>`;
     h+=`</div><button class="btn pri" data-act="addPh" type="button" style="margin-top:10px">+ Foto com cota</button>`;setTimeout(thumbs,0)}
-  if(tab==='free'){const fr=S.free.filter(f=>f.pid===p.id);h+=`<p class="hint">Leituras feitas sem campo selecionado nesta obra.</p>`+(fr.length?freeList(fr):`<p class="hint">Nenhuma ainda.</p>`)}
+  if(tab==='free'){const fr=S.free.filter(f=>f.pid===p.id);h+=(fr.length?freeList(fr):`<p class="hint">Nenhuma ainda.</p>`)}
   if(tab==='cfg'){h+=`<div class="card list" style="margin-top:10px"><label>Nome da obra<input class="txt" data-act="pname" value="${esc(p.name)}"></label>
     <div class="row"><button class="btn del" data-act="delP" type="button">Excluir obra</button></div></div>`}
   return h}
@@ -513,14 +505,14 @@ function vRoom(p,r){const tab=V.tab||'med',c=calc(r),d=S.settings.dec;
     h+=`<div class="row" style="margin:10px 0"><button class="btn sm${r.mode==='rect'?' pri':''}" data-act="mode" data-k="rect" type="button">Retângulo</button><button class="btn sm${r.mode==='poly'?' pri':''}" data-act="mode" data-k="poly" type="button">Paredes em série</button></div>`;
     h+=`<div class="row">`+F('h','Pé-direito',r.h,v=>r.h=v);
     if(r.mode==='rect')h+=F('a','Comprimento',r.a,v=>r.a=v)+F('b','Largura',r.b,v=>r.b=v)+`</div>`;
-    else{h+=`</div><p class="hint">Percorra as paredes no sentido anti-horário (cômodo à sua esquerda). Canto normal = ↰ esquerda; canto de ressalto (pilar, L) = ↱ direita.</p><div class="card" style="padding:4px 12px">`;
+    else{h+=`</div><div class="card" style="padding:4px 12px">`;
       r.walls.forEach((w,i)=>{const std=[90,-90,45,-45,135,-135].includes(+w.ang);
         h+=`<div class="wall"><span class="tag">P${i+1}</span><div class="row">${F('w:'+i,'Parede '+(i+1),w.len,v=>{r.walls[i].len=v;if(i===r.walls.length-1)r.walls.push({len:null,ang:90})})}
         <select data-act="ang" data-i="${i}" aria-label="Giro após P${i+1}">${[[90,'↰ 90° esq'],[-90,'↱ 90° dir'],[45,'↰ 45° esq'],[-45,'↱ 45° dir'],[135,'↰ 135° esq'],[-135,'↱ 135° dir']].map(([v,n])=>`<option value="${v}"${+w.ang===v?' selected':''}>${n}</option>`).join('')}<option value="x"${std?'':' selected'}>outro…</option></select>
         ${std?'':`<input class="txt num" style="width:80px" data-act="angx" data-i="${i}" inputmode="decimal" value="${nf(+w.ang,1)}" aria-label="Giro em graus (+ esq, − dir)">`}</div>
         <button class="btn sm del" data-act="delW" data-i="${i}" type="button" aria-label="Apagar P${i+1}">✕</button></div>`});
       h+=`</div><button class="btn sm" data-act="addW" type="button" style="margin-top:8px">+ Parede</button>`;
-      const g=c.g;if(g.ws.length>=3)h+=g.err<0.02?`<p class="okbox">Planta fechada. Erro de fechamento: ${nf(g.err*100,1)} cm.</p>`:`<p class="warnbox">Planta não fecha: faltam ${nf(g.err,3)} m entre o fim da última parede e o início. Confira medidas e giros (linha tracejada na planta).</p>`}
+      const g=c.g;if(g.ws.length>=3)h+=g.err<0.02?`<p class="okbox">Planta fechada. Erro de fechamento: ${nf(g.err*100,1)} cm.</p>`:`<p class="warnbox">Não fecha: faltam ${nf(g.err,3)} m.</p>`}
     h+=`<div class="plan" style="margin-top:12px">${planSVG(r)||'<div class="plan-empty">Meça as paredes para desenhar a planta.</div>'}</div>`;
     h+=`<div class="stats" style="margin-top:10px"><div class="stat"><small>Área piso</small><b>${nf(c.area,2)}<i>m²</i></b></div><div class="stat"><small>Perímetro</small><b>${nf(c.perim,2)}<i>m</i></b></div><div class="stat"><small>Parede líquida</small><b>${nf(c.net,2)}<i>m²</i></b></div><div class="stat"><small>Volume</small><b>${nf(c.vol,2)}<i>m³</i></b></div></div>`}
   if(tab==='open'){const nW=c.g.ws.length;
@@ -529,14 +521,14 @@ function vRoom(p,r){const tab=V.tab||'med',c=calc(r),d=S.settings.dec;
       <select data-act="oW" data-i="${i}" aria-label="Parede"><option value="">sem parede</option>${Array.from({length:nW},(_,k)=>`<option value="${k}"${o.wall===k?' selected':''}>P${k+1}</option>`).join('')}</select>
       <label class="row">Qtd <input class="txt num" style="width:60px" data-act="oQ" data-i="${i}" inputmode="numeric" value="${o.q||1}"></label><span class="grow"></span><button class="btn sm del" data-act="delO" data-i="${i}" type="button">✕</button></div>
       <div class="row">${F('o:'+i+':w','Largura',o.w,v=>r.openings[i].w=v)}${F('o:'+i+':h','Altura',o.h,v=>r.openings[i].h=v)}<span class="num hint">${nf((o.w||0)*(o.h||0)*(o.q||1),2)} m²</span></div></div>`});
-    if(!r.openings.length)h+=`<p class="hint">Nenhuma abertura. Portas e vãos descontam do rodapé; todas descontam da área de parede (conforme o limite em Ajustes).</p>`;
+    
     h+=`</div><p class="hint">Total aberturas: <b class="num">${nf(c.openA,2)} m²</b> · descontado da parede: <b class="num">${nf(c.ded,2)} m²</b></p>`}
-  if(tab==='obj'){h+=`<p class="hint">Móveis, bancadas, pilares, shafts… comprimento × largura × altura.</p><div class="list">`;
+  if(tab==='obj'){h+=`<div class="list" style="margin-top:10px">`;
     r.objects.forEach((o,i)=>{h+=`<div class="card list"><div class="row"><input class="txt grow" data-act="obN" data-i="${i}" value="${esc(o.n||'')}" placeholder="nome do objeto"><button class="btn sm del" data-act="delOb" data-i="${i}" type="button">✕</button></div>
       <div class="row">${F('b:'+i+':a','Comprim.',o.a,v=>r.objects[i].a=v)}${F('b:'+i+':b','Largura',o.b,v=>r.objects[i].b=v)}${F('b:'+i+':c','Altura',o.c,v=>r.objects[i].c=v)}</div>
       <span class="hint num">${nf((o.a||0)*(o.b||0),2)} m² · ${nf((o.a||0)*(o.b||0)*(o.c||0),3)} m³</span></div>`});
     h+=`</div><button class="btn sm" data-act="addOb" type="button" style="margin-top:8px">+ Objeto</button>`}
-  if(tab==='plan'){const s=planSVG(r,{W:480,H:380});h+=`<div class="plan" style="margin-top:12px">${s||'<div class="plan-empty">Sem paredes medidas.</div>'}</div><p class="hint">PT porta · JA janela · VÃ vão (marcados na parede escolhida em Aberturas). Desenho em escala a partir das medidas e giros.</p>`;
+  if(tab==='plan'){const s=planSVG(r,{W:480,H:380});h+=`<div class="plan" style="margin-top:12px">${s||'<div class="plan-empty">Sem paredes medidas.</div>'}</div>`;
     if(s)h+=`<button class="btn pri" data-act="planPng" type="button">Salvar planta (PNG)</button>`}
   if(tab==='sum'){h+=`<div class="card" style="margin-top:12px"><dl class="kv">
     <dt>Pé-direito</dt><dd>${nf(r.h,d)} m</dd><dt>Área de piso / forro</dt><dd>${nf(c.area,2)} m²</dd><dt>Perímetro</dt><dd>${nf(c.perim,2)} m</dd>
@@ -544,8 +536,7 @@ function vRoom(p,r){const tab=V.tab||'med',c=calc(r),d=S.settings.dec;
     <dt>Parede líquida</dt><dd>${nf(c.net,2)} m²</dd><dt>Rodapé (perímetro − portas/vãos)</dt><dd>${nf(c.rodape,2)} m</dd><dt>Volume</dt><dd>${nf(c.vol,2)} m³</dd>
     ${r.objects.length?`<dt>Objetos (área / volume)</dt><dd>${nf(c.objA,2)} m² / ${nf(c.objV,3)} m³</dd>`:''}
     ${r.mode==='poly'&&c.g.ws.length>=3?`<dt>Erro de fechamento</dt><dd>${nf(c.g.err*100,1)} cm</dd>`:''}</dl></div>
-    <div class="row" style="margin-top:10px"><button class="btn" data-act="copySum" type="button">Copiar resumo</button><button class="btn del" data-act="delR" type="button">Excluir cômodo</button></div>
-    <p class="hint">Cálculos geométricos: área pelo método de Gauss (shoelace) sobre o polígono das paredes; parede = perímetro × pé-direito − aberturas.</p>`}
+    <div class="row" style="margin-top:10px"><button class="btn" data-act="copySum" type="button">Copiar resumo</button><button class="btn del" data-act="delR" type="button">Excluir cômodo</button></div>`}
   return h}
 
 /* ===== editor de cotas (foto e planta) ===== */
@@ -561,7 +552,7 @@ function vPhoto(p,ph){const isPlan=ph.kind==='plan',st=stOf(ph),dec=S.settings.d
     <button class="btn sm" data-act="zoomFit" type="button">Ajustar</button>
     <button class="btn sm${ED.styleOpen?' pri':''}" data-act="stOpen" type="button">Estilo</button></div>
   <div class="stage" id="stage"><canvas id="ph"></canvas></div>
-  <p class="hint" id="edhint">${PEND?'Toque o <b>segundo ponto</b> (ou arraste de um ponto ao outro).':ED.mode==='add'?'Arraste de uma ponta à outra para criar a cota (a lupa ajuda na precisão). Toque numa cota para selecionar: arraste os círculos das pontas para ajustar, o texto para mover o texto, a linha para mover a cota toda e o botão acima do texto para girar. Dois dedos: zoom.':'Modo mover: arraste para navegar, dois dedos para zoom.'}</p>`;
+  <p id="edhint" hidden></p>`;
   if(ED.styleOpen)h+=`<div class="card list">
     <label class="row"><span style="width:110px">Espessura</span><input type="range" class="grow" min="1" max="12" step="0.5" id="stLw" value="${st.lw}"><span class="num" style="width:34px">${st.lw}</span></label>
     <label class="row"><span style="width:110px">Tamanho texto</span><input type="range" class="grow" min="8" max="48" step="1" id="stFs" value="${st.fs}"><span class="num" style="width:34px">${st.fs}</span></label>
@@ -575,12 +566,11 @@ function vPhoto(p,ph){const isPlan=ph.kind==='plan',st=stOf(ph),dec=S.settings.d
     <label class="row"><input type="checkbox" id="stOrtho"${st.ortho?' checked':''}> <span class="grow">Travar na horizontal/vertical automaticamente (até 6°)</span></label>
     <button class="btn sm" data-act="stDef" type="button">Usar este estilo como padrão nas novas fotos/plantas</button></div>`;
   if(isPlan){const sc=sheetScale(ph);
-    h+=`<div class="card list" style="margin-top:10px">${sc?`<div class="okbox">Escala definida pela cota de referência: 1 m = ${nf(1/sc,1)} px da imagem.</div>`:`<div class="warnbox">Sem escala. Crie uma cota sobre uma medida conhecida do projeto (de preferência a maior), digite o valor em <b>Projeto</b> e marque <b>Usar como escala</b>. As demais cotas passam a mostrar a medida do projeto automaticamente.</div>`}
+    h+=`<div class="card list" style="margin-top:10px">${sc?`<div class="okbox">Escala: 1 m = ${nf(1/sc,1)} px</div>`:`<div class="warnbox">Sem escala</div>`}
       <div class="row"><label class="row grow">Nova cota como <select data-act="lastCat">${Object.entries(CATS).map(([k,n])=>`<option value="${k}"${ED.lastCat===k?' selected':''}>${n}</option>`).join('')}</select></label>
-      <label class="row">Tolerância ± <input class="txt num" style="width:64px" id="stol" inputmode="decimal" value="${nf(tolCm(),1)}"> cm</label></div>
-      <p class="hint" style="margin:0">Tolerância é o seu critério de aceite (defina conforme projeto/contrato). Verde = dentro; vermelho = fora.</p></div>`;
+      <label class="row">Tolerância ± <input class="txt num" style="width:64px" id="stol" inputmode="decimal" value="${nf(tolCm(),1)}"> cm</label></div></div>`;
     const g=catSummary(ph),ks=Object.keys(g);
-    if(ks.length)h+=`<div class="tbl" style="margin-top:10px"><table><thead><tr><th>Categoria</th><th>Qtd</th><th>Σ Projeto (m)</th><th>Σ Real (m)</th><th>Δ (cm)</th><th>Fora</th></tr></thead><tbody>${ks.map(k=>{const a=g[k];const dc=a.cmp?(a.rr-a.pp)*100:null;return`<tr><td>${CATS[k]}${k==='parede'?' (perímetro)':''}</td><td>${a.n}</td><td>${nf(a.p,2)}</td><td>${nf(a.r,2)}</td><td>${dc==null?'—':(dc>0?'+':'')+nf(dc,1)}</td><td>${a.bad?`<span class="pill bad">${a.bad}</span>`:a.cmp?'<span class="pill ok">0</span>':'—'}</td></tr>`}).join('')}</tbody></table></div><p class="hint">Δ somado só entre cotas que têm projeto e real.</p>`}
+    if(ks.length)h+=`<div class="tbl" style="margin-top:10px"><table><thead><tr><th>Categoria</th><th>Qtd</th><th>Σ Projeto (m)</th><th>Σ Real (m)</th><th>Δ (cm)</th><th>Fora</th></tr></thead><tbody>${ks.map(k=>{const a=g[k];const dc=a.cmp?(a.rr-a.pp)*100:null;return`<tr><td>${CATS[k]}${k==='parede'?' (perímetro)':''}</td><td>${a.n}</td><td>${nf(a.p,2)}</td><td>${nf(a.r,2)}</td><td>${dc==null?'—':(dc>0?'+':'')+nf(dc,1)}</td><td>${a.bad?`<span class="pill bad">${a.bad}</span>`:a.cmp?'<span class="pill ok">0</span>':'—'}</td></tr>`}).join('')}</tbody></table></div>`}
   h+=`<div class="list" style="margin-top:10px">`;
   ph.dims.forEach((d,i)=>{const sel=ED.sel===d.id,col=d.ref?'#00c2ff':(d.color||st.color),dc=isPlan?deltaCm(ph,d):null,ok=okD(dc);
     h+=`<div class="card dim${sel?' sel':''}" data-act="selD" data-i="${i}"><div class="row"><span class="sw" style="background:${col}"></span><b class="num">C${i+1}</b>
@@ -593,7 +583,7 @@ function vPhoto(p,ph){const isPlan=ph.kind==='plan',st=stOf(ph),dec=S.settings.d
       ${sel?`<div class="row">${COLORS.map(c=>`<button type="button" class="chip${d.color===c?' on':''}" style="background:${c}" data-act="dCol" data-i="${i}" data-c="${c}" aria-label="cor"></button>`).join('')}<button type="button" class="btn sm" data-act="dCol" data-i="${i}" data-c="">padrão</button></div>`:''}
       ${isPlan?`<div class="row"><label class="row"><input type="checkbox" data-act="dRef" data-i="${i}"${d.ref?' checked':''}> Usar como escala</label><span class="grow"></span><button class="btn sm" data-act="dPh" data-i="${i}" type="button">+ Foto da parede</button></div>
       ${(d.ph||[]).length?`<div class="minis">${d.ph.map(id=>{const f=p.photos.find(x=>x.id===id);return f?`<button class="mini" data-act="openPh" data-id="${id}" type="button"><img data-ph="${id}" alt="${esc(f.name)}"></button>`:''}).join('')}</div>`:''}`:''}</div>`});
-  if(!ph.dims.length)h+=`<p class="hint">Nenhuma cota ainda.</p>`;
+  
   h+=`</div><div class="card list" style="margin-top:12px"><div class="row"><input class="txt grow" data-act="phName" value="${esc(ph.name)}" aria-label="Nome">
     <select data-act="phRoom" aria-label="Cômodo"><option value="">sem cômodo</option>${p.rooms.map(r=>`<option value="${r.id}"${ph.rid===r.id?' selected':''}>${esc(r.name)}</option>`).join('')}</select></div>
     ${ph.link?(()=>{const pl=p.photos.find(x=>x.id===ph.link.sid);const k=pl?pl.dims.findIndex(x=>x.id===ph.link.did):-1;return pl?`<div class="row"><span class="hint grow">Vinculada a <b>${esc(pl.name)}</b>${k>=0?' › C'+(k+1):''}</span><button class="btn sm" data-act="openPh" data-id="${pl.id}" type="button">Abrir planta</button></div>`:''})():''}
@@ -601,7 +591,7 @@ function vPhoto(p,ph){const isPlan=ph.kind==='plan',st=stOf(ph),dec=S.settings.d
   setTimeout(thumbs,0);return h}
 
 const sc=()=>ED.fit*ED.z;
-const zMax=()=>RT&&RT.sh.pdf?40:12;
+const zMax=()=>RT&&RT.sh.pdf?80:30;
 function clampXY(){const R=RT;if(!R)return;const sw=R.cw,shh=R.ch,dw=R.sh.w*sc(),dh=R.sh.h*sc();
   ED.X=dw>sw?Math.min(0,Math.max(sw-dw,ED.X)):(sw-dw)/2;ED.Y=dh>shh?Math.min(0,Math.max(shh-dh,ED.Y)):(shh-dh)/2}
 function applyT(){if(!RT)return;clampXY();sched();hiLater()}
@@ -652,7 +642,7 @@ function hit(pt){const ds=RT.sh.dims,s=sc(),hr=26/s,lr=16/s;const si=ds.findInde
 function newDim(x1,y1,x2,y2){const sh=RT.sh;return{id:uid(),x1,y1,x2,y2,val:null,label:'',cat:sh.kind==='plan'?ED.lastCat:undefined,proj:null,ref:false,color:null,ph:[]}}
 function selectDim(i){const sh=RT.sh;ED.sel=sh.dims[i].id;target='d:'+sh.id+':'+i;render();const c=document.querySelectorAll('.dim')[i];c&&c.scrollIntoView({block:'nearest',behavior:'smooth'})}
 function tapEmpty(pt){const sh=RT.sh;if(ED.sel){ED.sel=null;target=null;render();return}if(ED.mode!=='add')return;
-  if(!PEND){PEND=[pt.x,pt.y];$('#edhint').innerHTML='Toque o <b>segundo ponto</b> (ou arraste de um ponto ao outro).';edDraw();return}
+  if(!PEND){PEND=[pt.x,pt.y];edDraw();return}
   const[b,c]=snap(PEND[0],PEND[1],pt.x,pt.y);sh.dims.push(newDim(PEND[0],PEND[1],b,c));PEND=null;save();selectDim(sh.dims.length-1)}
 const PAGES=new Map(),HIS=new Map();
 async function setupEditor(){const p=P(V.pid),sh=p&&p.photos.find(x=>x.id===V.phid),cv=$('#ph'),stage=$('#stage');if(!sh||!cv)return;
