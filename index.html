@@ -224,8 +224,9 @@ const R=(p,id)=>p&&p.rooms.find(r=>r.id===id);
 const REVS=['Pintura','Cerâmica','Porcelanato','Azulejo','Pastilha','Textura','Papel de parede','Gesso liso','Pedra','Madeira','Outro'];
 function WS(r,i){if(r.mode==='rect'){r.revR=r.revR||{};return r.revR[i]=r.revR[i]||{}}return r.walls[i]}
 function revAreas(r){const g=geom(r),H=r.h||0,min=+S.settings.minOpen||0,rows=[],tot={},warn=[];if(!(H>0))return{rows,tot,warn:g.ws.length?['Sem pé-direito: revestimento não calculado.']:[]};
-  const addT=(k,v)=>{if(v>1e-9)tot[k]=(tot[k]||0)+v};
-  g.ws.forEach((w,i)=>{if(WK(w)!=='p')return;const st=WS(r,i)||{},h1=st.rvH>0?Math.min(st.rvH,H):H,len=w.len;let lo=len*h1,up=len*(H-h1);
+  const addT=(k,v)=>{if(v>1e-9)tot[k]=(tot[k]||0)+v};const nW=g.ws.length,cut=g.ws.map(()=>0),SH=[];
+  for(const sh of r.shafts||[]){if(sh.corner==null||sh.corner>=nW||!(sh.a>0&&sh.b>0))continue;cut[sh.corner]+=sh.a;cut[(sh.corner+1)%nW]+=sh.b;SH.push(sh)}
+  g.ws.forEach((w,i)=>{if(WK(w)!=='p')return;const st=WS(r,i)||{},h1=st.rvH>0?Math.min(st.rvH,H):H,len=Math.max(0,w.len-cut[i]);let lo=len*h1,up=len*(H-h1);
     for(const o of r.openings){if(o.wall!==i||!(o.w>0&&o.h>0))continue;const q=o.q||1;if(o.w*o.h<=min)continue;
       let z0=o.t==='janela'?o.pe:0;if(z0==null){if(h1<H)warn.push('Janela em '+WN(r,i)+' sem peitoril: descontada da faixa de cima.');z0=h1<H?h1:0}
       const ov=Math.max(0,Math.min(z0+o.h,h1)-Math.max(z0,0));lo-=o.w*q*ov;up-=o.w*q*(o.h-ov)}
@@ -233,11 +234,21 @@ function revAreas(r){const g=geom(r),H=r.h||0,min=+S.settings.minOpen||0,rows=[]
     const rv=st.rv||'Não definido',rs=st.rvS||'Pintura';
     rows.push({i,name:WN(r,i),rv,faixa:h1<H?'0 a '+fl(h1):'parede toda',area:Math.max(0,lo)});addT(rv,Math.max(0,lo));
     if(h1<H){rows.push({i,name:WN(r,i),rv:rs,faixa:fl(h1)+' a '+fl(H),area:Math.max(0,up)});addT(rs,Math.max(0,up))}});
+  SH.forEach(sh=>{const si=r.shafts.indexOf(sh);shFaces(sh).forEach(f=>{const A=f.len*H,st=sh[f.k]||{},rv=st.rv||'Pintura',nm='SH'+(si+1)+' · '+f.nome;
+    if(st.ar>0&&st.ar<A){rows.push({name:nm,rv,faixa:'área informada',area:st.ar});addT(rv,st.ar);const rs=st.rs||'Pintura';rows.push({name:nm,rv:rs,faixa:'restante',area:A-st.ar});addT(rs,A-st.ar)}
+    else{rows.push({name:nm,rv,faixa:'face toda',area:A});addT(rv,A)}})});
+  (r.sancas||[]).forEach((sc,si)=>{const q=scGeo(sc,g.ws);if(!q)return;const b=sc.rvB||'Pintura',f=sc.rvF||'Pintura';
+    if(q.forro>1e-9){rows.push({name:'SC'+(si+1)+' · bandeja',rv:b,faixa:'bandeja',area:q.forro});addT(b,q.forro)}
+    if(q.test>1e-9){rows.push({name:'SC'+(si+1)+' · fechamento',rv:f,faixa:'fechamento',area:q.test});addT(f,q.test)}});
   if(r.openings.some(o=>o.wall==null&&o.w>0))warn.push('Aberturas sem parede definida não foram descontadas do revestimento.');
   return{rows,tot,warn}}
 function revUI(r,i){const st=WS(r,i)||{},opt=(v,sel)=>`<option value="">—</option>`+REVS.map(x=>`<option${sel===x?' selected':''}>${x}</option>`).join('');
   return`<div class="drow" style="margin-top:4px;flex-wrap:wrap"><select class="cs" style="flex:0 1 120px" data-act="rv" data-i="${i}" data-k="rv" aria-label="Revestimento">${opt(0,st.rv)}</select>
     ${F('rv:'+i,'Até (m)',st.rvH,v=>WS(r,i).rvH=v)}${st.rvH>0?`<span class="hint">acima</span><select class="cs" style="flex:0 1 100px" data-act="rv" data-i="${i}" data-k="rvS" aria-label="Revestimento acima">${opt(0,st.rvS||'Pintura')}</select>`:''}</div>`}
+function shFaces(sh){const a=sh.a||0,b=sh.b||0,ca=a>=b;return[{k:'fa',len:a,nome:ca?'comprimento':'espessura'},{k:'fb',len:b,nome:ca?'espessura':'comprimento'}]}
+function shAcUI(r,sh,i){const opt=sel=>REVS.map(x=>`<option${sel===x?' selected':''}>${x}</option>`).join('');let h='';
+  for(const f of shFaces(sh)){const st=sh[f.k]||{},A=f.len*(r.h||0);h+=`<div class="drow" style="margin-top:4px;flex-wrap:wrap;gap:6px"><span class="hint" style="flex:0 0 100%">Face ${f.nome} (${fl(f.len)}${A>0?' · '+nf(A,2)+' m²':''})</span><select class="cs" style="flex:0 1 120px" data-act="shRv" data-i="${i}" data-f="${f.k}" data-k="rv" aria-label="Acabamento">${opt(st.rv||'Pintura')}</select><label class="mf cmp" style="cursor:text;flex:0 1 110px"><span class="mfl">Área (m²)</span><input class="pin num" data-act="shAr" data-i="${i}" data-f="${f.k}" inputmode="decimal" value="${st.ar>0?nf(st.ar,2):''}" placeholder="face toda"></label>${st.ar>0?`<span class="hint">resto</span><select class="cs" style="flex:0 1 110px" data-act="shRv" data-i="${i}" data-f="${f.k}" data-k="rs" aria-label="Restante">${opt(st.rs||'Pintura')}</select>${A>0?`<span class="hint">${nf(Math.max(0,A-st.ar),2)} m²</span>`:''}`:''}</div>`}
+  return h+`<label class="row" style="gap:6px;margin-top:6px"><input type="checkbox" data-act="shRod" data-i="${i}"${sh.noRod?'':' checked'}> Rodapé no perímetro do shaft${sh.a>0&&sh.b>0?' ('+flu(sh.a+sh.b)+')':''}</label>`}
 function rqLin(q){return q&&q.on?(q.e||0)+(q.d||0)+(q.t||0):0}
 function rqTot(r){const it=[];let L=0,A=0;const g=geom(r);
   r.openings.forEach((o,i)=>{if(!(o.rq&&o.rq.on))return;const q=o.q||1,l=rqLin(o.rq)*q;L+=l;A+=l*(o.rq.esp||0);it.push({nome:(o.t==='vao'?'Vão':o.t[0].toUpperCase()+o.t.slice(1))+' '+(i+1)+(o.wall!=null?' ('+WN(r,o.wall)+')':'')+(q>1?' ×'+q:''),rq:o.rq,q,l,a:l*(o.rq.esp||0)})});
@@ -265,10 +276,10 @@ function calc(r){const g=geom(r),H=r.h||0,min=+S.settings.minOpen||0;
   for(const o of r.openings){const a=(o.w||0)*(o.h||0),q=o.q||1;openA+=a*q;if(a>min)ded+=a*q;if(o.t!=='janela')passW+=(o.w||0)*q}
   const gross=perim*H;let objA=0,objV=0;for(const o of r.objects){objA+=(o.a||0)*(o.b||0);objV+=(o.a||0)*(o.b||0)*(o.c||0)}
   const n=g.ws.length,cut=g.ws.map(()=>0);let shA=0,shL=0;
-  for(const sh of r.shafts||[]){if(sh.corner==null||sh.corner>=n)continue;const a=sh.a||0,b=sh.b||0;cut[sh.corner]+=a;cut[(sh.corner+1)%n]+=b;shA+=a*b;shL+=a+b}
+  let shNR=0;for(const sh of r.shafts||[]){if(sh.corner==null||sh.corner>=n)continue;const a=sh.a||0,b=sh.b||0;cut[sh.corner]+=a;cut[(sh.corner+1)%n]+=b;shA+=a*b;shL+=a+b;if(sh.noRod){if(WK(g.ws[sh.corner])==='p')shNR+=a;if(WK(g.ws[(sh.corner+1)%n])==='p')shNR+=b}}
   const area0=r.mode==='rect'?(r.a||0)*(r.b||0):g.area,area=Math.max(0,area0-shA);
   let scL=0,scF=0,scT=0,scW=0;for(const sc of r.sancas||[]){const q=scGeo(sc,g.ws);if(!q)continue;scL+=q.L;scF+=q.forro;scT+=q.test;const al=Math.min(q.h,H||Infinity);if(WK(g.ws[q.k])==='p')scW+=q.La*al;if(WK(g.ws[q.k2])==='p')scW+=q.Lb*al}
-  const exL=(r.extras||[]).reduce((s,e)=>s+(e.len>0?e.len:0),0);return{g,exL,teto:Math.max(0,area-scF),scL,scF,scT,scW,perim,perimAll,vLen,vaoLen,vClose,area,area0,H,gross,openA,ded,net:Math.max(0,gross-ded-scW),rodape:Math.max(0,perim-passW),vol:area*H,objA,objV,shA,shL,alv:Math.max(0,perim-shL),cut,netW:g.ws.map((w,i)=>Math.max(0,w.len-cut[i]))}}
+  const exL=(r.extras||[]).reduce((s,e)=>s+(e.len>0?e.len:0),0);return{g,exL,teto:Math.max(0,area-scF),scL,scF,scT,scW,perim,perimAll,vLen,vaoLen,vClose,area,area0,H,gross,openA,ded,net:Math.max(0,gross-ded-scW),rodape:Math.max(0,perim-passW-shNR),vol:area*H,objA,objV,shA,shL,alv:Math.max(0,perim-shL),cut,netW:g.ws.map((w,i)=>Math.max(0,w.len-cut[i]))}}
 function totals(p){const t={area:0,teto:0,perim:0,gross:0,openA:0,net:0,rodape:0,vol:0};for(const r of p.rooms){const c=calc(r);for(const k in t)t[k]+=c[k]}return t}
 
 /* ===== planta (SVG) ===== */
@@ -688,14 +699,14 @@ function vRoom(p,r){RQR=r;const tab=V.tab||'med',c=calc(r),d=S.settings.dec;
     {const n=c.g.ws.length;h+=`<h2 style="margin:16px 0 6px">Shafts nos cantos</h2><div class="list">`;
       (r.shafts||[]).forEach((sh,i)=>{const k=sh.corner;h+=`<div class="dim"><div class="drow"><span class="tag">SH${i+1}</span><select class="cs" style="flex:0 1 130px" data-act="shC" data-i="${i}" aria-label="Canto">${Array.from({length:n},(_,j)=>`<option value="${j}"${k===j?' selected':''}>Canto ${WN(r,j)}/${WN(r,(j+1)%n)}</option>`).join('')}</select><button class="btn sm del xb" data-act="delSh2" data-i="${i}" type="button">✕</button></div>
         <div class="drow" style="margin-top:4px">${F('s:'+i+':a','Lado '+WN(r,k),sh.a,v=>r.shafts[i].a=v)}${PJ('s:'+i+':a',sh.aPj)}<span class="sep"></span>${F('s:'+i+':b','Lado '+WN(r,(k+1)%n),sh.b,v=>r.shafts[i].b=v)}${PJ('s:'+i+':b',sh.bPj)}</div>
-        ${DL(sh.a,sh.aPj)||DL(sh.b,sh.bPj)?`<div class="drow" style="margin-top:4px;gap:10px"><span class="hint">Δ ${WN(r,k)}</span>${DL(sh.a,sh.aPj)||'—'}<span class="hint">Δ ${WN(r,(k+1)%n)}</span>${DL(sh.b,sh.bPj)||'—'}</div>`:''}</div>`});
+        ${DL(sh.a,sh.aPj)||DL(sh.b,sh.bPj)?`<div class="drow" style="margin-top:4px;gap:10px"><span class="hint">Δ ${WN(r,k)}</span>${DL(sh.a,sh.aPj)||'—'}<span class="hint">Δ ${WN(r,(k+1)%n)}</span>${DL(sh.b,sh.bPj)||'—'}</div>`:''}${shAcUI(r,sh,i)}</div>`});
       h+=`</div>${n>=3?`<button class="btn sm" data-act="addSh2" type="button" style="margin-top:8px">+ Shaft</button>`:''}`;
       if(c.shL>0)h+=`<div class="tbl" style="margin-top:8px"><table><thead><tr><th>Parede</th><th>Total</th><th>Alvenaria</th><th>Shaft</th></tr></thead><tbody>${c.g.ws.map((w,j)=>`<tr><td>${WN(r,j)}</td><td>${fl(w.len)}</td><td>${fl(c.netW[j])}</td><td>${c.cut[j]?fl(c.cut[j]):'—'}</td></tr>`).join('')}</tbody></table></div>`}
     {const n=c.g.ws.length;h+=`<h2 style="margin:16px 0 6px">Sancas de gesso</h2><div class="list">`;
       (r.sancas||[]).forEach((sc,i)=>{const k=sc.corner,k2=n?(k+1)%n:0;
         h+=`<div class="dim"><div class="drow"><span class="tag">SC${i+1}</span><select class="cs" style="flex:0 1 130px" data-act="scC" data-i="${i}" aria-label="Canto">${Array.from({length:n},(_,j)=>`<option value="${j}"${k===j?' selected':''}>Canto ${WN(r,j)}/${WN(r,(j+1)%n)}</option>`).join('')}</select><button class="btn sm del xb" data-act="delSc" data-i="${i}" type="button">✕</button></div>
         <div class="drow" style="margin-top:4px">${F('c:'+i+':a','Lado '+WN(r,k),sc.a,v=>r.sancas[i].a=v)}<button class="btn sm" data-act="scAll" data-i="${i}" data-k="a" type="button" title="Parede toda">toda</button><span class="sep"></span>${F('c:'+i+':b','Lado '+WN(r,k2),sc.b,v=>r.sancas[i].b=v)}<button class="btn sm" data-act="scAll" data-i="${i}" data-k="b" type="button" title="Parede toda">toda</button></div>
-        <div class="drow" style="margin-top:4px">${F('c:'+i+':larg','Largura',sc.larg,v=>r.sancas[i].larg=v)}${F('c:'+i+':alt','Altura',sc.alt,v=>r.sancas[i].alt=v)}</div></div>`});
+        <div class="drow" style="margin-top:4px">${F('c:'+i+':larg','Largura',sc.larg,v=>r.sancas[i].larg=v)}${F('c:'+i+':alt','Altura',sc.alt,v=>r.sancas[i].alt=v)}</div><div class="drow" style="margin-top:4px;flex-wrap:wrap;gap:6px"><span class="hint">Bandeja</span><select class="cs" style="flex:0 1 120px" data-act="scRv" data-i="${i}" data-k="rvB">${REVS.map(x=>`<option${(sc.rvB||'Pintura')===x?' selected':''}>${x}</option>`).join('')}</select><span class="hint">Fechamento</span><select class="cs" style="flex:0 1 120px" data-act="scRv" data-i="${i}" data-k="rvF">${REVS.map(x=>`<option${(sc.rvF||'Pintura')===x?' selected':''}>${x}</option>`).join('')}</select></div></div>`});
       h+=`</div>${n>=2?`<button class="btn sm" data-act="addSc" type="button" style="margin-top:8px">+ Sanca</button>`:''}`;
       if(c.scL>0)h+=`<div class="tbl" style="margin-top:8px"><table><thead><tr><th>Sanca</th><th>Linear</th><th>Bandeja (m²)</th><th>Fechamento linear (m²)</th></tr></thead><tbody>${(r.sancas||[]).map((sc,i)=>{const q=scGeo(sc,c.g.ws);return q?`<tr><td>SC${i+1} · ${WN(r,q.k)}/${WN(r,q.k2)}</td><td>${fl(q.L)}</td><td>${nf(q.forro,2)}</td><td>${nf(q.test,2)}</td></tr>`:''}).join('')}</tbody><tfoot><tr><td>Total</td><td>${fl(c.scL)}</td><td>${nf(c.scF,2)}</td><td>${nf(c.scT,2)}</td></tr></tfoot></table></div>`}
     h+=`<div class="plan" style="margin-top:12px">${planSVG(r)||'<div class="plan-empty">Meça as paredes para desenhar a planta.</div>'}</div>`;
@@ -1131,6 +1142,10 @@ document.addEventListener('change',e=>{const t=e.target,a=t.dataset.act;if(!a&&!
     case'exDir':r.extras[i].dir=+t.value;break;
     case'scC':r.sancas[i].corner=+t.value;break;
     case'rv':WS(r,i)[t.dataset.k]=t.value||null;break;
+    case'shRv':{const sh=r.shafts[i];sh[t.dataset.f]=sh[t.dataset.f]||{};sh[t.dataset.f][t.dataset.k]=t.value;break}
+    case'shAr':{const sh=r.shafts[i];sh[t.dataset.f]=sh[t.dataset.f]||{};sh[t.dataset.f].ar=pn(t.value);break}
+    case'shRod':r.shafts[i].noRod=!t.checked;break;
+    case'scRv':r.sancas[i][t.dataset.k]=t.value;break;
     case'rqOn':{const o=rqHost(t.dataset.k);if(!o)return;o.rq=o.rq||{};o.rq.on=t.checked;if(t.checked&&!o.rq.e&&!o.rq.t)target='q:'+t.dataset.k+':e';break}
     case'shC':r.shafts[i].corner=+t.value;break;
     case'pj':setPj(r,t.dataset.k,parseL(t.value));break;
