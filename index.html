@@ -109,6 +109,20 @@ tfoot td{font-weight:700}
 .chip{width:28px;height:28px;border-radius:50%;border:2px solid var(--line);cursor:pointer;padding:0}
 .chip.on{outline:3px solid var(--accent);outline-offset:1px}
 input[type=color]{width:34px;height:30px;border:1px solid var(--line);border-radius:6px;background:none;padding:0}
+.dim{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:6px 8px}
+.drow{display:flex;align-items:center;gap:5px;flex-wrap:nowrap;min-width:0}
+.ctag{font-size:13px;min-width:24px}
+.cs{padding:5px 2px;font-size:13px;flex:0 1 86px;min-width:0}
+.mf.cmp,.dim .mf{min-width:0;flex:0 1 76px;padding:2px 7px}
+.dim .mf .mfv,.dim .pin{font-size:15px}.dim .pin{width:100%}
+.dim .mfl{font-size:10px}
+.xb{padding:4px 8px;margin-left:auto;flex:none}.dim .pill{flex:none}.dim .sw{flex:none}
+.dl{font-size:13px;color:var(--muted);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:40%}
+.dmore{padding-top:8px;border-top:1px dashed var(--line);margin-top:6px}
+.dim .minis{margin-top:6px}
+.dim .pill{padding:2px 7px;font-size:12px}
+details.opt{margin-top:10px;font-size:13px;color:var(--muted);border:1px solid var(--line);border-radius:8px;padding:6px 10px}
+details.opt summary{font-weight:500}
 .dim.sel{border-color:var(--laser);box-shadow:0 0 0 2px color-mix(in srgb,var(--laser) 25%,transparent)}
 .sw{width:14px;height:14px;border-radius:3px;border:1px solid var(--line);flex:none}
 .pin{border:0;background:none;padding:0;font:700 17px var(--f-num);width:96px;min-width:0}
@@ -451,8 +465,8 @@ function updateDock(){$('#rv').textContent=BT.last==null?'—':fl(BT.last);$('#r
 
 /* ===== navegação ===== */
 let V={v:'home'};const HIST=[];
-function go(nv,push=true){if(push)HIST.push(V);V=Object.assign({},nv);target=null;render();window.scrollTo(0,0)}
-function back(){V=HIST.pop()||{v:'home'};target=null;render()}
+function go(nv,push=true){ED.styleOpen=false;if(push)HIST.push(V);V=Object.assign({},nv);target=null;render();window.scrollTo(0,0)}
+function back(){ED.styleOpen=false;V=HIST.pop()||{v:'home'};target=null;render()}
 $('#back').onclick=back;
 function renameObj(){const p=P(V.pid);if(!p)return null;if(V.v==='project')return p;if(V.v==='room')return R(p,V.rid);if(V.v==='photo')return p.photos.find(x=>x.id===V.phid);return null}
 $('#ttl').onclick=()=>{const o=renameObj();if(!o)return;const t=$('#ttl'),i=$('#ttlin');i.value=o.name;t.hidden=true;i.hidden=false;i.focus();i.select()};
@@ -588,25 +602,29 @@ function vPhoto(p,ph){const isPlan=ph.kind==='plan',st=stOf(ph),dec=S.settings.d
     <button class="btn sm" data-act="stAll" type="button">Aplicar em todas as plantas e fotos desta obra</button>
     <button class="btn sm" data-act="stDef" type="button">Usar como padrão nas novas plantas e fotos</button></div>`;
   if(isPlan){const sc=sheetScale(ph);
-    h+=`<div class="card list" style="margin-top:10px">${sc?`<div class="okbox">Escala: 1 m = ${nf(1/sc,1)} px</div>`:`<div class="warnbox">Sem escala</div>`}
-      <div class="row"><label class="row grow">Nova cota como <select data-act="lastCat">${Object.entries(CATS).map(([k,n])=>`<option value="${k}"${ED.lastCat===k?' selected':''}>${n}</option>`).join('')}</select></label>
-      <label class="row">Tolerância ± <input class="txt num" style="width:64px" id="stol" inputmode="decimal" value="${nf(tolCm(),1)}"> cm</label></div></div>`;
     const g=catSummary(ph),ks=Object.keys(g);
     if(ks.length)h+=`<div class="tbl" style="margin-top:10px"><table><thead><tr><th>Categoria</th><th>Qtd</th><th>Σ Projeto (m)</th><th>Σ Real (m)</th><th>Δ (cm)</th><th>Fora</th></tr></thead><tbody>${ks.map(k=>{const a=g[k];const dc=a.cmp?(a.rr-a.pp)*100:null;return`<tr><td>${CATS[k]}${k==='parede'?' (perímetro)':''}</td><td>${a.n}</td><td>${nf(a.p,2)}</td><td>${nf(a.r,2)}</td><td>${dc==null?'—':(dc>0?'+':'')+nf(dc,1)}</td><td>${a.bad?`<span class="pill bad">${a.bad}</span>`:a.cmp?'<span class="pill ok">0</span>':'—'}</td></tr>`}).join('')}</tbody></table></div>`}
   h+=`<div class="list" style="margin-top:10px">`;
   ph.dims.forEach((d,i)=>{const sel=ED.sel===d.id,col=d.color||st.color,dc=isPlan?deltaCm(ph,d):null,ok=okD(dc);
-    h+=`<div class="card dim${sel?' sel':''}" data-act="selD" data-i="${i}"><div class="row"><span class="sw" style="background:${col}"></span><b class="num">C${i+1}</b>
-      ${isPlan?`<select data-act="dCat" data-i="${i}" aria-label="Categoria">${Object.entries(CATS).map(([k,n])=>`<option value="${k}"${(d.cat||'outro')===k?' selected':''}>${n}</option>`).join('')}</select>`:''}
-      <input class="txt grow" data-act="dLbl" data-i="${i}" value="${esc(d.label||'')}" placeholder="descrição"><button class="btn sm del" data-act="delD" data-i="${i}" type="button" aria-label="Apagar cota">✕</button></div>
-      <div class="row">${isPlan?`<label class="mf" style="cursor:text"><span class="mfl">Projeto (${UN()})</span><input class="pin num" data-act="dProj" data-i="${i}" inputmode="decimal" value="${d.proj!=null?fl(d.proj):''}" placeholder="${projOf(ph,d)!=null&&d.proj==null?fl(projOf(ph,d))+' (escala)':UN()}"></label>`:''}
-      ${F('d:'+ph.id+':'+i,isPlan?'Real (trena)':'Medida',d.val,v=>ph.dims[i].val=v)}
-      ${isPlan&&dc!=null?`<span class="pill ${ok?'ok':'bad'}">Δ ${(dc>0?'+':'')+nf(dc,1)} cm</span>`:''}</div>
-      ${sel?`<div class="row"><span class="hint">Texto:</span><button type="button" class="btn sm${!d.la?' pri':''}" data-act="dTxt" data-i="${i}" data-k="h">Horizontal</button><button type="button" class="btn sm${d.la==='line'?' pri':''}" data-act="dTxt" data-i="${i}" data-k="line">Alinhado à cota</button><button type="button" class="btn sm" data-act="dTxt" data-i="${i}" data-k="reset">Posição automática</button><button type="button" class="btn sm${d.hide?' pri':''}" data-act="dHide" data-i="${i}">${d.hide?'Mostrar traço':'Ocultar traço'}</button></div>`:''}
-      ${sel?`<div class="row">${COLORS.map(c=>`<button type="button" class="chip${d.color===c?' on':''}" style="background:${c}" data-act="dCol" data-i="${i}" data-c="${c}" aria-label="cor"></button>`).join('')}<button type="button" class="btn sm" data-act="dCol" data-i="${i}" data-c="">padrão</button></div>`:''}
-      ${isPlan?`<div class="row"><label class="row"><input type="checkbox" data-act="dRef" data-i="${i}"${d.ref?' checked':''}> Usar como escala</label><span class="grow"></span><button class="btn sm" data-act="dPh" data-i="${i}" type="button">+ Foto da parede</button></div>
-      ${(d.ph||[]).length?`<div class="minis">${d.ph.map(id=>{const f=p.photos.find(x=>x.id===id);return f?`<button class="mini" data-act="openPh" data-id="${id}" type="button"><img data-ph="${id}" alt="${esc(f.name)}"></button>`:''}).join('')}</div>`:''}`:''}</div>`});
-  
-  h+=`</div><div class="card list" style="margin-top:12px"><div class="row"><input class="txt grow" data-act="phName" value="${esc(ph.name)}" aria-label="Nome">
+    h+=`<div class="dim${sel?' sel':''}" data-act="selD" data-i="${i}"><div class="drow"><span class="sw" style="background:${col}"></span><b class="num ctag">C${i+1}</b>
+      ${isPlan?`<select class="cs" data-act="dCat" data-i="${i}" aria-label="Categoria">${Object.entries(CATS).map(([k,n])=>`<option value="${k}"${(d.cat||'outro')===k?' selected':''}>${n}</option>`).join('')}</select>
+      <label class="mf cmp" style="cursor:text"><span class="mfl">Proj.${d.ref?' ⇔':''}</span><input class="pin num" data-act="dProj" data-i="${i}" inputmode="decimal" value="${d.proj!=null?fl(d.proj):''}" placeholder="${projOf(ph,d)!=null&&d.proj==null?fl(projOf(ph,d)):'—'}"></label>`:''}
+      ${F('d:'+ph.id+':'+i,isPlan?'Real':'Medida',d.val,v=>ph.dims[i].val=v)}
+      ${isPlan&&dc!=null?`<span class="pill ${ok?'ok':'bad'}">${(dc>0?'+':'')+nf(dc,1)}</span>`:''}
+      ${!isPlan&&!sel&&d.label?`<span class="dl">${esc(d.label)}</span>`:''}
+      <button class="btn sm del xb" data-act="delD" data-i="${i}" type="button" aria-label="Apagar cota">✕</button></div>
+      ${sel?`<div class="dmore list">
+        <input class="txt" data-act="dLbl" data-i="${i}" value="${esc(d.label||'')}" placeholder="descrição">
+        ${isPlan?`<div class="row"><label class="row"><input type="checkbox" data-act="dRef" data-i="${i}"${d.ref?' checked':''}> Usar como escala</label><span class="grow"></span><button class="btn sm" data-act="dPh" data-i="${i}" type="button">+ Foto da parede</button></div>`:''}
+        <div class="row"><button type="button" class="btn sm${!d.la?' pri':''}" data-act="dTxt" data-i="${i}" data-k="h">Texto horizontal</button><button type="button" class="btn sm${d.la==='line'?' pri':''}" data-act="dTxt" data-i="${i}" data-k="line">Alinhado</button><button type="button" class="btn sm" data-act="dTxt" data-i="${i}" data-k="reset">Posição auto</button><button type="button" class="btn sm${d.hide?' pri':''}" data-act="dHide" data-i="${i}">${d.hide?'Mostrar traço':'Ocultar traço'}</button></div>
+        <div class="row">${COLORS.map(c=>`<button type="button" class="chip${d.color===c?' on':''}" style="background:${c}" data-act="dCol" data-i="${i}" data-c="${c}" aria-label="cor"></button>`).join('')}<button type="button" class="btn sm" data-act="dCol" data-i="${i}" data-c="">padrão</button></div></div>`:''}
+      ${isPlan&&(d.ph||[]).length?`<div class="minis">${d.ph.map(id=>{const f=p.photos.find(x=>x.id===id);return f?`<button class="mini" data-act="openPh" data-id="${id}" type="button"><img data-ph="${id}" alt="${esc(f.name)}"></button>`:''}).join('')}</div>`:''}</div>`});
+  h+=`</div>`;
+  if(isPlan){const sc=sheetScale(ph);h+=`<details class="opt"><summary>${sc?'Escala definida':'Sem escala'} · tolerância ±${nf(tolCm(),1)} cm · nova cota: ${CATS[ED.lastCat]}</summary><div class="list" style="padding-top:8px">
+      ${sc?`<span class="hint">1 m = ${nf(1/sc,1)} px</span>`:''}
+      <div class="row"><label class="row grow">Nova cota como <select data-act="lastCat">${Object.entries(CATS).map(([k,n])=>`<option value="${k}"${ED.lastCat===k?' selected':''}>${n}</option>`).join('')}</select></label>
+      <label class="row">Tolerância ± <input class="txt num" style="width:64px" id="stol" inputmode="decimal" value="${nf(tolCm(),1)}"> cm</label></div></div></details>`}
+  h+=`<div class="card list" style="margin-top:12px"><div class="row"><input class="txt grow" data-act="phName" value="${esc(ph.name)}" aria-label="Nome">
     <select data-act="phRoom" aria-label="Cômodo"><option value="">sem cômodo</option>${p.rooms.map(r=>`<option value="${r.id}"${ph.rid===r.id?' selected':''}>${esc(r.name)}</option>`).join('')}</select></div>
     ${ph.link?(()=>{const pl=p.photos.find(x=>x.id===ph.link.sid);const k=pl?pl.dims.findIndex(x=>x.id===ph.link.did):-1;return pl?`<div class="row"><span class="hint grow">Vinculada a <b>${esc(pl.name)}</b>${k>=0?' › C'+(k+1):''}</span><button class="btn sm" data-act="openPh" data-id="${pl.id}" type="button">Abrir planta</button></div>`:''})():''}
     <div class="row"><button class="btn pri" data-act="phSave" type="button">Salvar imagem com cotas</button><button class="btn del" data-act="delPh" type="button">${isPlan?'Excluir planta':'Excluir foto'}</button></div></div>`;
