@@ -626,7 +626,8 @@ function vPhoto(p,ph){const isPlan=ph.kind==='plan',st=stOf(ph),dec=S.settings.d
       ${sel?`<div class="dmore list">
         <input class="txt" data-act="dLbl" data-i="${i}" value="${esc(d.label||'')}" placeholder="descrição">
         ${isPlan?`<div class="row"><label class="row"><input type="checkbox" data-act="dRef" data-i="${i}"${d.ref?' checked':''}> Usar como escala</label><span class="grow"></span><button class="btn sm" data-act="dPh" data-i="${i}" type="button">+ Foto da parede</button></div>`:''}
-        <div class="row"><button type="button" class="btn sm${!d.la?' pri':''}" data-act="dTxt" data-i="${i}" data-k="h">Texto horizontal</button><button type="button" class="btn sm${d.la==='line'?' pri':''}" data-act="dTxt" data-i="${i}" data-k="line">Alinhado</button><button type="button" class="btn sm" data-act="dTxt" data-i="${i}" data-k="reset">Posição auto</button><button type="button" class="btn sm${d.hide?' pri':''}" data-act="dHide" data-i="${i}">${d.hide?'Mostrar traço':'Ocultar traço'}</button></div>
+        <div class="row"><button type="button" class="btn sm${!d.la?' pri':''}" data-act="dTxt" data-i="${i}" data-k="h">Texto horizontal</button><button type="button" class="btn sm${d.la==='line'?' pri':''}" data-act="dTxt" data-i="${i}" data-k="line">Alinhado</button><button type="button" class="btn sm" data-act="dTxt" data-i="${i}" data-k="reset">Posição auto</button></div>
+        <div class="row"><span class="hint">Número:</span><button type="button" class="btn sm" data-act="dPos" data-i="${i}" data-k="flip">⇅ Outro lado</button><button type="button" class="btn sm" data-act="dPos" data-i="${i}" data-k="in">Aproximar</button><button type="button" class="btn sm" data-act="dPos" data-i="${i}" data-k="out">Afastar</button><button type="button" class="btn sm" data-act="dPos" data-i="${i}" data-k="on">Sobre a linha</button><button type="button" class="btn sm${d.hide?' pri':''}" data-act="dHide" data-i="${i}">${d.hide?'Mostrar traço':'Ocultar traço'}</button></div>
         <div class="row">${COLORS.map(c=>`<button type="button" class="chip${d.color===c?' on':''}" style="background:${c}" data-act="dCol" data-i="${i}" data-c="${c}" aria-label="cor"></button>`).join('')}<button type="button" class="btn sm" data-act="dCol" data-i="${i}" data-c="">padrão</button></div></div>`:''}
       ${isPlan&&(d.ph||[]).length?`<div class="minis">${d.ph.map(id=>{const f=p.photos.find(x=>x.id===id);return f?`<button class="mini" data-act="openPh" data-id="${id}" type="button"><img data-ph="${id}" alt="${esc(f.name)}"></button>`:''}).join('')}</div>`:''}</div>`});
   h+=`</div>`;
@@ -715,7 +716,7 @@ function pdown(e){const R=RT;if(!R)return;e.preventDefault();try{R.stage.setPoin
   const pt=toImg(e),h=hit(pt),base={sx:e.clientX,sy:e.clientY,moved:false};
   if(h&&h.end)R.drag=Object.assign(base,{type:'h',i:h.i,end:h.end});
   else if(h&&h.rot)R.drag=Object.assign(base,{type:'rot',i:h.i});
-  else if(h&&h.lab)R.drag=R.sh.dims[h.i].id===ED.sel?Object.assign(base,{type:'lab',i:h.i,p0:pt,c0:[R.sh.dims[h.i]._lab.cx,R.sh.dims[h.i]._lab.cy]}):Object.assign(base,{type:'tap',i:h.i,X0:ED.X,Y0:ED.Y});
+  else if(h&&h.lab)R.drag=Object.assign(base,{type:'lab',i:h.i,p0:pt,c0:[R.sh.dims[h.i]._lab.cx,R.sh.dims[h.i]._lab.cy]});
   else if(h&&h.body)R.drag=R.sh.dims[h.i].id===ED.sel?Object.assign(base,{type:'mv',i:h.i,p0:pt,o:Object.assign({},R.sh.dims[h.i])}):Object.assign(base,{type:'tap',i:h.i,X0:ED.X,Y0:ED.Y});
   else if(ED.mode==='add'&&!PEND){R.sh.dims.push(newDim(pt.x,pt.y,pt.x,pt.y));R.drag=Object.assign(base,{type:'new',i:R.sh.dims.length-1,end:2})}
   else R.drag=Object.assign(base,{type:'pan',X0:ED.X,Y0:ED.Y});
@@ -738,7 +739,8 @@ function pup(e){const R=RT;if(!R)return;R.ptrs.delete(e.pointerId);if(R.pinch){i
   if(dr.type==='new'){if(!dr.moved){sh.dims.pop();return tapEmpty(toImg(e))}const d=sh.dims[dr.i];if(pxLen(d)*sc()<12){sh.dims.pop();edDraw();return}
     PEND=null;ED.mode='pan';save();return selectDim(dr.i)}
   if(dr.type==='tap')return selectDim(dr.i);
-  if(['h','mv','lab','rot'].includes(dr.type)){if(dr.moved){save();render()}else edDraw();return}
+  if(dr.type==='lab'){if(dr.moved)save();return selectDim(dr.i)}
+  if(['h','mv','rot'].includes(dr.type)){if(dr.moved){save();render()}else edDraw();return}
   if(dr.type==='pan'&&!dr.moved)return tapEmpty(toImg(e))}
 
 function vReport(p){const t=totals(p),d=new Date();
@@ -800,6 +802,10 @@ document.addEventListener('click',async e=>{const t=e.target.closest('[data-t],[
     case'stDef':{const sh=p.photos.find(x=>x.id===V.phid);S.settings.style=stOf(sh);save();return toast('Estilo salvo como padrão')}
     case'selD':return RT&&selectDim(i);
     case'dTxt':{const sh=p.photos.find(x=>x.id===V.phid),d=sh.dims[i],k=t.dataset.k;if(k==='h')d.la=null;if(k==='line')d.la='line';if(k==='reset'){d.lo=null}save();return render()}
+    case'dPos':{const sh=p.photos.find(x=>x.id===V.phid),d=sh.dims[i],b=d._lab;if(!b)return;const mx=(d.x1+d.x2)/2,my=(d.y1+d.y2)/2;let v=[b.cx-mx,b.cy-my];
+      const L=Math.hypot(d.x2-d.x1,d.y2-d.y1)||1,nx=-(d.y2-d.y1)/L,ny=(d.x2-d.x1)/L;let pn_=v[0]*nx+v[1]*ny,pt_=v[0]*(-ny)+v[1]*nx;const st=b.h*0.8;
+      const k=t.dataset.k;if(k==='flip')pn_=-pn_;if(k==='in')pn_=Math.abs(pn_)<=st?0:pn_-Math.sign(pn_)*st;if(k==='out')pn_=pn_+(pn_>=0?1:-1)*st;if(k==='on')pn_=0;
+      d.lo=[nx*pn_+(-ny)*pt_, ny*pn_+nx*pt_];save();return render()}
     case'dHide':{const sh=p.photos.find(x=>x.id===V.phid);sh.dims[i].hide=!sh.dims[i].hide;save();return render()}
     case'dCol':{const sh=p.photos.find(x=>x.id===V.phid);sh.dims[i].color=t.dataset.c||null;save();return render()}
     case'dPh':{const sh=p.photos.find(x=>x.id===V.phid);LINK={sid:sh.id,did:sh.dims[i].id,rid:sh.rid};return $('#fileph').click()}
