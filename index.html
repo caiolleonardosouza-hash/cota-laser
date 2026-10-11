@@ -558,12 +558,11 @@ function vRoom(p,r){const tab=V.tab||'med',c=calc(r),d=S.settings.dec;
 
 /* ===== editor de cotas (foto e planta) ===== */
 let PEND=null;
-const ED={id:null,z:1,X:0,Y:0,fit:1,mode:'add',sel:null,styleOpen:false,lastCat:'parede'};
+const ED={id:null,z:1,X:0,Y:0,fit:1,mode:'pan',sel:null,styleOpen:false,lastCat:'parede'};
 let RT=null;
 function vPhoto(p,ph){const isPlan=ph.kind==='plan',st=stOf(ph),dec=S.settings.dec;
   let h=`<div class="tools noprint">
-    <button class="btn sm${ED.mode==='add'?' pri':''}" data-act="edMode" data-k="add" type="button">✚ Cotar</button>
-    <button class="btn sm${ED.mode==='pan'?' pri':''}" data-act="edMode" data-k="pan" type="button">✋ Mover</button>
+    <button class="btn sm${ED.mode==='add'?' arm':''}" data-act="edMode" data-k="${ED.mode==='add'?'pan':'add'}" type="button">${ED.mode==='add'?'✚ Cotando…':'✚ Cotar'}</button>
     <button class="btn sm" data-act="zoom" data-k="0.67" type="button" aria-label="Diminuir zoom">−</button>
     <button class="btn sm" data-act="zoom" data-k="1.5" type="button" aria-label="Aumentar zoom">+</button>
     <button class="btn sm" data-act="zoomFit" type="button">Ajustar</button>
@@ -660,10 +659,10 @@ function newDim(x1,y1,x2,y2){const sh=RT.sh;return{id:uid(),x1,y1,x2,y2,val:null
 function selectDim(i){const sh=RT.sh;ED.sel=sh.dims[i].id;target='d:'+sh.id+':'+i;render();const c=document.querySelectorAll('.dim')[i];c&&c.scrollIntoView({block:'nearest',behavior:'smooth'})}
 function tapEmpty(pt){const sh=RT.sh;if(ED.sel){ED.sel=null;target=null;render();return}if(ED.mode!=='add')return;
   if(!PEND){PEND=[pt.x,pt.y];edDraw();return}
-  const[b,c]=snap(PEND[0],PEND[1],pt.x,pt.y);sh.dims.push(newDim(PEND[0],PEND[1],b,c));PEND=null;save();selectDim(sh.dims.length-1)}
+  const[b,c]=snap(PEND[0],PEND[1],pt.x,pt.y);sh.dims.push(newDim(PEND[0],PEND[1],b,c));PEND=null;ED.mode='pan';save();selectDim(sh.dims.length-1)}
 const PAGES=new Map(),HIS=new Map();
 async function setupEditor(){const p=P(V.pid),sh=p&&p.photos.find(x=>x.id===V.phid),cv=$('#ph'),stage=$('#stage');if(!sh||!cv)return;
-  const fresh=ED.id!==sh.id;if(fresh){Object.assign(ED,{id:sh.id,z:1,sel:null});PEND=null}
+  const fresh=ED.id!==sh.id;if(fresh){Object.assign(ED,{id:sh.id,z:1,sel:null,mode:'pan'});PEND=null}
   const im=await img(sh.id);if(!im||!document.contains(cv))return;if(!sh.w){sh.w=im.width;sh.h=im.height;save()}
   const sw=stage.clientWidth,maxH=Math.max(260,Math.min(window.innerHeight*0.6,900));ED.fit=Math.min(sw/sh.w,maxH/sh.h);
   const ch=Math.round(sh.h*ED.fit),dpr=Math.min(3,window.devicePixelRatio||1);stage.style.height=ch+'px';
@@ -682,8 +681,8 @@ function pdown(e){const R=RT;if(!R)return;e.preventDefault();try{R.stage.setPoin
   const pt=toImg(e),h=hit(pt),base={sx:e.clientX,sy:e.clientY,moved:false};
   if(h&&h.end)R.drag=Object.assign(base,{type:'h',i:h.i,end:h.end});
   else if(h&&h.rot)R.drag=Object.assign(base,{type:'rot',i:h.i});
-  else if(h&&h.lab)R.drag=R.sh.dims[h.i].id===ED.sel?Object.assign(base,{type:'lab',i:h.i,p0:pt,c0:[R.sh.dims[h.i]._lab.cx,R.sh.dims[h.i]._lab.cy]}):Object.assign(base,{type:'tap',i:h.i});
-  else if(h&&h.body)R.drag=R.sh.dims[h.i].id===ED.sel?Object.assign(base,{type:'mv',i:h.i,p0:pt,o:Object.assign({},R.sh.dims[h.i])}):Object.assign(base,{type:'tap',i:h.i});
+  else if(h&&h.lab)R.drag=R.sh.dims[h.i].id===ED.sel?Object.assign(base,{type:'lab',i:h.i,p0:pt,c0:[R.sh.dims[h.i]._lab.cx,R.sh.dims[h.i]._lab.cy]}):Object.assign(base,{type:'tap',i:h.i,X0:ED.X,Y0:ED.Y});
+  else if(h&&h.body)R.drag=R.sh.dims[h.i].id===ED.sel?Object.assign(base,{type:'mv',i:h.i,p0:pt,o:Object.assign({},R.sh.dims[h.i])}):Object.assign(base,{type:'tap',i:h.i,X0:ED.X,Y0:ED.Y});
   else if(ED.mode==='add'&&!PEND){R.sh.dims.push(newDim(pt.x,pt.y,pt.x,pt.y));R.drag=Object.assign(base,{type:'new',i:R.sh.dims.length-1,end:2})}
   else R.drag=Object.assign(base,{type:'pan',X0:ED.X,Y0:ED.Y});
   }
@@ -691,7 +690,7 @@ function pmove(e){const R=RT;if(!R||!R.ptrs.has(e.pointerId))return;R.ptrs.set(e
   if(R.pinch){if(R.ptrs.size<2)return;const[a,b]=[...R.ptrs.values()],r=R.stage.getBoundingClientRect(),P0=R.pinch;
     const z=Math.max(1,Math.min(zMax(),P0.z0*Math.hypot(a.x-b.x,a.y-b.y)/P0.d0)),mx=(a.x+b.x)/2-r.left,my=(a.y+b.y)/2-r.top;
     const ix=(P0.mx-P0.X0)/(ED.fit*P0.z0),iy=(P0.my-P0.Y0)/(ED.fit*P0.z0);ED.z=z;ED.X=mx-ix*sc();ED.Y=my-iy*sc();applyT();return}
-  const dr=R.drag;if(!dr)return;if(Math.hypot(e.clientX-dr.sx,e.clientY-dr.sy)>6)dr.moved=true;if(!dr.moved)return;
+  const dr=R.drag;if(!dr)return;if(Math.hypot(e.clientX-dr.sx,e.clientY-dr.sy)>6)dr.moved=true;if(!dr.moved)return;if(dr.type==='tap')dr.type='pan';
   const d=R.sh.dims[dr.i],pt=toImg(e);
   if(dr.type==='h'||dr.type==='new'){if(dr.end===1){const[x,y]=snap(d.x2,d.y2,pt.x,pt.y);d.x1=x;d.y1=y}else{const[x,y]=snap(d.x1,d.y1,pt.x,pt.y);d.x2=x;d.y2=y}
     R.lp={cx:e.clientX,cy:e.clientY,pt:dr.end===1?{x:d.x1,y:d.y1}:{x:d.x2,y:d.y2},d,col:d.ref?'#00c2ff':(d.color||stOf(R.sh).color)};sched()}
@@ -703,7 +702,7 @@ function pmove(e){const R=RT;if(!R||!R.ptrs.has(e.pointerId))return;R.ptrs.set(e
 function pup(e){const R=RT;if(!R)return;R.ptrs.delete(e.pointerId);if(R.pinch){if(R.ptrs.size<2){R.pinch=null;R.drag=null;edDraw()}return}
   const dr=R.drag;R.drag=null;R.base=null;hideLoupe();if(!dr)return;const sh=R.sh;
   if(dr.type==='new'){if(!dr.moved){sh.dims.pop();return tapEmpty(toImg(e))}const d=sh.dims[dr.i];if(pxLen(d)*sc()<12){sh.dims.pop();edDraw();return}
-    PEND=null;save();return selectDim(dr.i)}
+    PEND=null;ED.mode='pan';save();return selectDim(dr.i)}
   if(dr.type==='tap')return selectDim(dr.i);
   if(['h','mv','lab','rot'].includes(dr.type)){if(dr.moved){save();render()}else edDraw();return}
   if(dr.type==='pan'&&!dr.moved)return tapEmpty(toImg(e))}
