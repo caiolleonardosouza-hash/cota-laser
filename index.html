@@ -546,7 +546,7 @@ function render(){REG=new Map();ORDER=[];const app=$('#app');let h='';
   else if(V.v==='report'){$('#ttl').textContent='Relatório';h=vReport(p)}
   else{V={v:'project',pid:p.id};return render()}
   app.innerHTML=h;if(target&&!REG.has(target))target=null;updateDock();after()}
-function after(){RT=null;hideLoupe();if(V.v==='photo')setupEditor();if(V.v==='report')fillReportPhotos()}
+function after(){RT=null;GR=null;hideLoupe();if(V.v==='project'&&V.tab==='geral')setupGeral();if(V.v==='photo')setupEditor();if(V.v==='report')fillReportPhotos()}
 
 function vHome(){const ps=S.projects;let h=`<h2>Obras</h2><div class="list">`;
   for(const p of ps){const t=totals(p);h+=`<div class="prow"><button class="item" data-act="openP" data-id="${p.id}"><div class="grow"><b>${esc(p.name)}</b><div class="sub">${p.rooms.length} cômodo(s) · ${p.photos.filter(f=>f.kind==='plan').length} planta(s) · ${p.photos.filter(f=>f.kind!=='plan').length} foto(s)</div></div><div class="num">${nf(t.area,2)} m²</div></button><button class="btn sm del" data-act="delPid" data-id="${p.id}" type="button" aria-label="Excluir obra">Excluir</button></div>`}
@@ -582,7 +582,7 @@ function vProject(p){const tab=V.tab||'rooms',t=totals(p);
    <div class="stat"><small>Perímetro${pt.n?' · cômodos':''}</small><b>${fl(t.perim)}<i>${UN()}</i></b></div>
    <div class="stat"><small>Volume</small><b>${nf(t.vol,2)}<i>m³</i></b></div></div>`;
   h+=`
-  <div class="tabs">${[['rooms','Cômodos'],['plans','Plantas'],['photos','Fotos'],['free','Avulsas']].map(([k,n])=>`<button class="tab${tab===k?' on':''}" data-act="ptab" data-k="${k}" type="button">${n}</button>`).join('')}</div>`;
+  <div class="tabs">${[['rooms','Cômodos'],['geral','Planta geral'],['plans','Plantas'],['photos','Fotos'],['free','Avulsas']].map(([k,n])=>`<button class="tab${tab===k?' on':''}" data-act="ptab" data-k="${k}" type="button">${n}</button>`).join('')}</div>`;
   if(tab==='rooms'){h+=`<div class="list" style="margin-top:10px">`;
     for(const r of p.rooms){const c=calc(r);h+=`<button class="item" data-act="openR" data-id="${r.id}"><div class="grow"><b>${esc(r.name)}</b><div class="sub">${r.mode==='rect'?'Retângulo':'Paredes em série'} · PD ${flu(r.h)} · ${r.openings.length} abertura(s)</div></div><div class="num" style="text-align:right">${nf(c.area,2)} m²<div class="sub">${flu(c.perim)}</div></div></button>`}
     h+=`</div><form class="row" data-form="newR" style="margin-top:10px"><input class="txt grow" id="nr" placeholder="Nome do cômodo (ex.: Suíte 1)" required><button class="btn pri">Adicionar</button></form>
@@ -594,6 +594,7 @@ function vProject(p){const tab=V.tab||'rooms',t=totals(p);
   if(tab==='photos'){h+=`<div class="thumbs" style="margin-top:12px">`;
     for(const f of p.photos.filter(f=>(f.kind||'photo')==='photo'))h+=`<div class="tw"><button class="thumb" data-act="openPh" data-id="${f.id}" type="button"><img data-ph="${f.id}" alt="${esc(f.name)}"><span>${esc(f.name)} · ${f.dims.length} cota(s)</span></button><button class="btn sm del" data-act="delSh" data-id="${f.id}" type="button">Excluir foto</button></div>`;
     h+=`</div><button class="btn pri" data-act="addPh" type="button" style="margin-top:10px">+ Foto com cota</button>`;setTimeout(thumbs,0)}
+  if(tab==='geral')h+=vGeral(p);
   if(tab==='free'){const fr=S.free.filter(f=>f.pid===p.id);h+=(fr.length?freeList(fr):`<p class="hint">Nenhuma ainda.</p>`)}
 
   return h}
@@ -666,6 +667,69 @@ function vRoom(p,r){const tab=V.tab||'med',c=calc(r),d=S.settings.dec;
     ${r.mode==='poly'&&c.g.ws.length>=3?`<dt>Erro de fechamento</dt><dd>${nf(c.g.err*100,1)} cm</dd>`:''}</dl></div>
     <div class="row" style="margin-top:10px"><button class="btn" data-act="copySum" type="button">Copiar resumo</button><button class="btn del" data-act="delR" type="button">Excluir cômodo</button></div>`}
   return h}
+
+/* ===== planta geral: todos os cômodos juntos ===== */
+const GV={pid:null,vx:0,vy:0,k:40,sel:null,cotas:true,step:0.01,fit:true};
+let GR=null;
+function rWorld(r){const g=geom(r);if(g.ws.length<2)return null;const ps=r.pos||{x:0,y:0,rot:0},a=(ps.rot||0)*Math.PI/180,c=Math.cos(a),s=Math.sin(a);
+  const tf=([x,y])=>[x*c-y*s+(ps.x||0),x*s+y*c+(ps.y||0)];const closed=g.err<0.02&&g.ws.length>=3;
+  const v=(closed?g.v.slice(0,-1):g.v).map(tf),vAll=g.v.map(tf);return{r,g,v,vAll,closed:closed||(r.mode==='poly'&&r.autoClose)}}
+function initPos(p){let x=0;for(const r of p.rooms){if(r.pos)continue;const g=geom(r);if(g.ws.length<2)continue;const xs=g.v.map(q=>q[0]),ys=g.v.map(q=>q[1]);
+  r.pos={x:x-Math.min(...xs),y:-Math.min(...ys),rot:0};x+=Math.max(...xs)-Math.min(...xs)+1}}
+function gBounds(RW){const all=RW.flatMap(w=>w.vAll);if(!all.length)return null;const xs=all.map(q=>q[0]),ys=all.map(q=>q[1]);return[Math.min(...xs),Math.min(...ys),Math.max(...xs),Math.max(...ys)]}
+function polyC(P){let A=0,X=0,Y=0;for(let i=0;i<P.length;i++){const p0=P[i],p1=P[(i+1)%P.length],cr=p0[0]*p1[1]-p1[0]*p0[1];A+=cr;X+=(p0[0]+p1[0])*cr;Y+=(p0[1]+p1[1])*cr}
+  return Math.abs(A)>1e-9?[X/(3*A),Y/(3*A)]:[P.reduce((s,q)=>s+q[0],0)/P.length,P.reduce((s,q)=>s+q[1],0)/P.length]}
+function inPoly(pt,P){let c=false;for(let i=0,j=P.length-1;i<P.length;j=i++){const a=P[i],b=P[j];if((a[1]>pt[1])!==(b[1]>pt[1])&&pt[0]<(b[0]-a[0])*(pt[1]-a[1])/(b[1]-a[1])+a[0])c=!c}return c}
+function geralSVG(p,{W,H,vx,vy,k,exp=false,sel=null,cotas=true}){
+  const RW=p.rooms.map(rWorld).filter(Boolean);
+  const C=exp?{bg:'#ffffff',fill:'#e8eef9',fillS:'#d6e2fb',wall:'#19201d',txt:'#19201d',mut:'#5b6661',acc:'#c9321b'}
+            :{bg:'var(--surface)',fill:'color-mix(in srgb,var(--accent) 10%,var(--surface))',fillS:'color-mix(in srgb,var(--accent) 24%,var(--surface))',wall:'var(--ink)',txt:'var(--ink)',mut:'var(--muted)',acc:'var(--laser)'};
+  if(vx==null){const b=gBounds(RW);if(!b)return'';const pad=0.9,bw=b[2]-b[0]+2*pad,bh=b[3]-b[1]+2*pad;k=Math.min(W/bw,H/bh);vx=b[0]-pad-(W/k-bw)/2;vy=b[3]+pad+(H/k-bh)/2}
+  const S=([x,y])=>[(x-vx)*k,(vy-y)*k],f=n=>n.toFixed(1),wpx=Math.max(2.5,Math.min(7,0.14*k));
+  let o=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" font-family="Barlow,Arial,sans-serif"><rect width="${W}" height="${H}" fill="${C.bg}"/>`;
+  for(const w of RW){const sp=w.v.map(S);if(w.closed)o+=`<polygon points="${sp.map(q=>f(q[0])+','+f(q[1])).join(' ')}" fill="${w.r.id===sel?C.fillS:C.fill}"/>`}
+  for(const w of RW){const sp=w.vAll.map(S);w.g.ws.forEach((wl,i)=>{const a=sp[i],b=sp[i+1],kd=WK(wl);if(kd==='v')return;
+      o+=kd==='p'?`<line x1="${f(a[0])}" y1="${f(a[1])}" x2="${f(b[0])}" y2="${f(b[1])}" stroke="${C.wall}" stroke-width="${f(wpx)}" stroke-linecap="square"/>`
+        :`<line x1="${f(a[0])}" y1="${f(a[1])}" x2="${f(b[0])}" y2="${f(b[1])}" stroke="${C.mut}" stroke-width="1.2" stroke-dasharray="6 4"/>`});
+    if(w.closed&&!(w.g.err<0.02)){const a=sp[sp.length-1],b=sp[0];o+=`<line x1="${f(a[0])}" y1="${f(a[1])}" x2="${f(b[0])}" y2="${f(b[1])}" stroke="${C.mut}" stroke-width="1.2" stroke-dasharray="6 4"/>`}}
+  if(cotas&&k>=18)for(const w of RW){const sp=w.vAll.map(S),cc=S(polyC(w.v));w.g.ws.forEach((wl,i)=>{const a=sp[i],b=sp[i+1],L=Math.hypot(b[0]-a[0],b[1]-a[1]);if(L<34)return;
+      const mx=(a[0]+b[0])/2,my=(a[1]+b[1])/2,vx_=cc[0]-mx,vy_=cc[1]-my,vl=Math.hypot(vx_,vy_)||1,tx=mx+vx_/vl*11,ty=my+vy_/vl*11+3.5,ang=Math.atan2(b[1]-a[1],b[0]-a[0])*180/Math.PI,ra=ang>90||ang<-90?ang+180:ang;
+      o+=`<text transform="translate(${f(tx)},${f(ty)}) rotate(${f(ra)})" text-anchor="middle" font-size="${Math.max(8,Math.min(11,k*0.18)).toFixed(1)}" font-weight="600" fill="${WK(wl)==='p'?C.mut:WK(wl)==='v'?C.acc:C.mut}"${WK(wl)!=='p'?' font-style="italic"':''}>${fl(wl.len)}</text>`})}
+  for(const w of RW){const c=S(polyC(w.v)),cl=calc(w.r),fs=Math.max(9,Math.min(15,k*0.28));
+    o+=`<text x="${f(c[0])}" y="${f(c[1]-2)}" text-anchor="middle" font-size="${f(fs)}" font-weight="700" fill="${C.txt}">${esc(w.r.name)}</text><text x="${f(c[0])}" y="${f(c[1]+fs)}" text-anchor="middle" font-size="${f(fs*0.8)}" fill="${C.mut}">${nf(cl.area,2)} m²</text>`}
+  return o+'</svg>'}
+function vGeral(p){initPos(p);const RW=p.rooms.map(rWorld).filter(Boolean),tot=p.rooms.reduce((s,r)=>s+calc(r).area,0),sr=p.rooms.find(r=>r.id===GV.sel);
+  if(!RW.length)return`<div class="plan-empty" style="margin-top:14px">Meça as paredes dos cômodos para montar a planta geral.</div>`;
+  let h=`<div class="tools noprint"><button class="btn sm" data-act="gZoom" data-k="0.7" type="button" aria-label="Diminuir">−</button><button class="btn sm" data-act="gZoom" data-k="1.4" type="button" aria-label="Aumentar">+</button><button class="btn sm" data-act="gFit" type="button">Ajustar</button><button class="btn sm${GV.cotas?' pri':''}" data-act="gCot" type="button">Cotas</button><button class="btn sm" data-act="gPng" type="button">Salvar PNG</button></div>
+  <div class="stage" id="gstage" style="height:min(62vh,560px)"></div>`;
+  h+=sr?`<div class="card list" style="margin-top:8px"><div class="row"><b class="grow">${esc(sr.name)}</b><button class="btn sm" data-act="gRot" data-k="90" type="button">⟲ 90°</button><button class="btn sm" data-act="gRot" data-k="-90" type="button">⟳ 90°</button></div>
+    <div class="row"><span class="hint">Ajuste fino</span><button class="btn sm" data-act="gNud" data-k="-1,0" type="button">←</button><button class="btn sm" data-act="gNud" data-k="0,1" type="button">↑</button><button class="btn sm" data-act="gNud" data-k="0,-1" type="button">↓</button><button class="btn sm" data-act="gNud" data-k="1,0" type="button">→</button>
+    <select id="gStep" class="cs" style="flex:0 1 90px" aria-label="Passo">${[[0.01,'1 cm'],[0.05,'5 cm'],[0.15,'15 cm'],[0.5,'50 cm']].map(([v,n])=>`<option value="${v}"${GV.step===v?' selected':''}>${n}</option>`).join('')}</select></div></div>`:`<p class="hint">Toque num cômodo para selecionar. Arraste o cômodo para posicionar; os cantos encaixam sozinhos.</p>`;
+  h+=`<div class="stats" style="margin-top:10px"><div class="stat"><small>Área total dos cômodos</small><b>${nf(tot,2)}<i>m²</i></b></div><div class="stat"><small>Cômodos na planta</small><b>${RW.length}<i>de ${p.rooms.length}</i></b></div></div>`;
+  return h}
+function gDraw(){const R=GR;if(!R)return;const p=P(GV.pid);if(!p)return;R.stage.innerHTML=geralSVG(p,{W:R.w,H:R.h,vx:GV.vx,vy:GV.vy,k:GV.k,sel:GV.sel,cotas:GV.cotas})}
+function gFit(){const R=GR,p=P(GV.pid);const b=gBounds(p.rooms.map(rWorld).filter(Boolean));if(!b)return;const pad=0.9,bw=b[2]-b[0]+2*pad,bh=b[3]-b[1]+2*pad;
+  GV.k=Math.min(R.w/bw,R.h/bh);GV.vx=b[0]-pad-(R.w/GV.k-bw)/2;GV.vy=b[3]+pad+(R.h/GV.k-bh)/2}
+function gW(e){const r=GR.stage.getBoundingClientRect();return[(e.clientX-r.left)/GV.k+GV.vx,GV.vy-(e.clientY-r.top)/GV.k]}
+function gSnap(r){const p=P(GV.pid),me=rWorld(r);if(!me)return;const others=p.rooms.filter(o=>o!==r).map(rWorld).filter(Boolean).flatMap(w=>w.v),tol=14/GV.k;
+  let best=null;for(const a of me.v)for(const b of others){const d=Math.hypot(a[0]-b[0],a[1]-b[1]);if(d<tol&&(!best||d<best.d))best={d,dx:b[0]-a[0],dy:b[1]-a[1]}}
+  if(best){r.pos.x+=best.dx;r.pos.y+=best.dy}}
+function setupGeral(){const st=$('#gstage');if(!st)return;const p=P(V.pid);const fresh=GV.pid!==p.id;GV.pid=p.id;
+  GR={stage:st,w:st.clientWidth,h:st.clientHeight,ptrs:new Map(),drag:null,pinch:null,raf:0};if(fresh||GV.fit){gFit();GV.fit=false}gDraw();
+  st.onpointerdown=e=>{e.preventDefault();try{st.setPointerCapture(e.pointerId)}catch(_){}GR.ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});
+    if(GR.ptrs.size===2){const[a,b]=[...GR.ptrs.values()],rc=st.getBoundingClientRect();GR.drag=null;GR.pinch={d0:Math.hypot(a.x-b.x,a.y-b.y)||1,k0:GV.k,w0:gW({clientX:(a.x+b.x)/2,clientY:(a.y+b.y)/2})};return}
+    const w=gW(e),hit=p.rooms.map(rWorld).filter(Boolean).reverse().find(x=>x.closed&&inPoly(w,x.v));
+    GR.drag=hit?{type:'room',r:hit.r,w0:w,p0:{...hit.r.pos},sx:e.clientX,sy:e.clientY,moved:false}:{type:'pan',sx:e.clientX,sy:e.clientY,vx:GV.vx,vy:GV.vy,moved:false}};
+  st.onpointermove=e=>{if(!GR.ptrs.has(e.pointerId))return;GR.ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});
+    if(GR.pinch){if(GR.ptrs.size<2)return;const[a,b]=[...GR.ptrs.values()],rc=st.getBoundingClientRect(),P0=GR.pinch;GV.k=Math.max(4,Math.min(600,P0.k0*Math.hypot(a.x-b.x,a.y-b.y)/P0.d0));
+      const mx=(a.x+b.x)/2-rc.left,my=(a.y+b.y)/2-rc.top;GV.vx=P0.w0[0]-mx/GV.k;GV.vy=P0.w0[1]+my/GV.k;gSched();return}
+    const d=GR.drag;if(!d)return;if(Math.hypot(e.clientX-d.sx,e.clientY-d.sy)>6)d.moved=true;if(!d.moved)return;
+    if(d.type==='pan'){GV.vx=d.vx-(e.clientX-d.sx)/GV.k;GV.vy=d.vy+(e.clientY-d.sy)/GV.k}
+    else{const w=gW(e);d.r.pos.x=d.p0.x+w[0]-d.w0[0];d.r.pos.y=d.p0.y+w[1]-d.w0[1];GV.sel=d.r.id}gSched()};
+  st.onpointerup=st.onpointercancel=e=>{GR.ptrs.delete(e.pointerId);if(GR.pinch){if(GR.ptrs.size<2)GR.pinch=null;return}const d=GR.drag;GR.drag=null;if(!d)return;
+    if(d.type==='room'){if(d.moved)gSnap(d.r);GV.sel=d.r.id;save();render();return}if(!d.moved&&GV.sel){GV.sel=null;render()}};
+  st.onwheel=e=>{e.preventDefault();const w=gW(e),f=e.deltaY<0?1.15:1/1.15;GV.k*=f;const rc=st.getBoundingClientRect();GV.vx=w[0]-(e.clientX-rc.left)/GV.k;GV.vy=w[1]+(e.clientY-rc.top)/GV.k;gDraw()}}
+function gSched(){if(GR&&!GR.raf)GR.raf=requestAnimationFrame(()=>{GR.raf=0;gDraw()})}
 
 /* ===== editor de cotas (foto e planta) ===== */
 let PEND=null,INS='end';
@@ -833,6 +897,7 @@ function vReport(p){const t=totals(p),d=new Date();
   let h=`<div class="row noprint" style="margin:12px 0"><button class="btn pri" data-act="print" type="button">Imprimir / salvar PDF</button><button class="btn" data-act="xlsx" type="button">Excel (.xlsx)</button><button class="btn" data-act="csv" type="button">CSV</button></div>
   <div class="rep"><h1>${esc(p.name)}</h1><div class="hint">Relatório de medição · ${d.toLocaleDateString('pt-BR')} · trena laser + Trenout</div>
   <div class="stats" style="margin-top:12px"><div class="stat"><small>Área de piso</small><b>${nf(t.area,2)}<i>m²</i></b></div><div class="stat"><small>Parede líquida</small><b>${nf(t.net,2)}<i>m²</i></b></div><div class="stat"><small>Rodapé</small><b>${fl(t.rodape)}<i>${UN()}</i></b></div><div class="stat"><small>Volume</small><b>${nf(t.vol,2)}<i>m³</i></b></div></div>
+  ${p.rooms.some(r=>r.pos&&rWorld(r))?`<h2>Planta geral</h2><div class="plan">${(()=>{const RW=p.rooms.map(rWorld).filter(Boolean),b=gBounds(RW),W=760,H=Math.round(W*Math.min(1.4,Math.max(0.45,(b[3]-b[1]+1.8)/(b[2]-b[0]+1.8))));return geralSVG(p,{W,H,exp:true,cotas:true})})()}</div>`:''}
   <h2>Quadro resumo</h2><div class="tbl"><table><thead><tr><th>Cômodo</th><th>PD (m)</th><th>Piso (m²)</th><th>Perím. (m)</th><th>Parede bruta (m²)</th><th>Aberturas (m²)</th><th>Parede líq. (m²)</th><th>Rodapé (m)</th><th>Vol. (m³)</th></tr></thead><tbody>`;
   for(const r of p.rooms){const c=calc(r);h+=`<tr><td>${esc(r.name)}</td><td>${fl(r.h)}</td><td>${nf(c.area,2)}</td><td>${fl(c.perim)}</td><td>${nf(c.gross,2)}</td><td>${nf(c.openA,2)}</td><td>${nf(c.net,2)}</td><td>${fl(c.rodape)}</td><td>${nf(c.vol,2)}</td></tr>`}
   h+=`</tbody><tfoot><tr><td>Total</td><td></td><td>${nf(t.area,2)}</td><td>${fl(t.perim)}</td><td>${nf(t.gross,2)}</td><td>${nf(t.openA,2)}</td><td>${nf(t.net,2)}</td><td>${fl(t.rodape)}</td><td>${nf(t.vol,2)}</td></tr></tfoot></table></div>`;
@@ -895,7 +960,14 @@ document.addEventListener('click',async e=>{const t=e.target.closest('[data-t],[
     case'openP':return go({v:'project',pid:t.dataset.id});
     case'openR':return go({v:'room',pid:p.id,rid:t.dataset.id});
     case'openPh':PEND=null;return go({v:'photo',pid:p.id,phid:t.dataset.id});
-    case'ptab':V.tab=t.dataset.k;target=null;return render();
+    case'ptab':V.tab=t.dataset.k;target=null;if(V.tab==='geral'){GV.fit=true;GV.sel=null}return render();
+    case'gZoom':{if(!GR)return;const f=+t.dataset.k,cx=GV.vx+GR.w/2/GV.k,cy=GV.vy-GR.h/2/GV.k;GV.k*=f;GV.vx=cx-GR.w/2/GV.k;GV.vy=cy+GR.h/2/GV.k;return gDraw()}
+    case'gFit':if(GR){gFit();gDraw()}return;
+    case'gCot':GV.cotas=!GV.cotas;return render();
+    case'gRot':{const r=p.rooms.find(x=>x.id===GV.sel);if(!r)return;const w0=rWorld(r),c0=polyC(w0.v);r.pos.rot=((r.pos.rot||0)+(+t.dataset.k)+360)%360;const w1=rWorld(r),c1=polyC(w1.v);r.pos.x+=c0[0]-c1[0];r.pos.y+=c0[1]-c1[1];save();return render()}
+    case'gNud':{const r=p.rooms.find(x=>x.id===GV.sel);if(!r)return;const[dx,dy]=t.dataset.k.split(',').map(Number);r.pos.x+=dx*GV.step;r.pos.y+=dy*GV.step;save();return render()}
+    case'gPng':{const RW=p.rooms.map(rWorld).filter(Boolean),b=gBounds(RW);if(!b)return;const W=1600,H=Math.round(W*Math.min(1.6,Math.max(0.5,(b[3]-b[1]+1.8)/(b[2]-b[0]+1.8))));
+      const blob=await svgToPng(geralSVG(p,{W,H,exp:true,cotas:GV.cotas}),1.5);return saveBlob(blob,slug(p.name)+'_planta_geral.png')}
     case'rtab':V.tab=t.dataset.k;target=null;return render();
     case'report':return go({v:'report',pid:p.id});
     case'xlsx':return exportXlsx(p);
@@ -981,6 +1053,7 @@ document.addEventListener('change',e=>{const t=e.target,a=t.dataset.act;if(!a&&!
     case'dRef':if(t.checked){if(!(ph.dims[i].proj>0)){t.checked=false;toast('Digite primeiro a medida do projeto desta cota');return}ph.dims.forEach((d,k)=>d.ref=k===i)}else ph.dims[i].ref=false;break;
     default:
       if(t.id==='insAt'){INS=t.value;return}
+      if(t.id==='gStep'){GV.step=+t.value;return}
       if(t.id==='sfmt'){S.settings.fmt=t.value;S.settings.dec=3;break}
       if(t.id==='svib'){S.settings.vib=t.checked;break}
       if(t.id==='swake'){S.settings.wake=t.checked;break}
