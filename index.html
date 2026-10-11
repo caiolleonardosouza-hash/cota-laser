@@ -371,7 +371,7 @@ function drawSheet(ctx,im,sh,o={}){const W=sh.w||im.width,H=sh.h||im.height,st=s
     if(t.l2)txt(t.l2,bh/2-pd-f2/2,f2,600,t.ok===true?(bg==='light'?'#1c7a3e':'#2ee66b'):t.ok===false?'#ff5a3c':(bg==='light'?'#333':'#e8e8e8'));
     ctx.restore();
     d._lab={cx,cy,w:bw,h:bh,a};
-    if(sel){const rr=hr*0.7,rd=bh/2+hr*1.6,rx=cx+Math.sin(a)*rd,ry=cy-Math.cos(a)*rd;d._rot=[rx,ry];
+    if(sel){const rr=hr*0.7,rd=bh/2+hr*2.6,rx=cx+Math.sin(a)*rd,ry=cy-Math.cos(a)*rd;d._rot=[rx,ry];
       ctx.strokeStyle='#fff';ctx.lineWidth=Math.max(1,hr*0.12);ctx.beginPath();ctx.moveTo(cx+Math.sin(a)*bh/2,cy-Math.cos(a)*bh/2);ctx.lineTo(rx,ry);ctx.stroke();
       ctx.beginPath();ctx.arc(rx,ry,rr,0,7);ctx.fillStyle='rgba(0,0,0,.55)';ctx.fill();ctx.stroke();
       ctx.beginPath();ctx.arc(rx,ry,rr*0.5,-2.4,1.2);ctx.stroke();
@@ -384,6 +384,7 @@ async function photoBlob(ph,max=0){const im=await img(ph.id);if(!im)return null;
   if(max&&Math.max(c.width,c.height)>max){const k=max/Math.max(c.width,c.height),c2=document.createElement('canvas');c2.width=c.width*k;c2.height=c.height*k;c2.getContext('2d').drawImage(c,0,0,c2.width,c2.height);return c2.toDataURL('image/jpeg',0.82)}
   if(max)return c.toDataURL('image/jpeg',0.85);
   return new Promise(r=>c.toBlob(r,'image/jpeg',0.92))}
+function cTag(p,ph,i){if(ph.link){const pl=p.photos.find(x=>x.id===ph.link.sid),k=pl?pl.dims.findIndex(x=>x.id===ph.link.did):-1;if(k>=0)return'C'+(k+1)+'.'+(i+1)}return'C'+(i+1)}
 function planTotals(p){const o={n:0,r:0,p:0,cmp:0,dc:0,bad:0,cmpAll:0};
   for(const pl of p.photos.filter(f=>f.kind==='plan')){for(const d of pl.dims){if(d.ref)continue;o.n++;const dc=deltaCm(pl,d);if(dc!=null){o.cmpAll++;if(!okD(dc))o.bad++}}
     const a=catSummary(pl).parede;if(a){o.r+=a.r;o.p+=a.p;o.cmp+=a.cmp;o.dc+=(a.rr-a.pp)*100}}return o}
@@ -608,7 +609,7 @@ function vPhoto(p,ph){const isPlan=ph.kind==='plan',st=stOf(ph),dec=S.settings.d
     <label class="row"><span style="width:110px">Traço da cota</span><select id="stLine" class="grow"><option value="show"${st.line!=='hide'?' selected':''}>Mostrar</option><option value="hide"${st.line==='hide'?' selected':''}>Ocultar (só texto)</option></select></label>
     <label class="row"><span style="width:110px">Linha</span><select id="stDash" class="grow"><option value="solid"${st.dash!=='dash'?' selected':''}>Contínua</option><option value="dash"${st.dash==='dash'?' selected':''}>Tracejada</option></select></label>
     <label class="row"><span style="width:110px">Fundo do texto</span><select id="stBg" class="grow">${[['box','Caixa escura'],['light','Caixa clara'],['none','Sem caixa, com contorno'],['plain','Só o texto (sem caixa nem contorno)']].map(([k,n])=>`<option value="${k}"${(st.bg||'box')===k?' selected':''}>${n}</option>`).join('')}</select></label>
-    <label class="row"><input type="checkbox" id="stOrtho"${st.ortho?' checked':''}> <span class="grow">Travar na horizontal/vertical automaticamente (até 6°)</span></label>
+    <label class="row"><input type="checkbox" id="stOrtho"${st.ortho?' checked':''}> <span class="grow">Travar na horizontal/vertical automaticamente (até 1°)</span></label>
     <button class="btn sm" data-act="stAll" type="button">Aplicar em todas as plantas e fotos desta obra</button>
     <button class="btn sm" data-act="stDef" type="button">Usar como padrão nas novas plantas e fotos</button></div>`;
   if(isPlan){const sc=sheetScale(ph);
@@ -616,7 +617,7 @@ function vPhoto(p,ph){const isPlan=ph.kind==='plan',st=stOf(ph),dec=S.settings.d
     if(ks.length)h+=`<div class="tbl" style="margin-top:10px"><table><thead><tr><th>Categoria</th><th>Qtd</th><th>Σ Projeto (m)</th><th>Σ Real (m)</th><th>Δ (cm)</th><th>Fora</th></tr></thead><tbody>${ks.map(k=>{const a=g[k];const dc=a.cmp?(a.rr-a.pp)*100:null;return`<tr><td>${CATS[k]}${k==='parede'?' (perímetro)':''}</td><td>${a.n}</td><td>${fl(a.p)}</td><td>${fl(a.r)}</td><td>${dc==null?'—':(dc>0?'+':'')+nf(dc,1)}</td><td>${a.bad?`<span class="pill bad">${a.bad}</span>`:a.cmp?'<span class="pill ok">0</span>':'—'}</td></tr>`}).join('')}</tbody></table></div>`}
   h+=`<div class="list" style="margin-top:10px">`;
   ph.dims.forEach((d,i)=>{const sel=ED.sel===d.id,col=d.color||st.color,dc=isPlan?deltaCm(ph,d):null,ok=okD(dc);
-    h+=`<div class="dim${sel?' sel':''}" data-act="selD" data-i="${i}"><div class="drow"><span class="sw" style="background:${col}"></span><b class="num ctag">C${i+1}</b>
+    h+=`<div class="dim${sel?' sel':''}" data-act="selD" data-i="${i}"><div class="drow"><span class="sw" style="background:${col}"></span><b class="num ctag">${cTag(p,ph,i)}</b>
       ${isPlan?`<select class="cs" data-act="dCat" data-i="${i}" aria-label="Categoria">${Object.entries(CATS).map(([k,n])=>`<option value="${k}"${(d.cat||'outro')===k?' selected':''}>${n}</option>`).join('')}</select>
       <label class="mf cmp" style="cursor:text"><span class="mfl">Proj.${d.ref?' ⇔':''}</span><input class="pin num" data-act="dProj" data-i="${i}" inputmode="decimal" value="${d.proj!=null?fl(d.proj):''}" placeholder="${projOf(ph,d)!=null&&d.proj==null?fl(projOf(ph,d)):'—'}"></label>`:''}
       ${F('d:'+ph.id+':'+i,isPlan?'Real':'Medida',d.val,v=>ph.dims[i].val=v)}
@@ -637,7 +638,7 @@ function vPhoto(p,ph){const isPlan=ph.kind==='plan',st=stOf(ph),dec=S.settings.d
       <label class="row">Tolerância ± <input class="txt num" style="width:64px" id="stol" inputmode="decimal" value="${nf(tolCm(),1)}"> cm</label></div></div></details>`}
   h+=`<div class="card list" style="margin-top:12px"><div class="row"><input class="txt grow" data-act="phName" value="${esc(ph.name)}" aria-label="Nome">
     <select data-act="phRoom" aria-label="Cômodo"><option value="">sem cômodo</option>${p.rooms.map(r=>`<option value="${r.id}"${ph.rid===r.id?' selected':''}>${esc(r.name)}</option>`).join('')}</select></div>
-    ${ph.link?(()=>{const pl=p.photos.find(x=>x.id===ph.link.sid);const k=pl?pl.dims.findIndex(x=>x.id===ph.link.did):-1;return pl?`<div class="row"><span class="hint grow">Vinculada a <b>${esc(pl.name)}</b>${k>=0?' › C'+(k+1):''}</span><button class="btn sm" data-act="openPh" data-id="${pl.id}" type="button">Abrir planta</button></div>`:''})():''}
+    ${ph.link?(()=>{const pl=p.photos.find(x=>x.id===ph.link.sid);const k=pl?pl.dims.findIndex(x=>x.id===ph.link.did):-1;return pl?`<div class="row"><span class="hint grow">Vinculada a <b>${esc(pl.name)}</b>${k>=0?` › <b>C${k+1}</b> · proj. ${fl(projOf(pl,pl.dims[k]))} · real ${fl(pl.dims[k].val)}`:''}</span><button class="btn sm" data-act="openPh" data-id="${pl.id}" type="button">Abrir planta</button></div>`:''})():''}
     <div class="row"><button class="btn pri" data-act="phSave" type="button">Salvar imagem com cotas</button><button class="btn del" data-act="delPh" type="button">${isPlan?'Excluir planta':'Excluir foto'}</button></div></div>`;
   setTimeout(thumbs,0);return h}
 
@@ -681,13 +682,14 @@ function loupe(lp){const L=$('#loupe'),R=RT,dpr=R.dpr,S0=160;L.hidden=false;
   const c=L.width/2;x.strokeStyle='#ff3b1f';x.lineWidth=1.5*dpr;x.beginPath();x.moveTo(c,c-18*dpr);x.lineTo(c,c-4*dpr);x.moveTo(c,c+4*dpr);x.lineTo(c,c+18*dpr);x.moveTo(c-18*dpr,c);x.lineTo(c-4*dpr,c);x.moveTo(c+4*dpr,c);x.lineTo(c+18*dpr,c);x.stroke()}
 function hideLoupe(){const L=$('#loupe');if(L)L.hidden=true;if(RT)RT.lp=null}
 function snap(ax,ay,bx,by){if(!stOf(RT.sh).ortho)return[bx,by];const dx=bx-ax,dy=by-ay,L=Math.hypot(dx,dy);if(L<1)return[bx,by];
-  if(Math.abs(dy)/L<0.1045)return[bx,ay];if(Math.abs(dx)/L<0.1045)return[ax,by];return[bx,by]}
+  if(Math.abs(dy)/L<0.01745)return[bx,ay];if(Math.abs(dx)/L<0.01745)return[ax,by];return[bx,by]}
 function segDist(p,d){const ex=d.x2-d.x1,ey=d.y2-d.y1,L2=ex*ex+ey*ey||1;let t=((p.x-d.x1)*ex+(p.y-d.y1)*ey)/L2;t=Math.max(0,Math.min(1,t));return Math.hypot(p.x-(d.x1+t*ex),p.y-(d.y1+t*ey))}
 function hit(pt){const ds=RT.sh.dims,s=sc(),hr=26/s,lr=16/s;const si=ds.findIndex(d=>d.id===ED.sel);
   if(si>=0){const d=ds[si];if(Math.hypot(pt.x-d.x1,pt.y-d.y1)<hr)return{i:si,end:1};if(Math.hypot(pt.x-d.x2,pt.y-d.y2)<hr)return{i:si,end:2};
-    if(d._rot&&Math.hypot(pt.x-d._rot[0],pt.y-d._rot[1])<hr)return{i:si,rot:true}}
+}
   const inLab=d=>{const b=d._lab;if(!b)return false;const dx=pt.x-b.cx,dy=pt.y-b.cy,c=Math.cos(-b.a),s0=Math.sin(-b.a),lx=dx*c-dy*s0,ly=dx*s0+dy*c;return Math.abs(lx)<=b.w/2+6/s&&Math.abs(ly)<=b.h/2+6/s};
   if(si>=0&&inLab(ds[si]))return{i:si,lab:true};
+  if(si>=0&&ds[si]._rot&&Math.hypot(pt.x-ds[si]._rot[0],pt.y-ds[si]._rot[1])<16/s)return{i:si,rot:true};
   for(let i=ds.length-1;i>=0;i--)if(inLab(ds[i]))return{i,lab:true};
   let best=null,bd=1e9;ds.forEach((d,i)=>{const sd=segDist(pt,d);if(sd<lr&&sd<bd){bd=sd;best={i,body:true}}});return best}
 function newDim(x1,y1,x2,y2){const sh=RT.sh;return{id:uid(),x1,y1,x2,y2,val:null,label:'',cat:sh.kind==='plan'?ED.lastCat:undefined,proj:null,ref:false,color:null,ph:[]}}
@@ -731,7 +733,7 @@ function pmove(e){const R=RT;if(!R||!R.ptrs.has(e.pointerId))return;R.ptrs.set(e
     R.lp={cx:e.clientX,cy:e.clientY,pt:dr.end===1?{x:d.x1,y:d.y1}:{x:d.x2,y:d.y2},d,col:d.color||stOf(R.sh).color};sched()}
   else if(dr.type==='lab'){d.lo=[dr.c0[0]+pt.x-dr.p0.x-(d.x1+d.x2)/2,dr.c0[1]+pt.y-dr.p0.y-(d.y1+d.y2)/2];sched()}
   else if(dr.type==='rot'){const c=d._lab;let a=Math.atan2(pt.y-c.cy,pt.x-c.cx)*180/Math.PI+90;if(a>180)a-=360;
-    for(const s0 of[0,90,-90,180,-180,lineAng(d),lineAng(d)+180,lineAng(d)-180])if(Math.abs(a-s0)<5){a=s0;break}d.la=Math.round(a*10)/10;sched()}
+    for(const s0 of[0,90,-90,180,-180,lineAng(d),lineAng(d)+180,lineAng(d)-180])if(Math.abs(a-s0)<1){a=s0;break}d.la=Math.round(a*10)/10;sched()}
   else if(dr.type==='mv'){const dx=pt.x-dr.p0.x,dy=pt.y-dr.p0.y;d.x1=dr.o.x1+dx;d.y1=dr.o.y1+dy;d.x2=dr.o.x2+dx;d.y2=dr.o.y2+dy;sched()}
   else if(dr.type==='pan'){ED.X=dr.X0+(e.clientX-dr.sx);ED.Y=dr.Y0+(e.clientY-dr.sy);applyT()}}
 function pup(e){const R=RT;if(!R)return;R.ptrs.delete(e.pointerId);if(R.pinch){if(R.ptrs.size<2){R.pinch=null;R.drag=null;edDraw()}return}
