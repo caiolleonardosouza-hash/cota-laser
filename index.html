@@ -220,7 +220,7 @@ const P=id=>S.projects.find(p=>p.id===id);
 const R=(p,id)=>p&&p.rooms.find(r=>r.id===id);
 
 /* ===== geometria ===== */
-function walls(r){if(r.mode==='rect')return(r.a>0&&r.b>0)?[{len:r.a,ang:90},{len:r.b,ang:90},{len:r.a,ang:90},{len:r.b,ang:90}]:[];
+function walls(r){if(r.mode==='rect'){const vt=r.virt||{};return(r.a>0&&r.b>0)?[r.a,r.b,r.a,r.b].map((l,k)=>({len:l,ang:90,open:!!vt[k]})):[]}
   return r.walls.filter(w=>w.len>0)}
 function geom(r){const ws=walls(r);let x=0,y=0,h=0;const v=[[0,0]];
   for(const w of ws){x+=w.len*Math.cos(h*Math.PI/180);y+=w.len*Math.sin(h*Math.PI/180);v.push([x,y]);h+=(+w.ang||0)}
@@ -228,13 +228,13 @@ function geom(r){const ws=walls(r);let x=0,y=0,h=0;const v=[[0,0]];
   const err=ws.length?Math.hypot(x,y):0;
   return{ws,v,area:ws.length>=3?Math.abs(a)/2:0,err}}
 function calc(r){const g=geom(r),H=r.h||0,min=+S.settings.minOpen||0;
-  const perim=g.ws.reduce((s,w)=>s+w.len,0);let openA=0,ded=0,passW=0;
+  const perimAll=g.ws.reduce((s,w)=>s+w.len,0),vClose=r.mode==='poly'&&r.autoClose&&g.ws.length>=3&&g.err>=0.02?g.err:0,perim=g.ws.reduce((s,w)=>s+(w.open?0:w.len),0),vLen=perimAll-perim+vClose;let openA=0,ded=0,passW=0;
   for(const o of r.openings){const a=(o.w||0)*(o.h||0),q=o.q||1;openA+=a*q;if(a>min)ded+=a*q;if(o.t!=='janela')passW+=(o.w||0)*q}
   const gross=perim*H;let objA=0,objV=0;for(const o of r.objects){objA+=(o.a||0)*(o.b||0);objV+=(o.a||0)*(o.b||0)*(o.c||0)}
   const n=g.ws.length,cut=g.ws.map(()=>0);let shA=0,shL=0;
   for(const sh of r.shafts||[]){if(sh.corner==null||sh.corner>=n)continue;const a=sh.a||0,b=sh.b||0;cut[sh.corner]+=a;cut[(sh.corner+1)%n]+=b;shA+=a*b;shL+=a+b}
   const area0=r.mode==='rect'?(r.a||0)*(r.b||0):g.area,area=Math.max(0,area0-shA);
-  return{g,perim,area,area0,H,gross,openA,ded,net:Math.max(0,gross-ded),rodape:Math.max(0,perim-passW),vol:area*H,objA,objV,shA,shL,alv:Math.max(0,perim-shL),cut,netW:g.ws.map((w,i)=>Math.max(0,w.len-cut[i]))}}
+  return{g,perim,perimAll,vLen,vClose,area,area0,H,gross,openA,ded,net:Math.max(0,gross-ded),rodape:Math.max(0,perim-passW),vol:area*H,objA,objV,shA,shL,alv:Math.max(0,perim-shL),cut,netW:g.ws.map((w,i)=>Math.max(0,w.len-cut[i]))}}
 function totals(p){const t={area:0,perim:0,gross:0,openA:0,net:0,rodape:0,vol:0};for(const r of p.rooms){const c=calc(r);for(const k in t)t[k]+=c[k]}return t}
 
 /* ===== planta (SVG) ===== */
@@ -243,23 +243,30 @@ function planSVG(r,{W=360,H=270,exp=false}={}){
   const C=exp?{bg:'#ffffff',fill:'#e8eef9',wall:'#19201d',txt:'#19201d',mut:'#5b6661',acc:'#c9321b',err:'#c9321b'}
             :{bg:'var(--surface)',fill:'color-mix(in srgb,var(--accent) 10%,var(--surface))',wall:'var(--ink)',txt:'var(--ink)',mut:'var(--muted)',acc:'var(--laser)',err:'var(--laser)'};
   const pts=g.v.map(([x,y])=>[x,-y]);const xs=pts.map(p=>p[0]),ys=pts.map(p=>p[1]);
-  const mnx=Math.min(...xs),mxx=Math.max(...xs),mny=Math.min(...ys),mxy=Math.max(...ys);const pad=(r.shafts||[]).length?58:48;
+  const mnx=Math.min(...xs),mxx=Math.max(...xs),mny=Math.min(...ys),mxy=Math.max(...ys);const pad=((r.shafts||[]).length||walls(r).some(w=>w.open)||r.autoClose)?62:48;
   const s=Math.min((W-2*pad)/((mxx-mnx)||1),(H-2*pad)/((mxy-mny)||1));
   const ox=(W-(mxx-mnx)*s)/2,oy=(H-(mxy-mny)*s)/2;
   const T=([x,y])=>[ox+(x-mnx)*s,oy+(y-mny)*s];const sp=pts.map(T);
   let sa=0;for(let i=0;i<sp.length-1;i++)sa+=sp[i][0]*sp[i+1][1]-sp[i+1][0]*sp[i][1];
-  const closed=g.err<0.02&&g.ws.length>=3;
-  const poly=(closed?sp.slice(0,-1):sp).map(p=>p.map(n=>n.toFixed(1)).join(',')).join(' ');
+  const closed0=g.err<0.02&&g.ws.length>=3,autoC=!closed0&&r.mode==='poly'&&r.autoClose&&g.ws.length>=3,closed=closed0||autoC;
+  const poly=(closed0?sp.slice(0,-1):sp).map(p=>p.map(n=>n.toFixed(1)).join(',')).join(' ');
   const font='font-family="Barlow,Arial,sans-serif"';
   let o=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" ${font}><rect width="${W}" height="${H}" fill="${C.bg}"/>`;
-  if(closed)o+=`<polygon points="${poly}" fill="none" stroke="${C.wall}" stroke-width="7" stroke-linejoin="miter"/><polygon points="${poly}" fill="${C.fill}" stroke="none"/>`;
+  if(closed){g.ws.forEach((w,i)=>{if(w.open)return;const a=sp[i],b=sp[i+1];o+=`<line x1="${a[0].toFixed(1)}" y1="${a[1].toFixed(1)}" x2="${b[0].toFixed(1)}" y2="${b[1].toFixed(1)}" stroke="${C.wall}" stroke-width="7" stroke-linecap="square"/>`});
+    o+=`<polygon points="${poly}" fill="${C.fill}" stroke="none"/>`;
+    const dash=(a,b)=>`<line x1="${a[0].toFixed(1)}" y1="${a[1].toFixed(1)}" x2="${b[0].toFixed(1)}" y2="${b[1].toFixed(1)}" stroke="${C.mut}" stroke-width="1.4" stroke-dasharray="6 4"/>`;
+    g.ws.forEach((w,i)=>{if(w.open)o+=dash(sp[i],sp[i+1])});
+    if(autoC){const a=sp[sp.length-1],b=sp[0],ex=b[0]-a[0],ey=b[1]-a[1],L=Math.hypot(ex,ey)||1,n=sa>0?[ey/L,-ex/L]:[-ey/L,ex/L];o+=dash(a,b);
+      const anc2=n[0]>0.5?'start':n[0]<-0.5?'end':'middle',tx=(a[0]+b[0])/2+n[0]*8,ty=(a[1]+b[1])/2+n[1]*10;
+      o+=`<text x="${tx.toFixed(1)}" y="${(ty+4).toFixed(1)}" text-anchor="${anc2}" font-size="12" font-weight="700" font-style="italic" fill="${C.mut}">${fl(g.err)}</text><text x="${tx.toFixed(1)}" y="${(ty+(Math.abs(n[0])>0.5?15:n[1]*12+4)).toFixed(1)}" text-anchor="${anc2}" font-size="8.5" font-style="italic" fill="${C.mut}">sem parede</text>`}}
   else{o+=`<polyline points="${poly}" fill="none" stroke="${C.wall}" stroke-width="3" stroke-linejoin="round"/>`;
     if(g.ws.length>=2){const a=sp[sp.length-1],b=sp[0];o+=`<line x1="${a[0]}" y1="${a[1]}" x2="${b[0]}" y2="${b[1]}" stroke="${C.err}" stroke-width="1.5" stroke-dasharray="5 4"/>`}}
   const CC=calc(r);
   g.ws.forEach((w,i)=>{const a=sp[i],b=sp[i+1],ex=b[0]-a[0],ey=b[1]-a[1],L=Math.hypot(ex,ey)||1;
     const n=sa>0?[ey/L,-ex/L]:[-ey/L,ex/L];const mx=(a[0]+b[0])/2+n[0]*8,my=(a[1]+b[1])/2+n[1]*10;
     const anc=n[0]>0.5?'start':n[0]<-0.5?'end':'middle';const ix=(a[0]+b[0])/2-n[0]*12,iy=(a[1]+b[1])/2-n[1]*12;
-    o+=`<text x="${mx.toFixed(1)}" y="${(my+4).toFixed(1)}" text-anchor="${anc}" font-size="12" font-weight="700" fill="${C.txt}">${fl(w.len)}</text>`;
+    o+=`<text x="${mx.toFixed(1)}" y="${(my+4).toFixed(1)}" text-anchor="${anc}" font-size="12" font-weight="700" fill="${w.open?C.mut:C.txt}"${w.open?' font-style="italic"':''}>${fl(w.len)}</text>`;
+    if(w.open)o+=Math.abs(n[0])>0.5?`<text x="${mx.toFixed(1)}" y="${(my+15).toFixed(1)}" text-anchor="${anc}" font-size="8.5" font-style="italic" fill="${C.mut}">sem parede</text>`:`<text x="${mx.toFixed(1)}" y="${(my+n[1]*12+4).toFixed(1)}" text-anchor="middle" font-size="8.5" font-style="italic" fill="${C.mut}">sem parede</text>`;
     {const hasO=r.openings.some(op=>op.wall===i&&op.w>0),k2=hasO?32:12,px=(a[0]+b[0])/2-n[0]*k2,py=(a[1]+b[1])/2-n[1]*k2;o+=`<text x="${px.toFixed(1)}" y="${(py+3).toFixed(1)}" text-anchor="middle" font-size="9" fill="${C.mut}">P${i+1}</text>`}
     if(CC.cut[i]>0){if(Math.abs(n[0])>0.5)o+=`<text x="${mx.toFixed(1)}" y="${(my+15).toFixed(1)}" text-anchor="${anc}" font-size="8.5" fill="${C.mut}"><tspan x="${mx.toFixed(1)}">${fl(CC.netW[i])}</tspan><tspan x="${mx.toFixed(1)}" dy="10">+ ${fl(CC.cut[i])}</tspan></text>`;
       else o+=`<text x="${mx.toFixed(1)}" y="${(my+n[1]*13+4).toFixed(1)}" text-anchor="middle" font-size="8.5" fill="${C.mut}">${fl(CC.netW[i])} + ${fl(CC.cut[i])}</text>`}
@@ -430,7 +437,7 @@ function rowsFor(p){const d=S.settings.dec,R3=n=>n==null?null:+(+n).toFixed(3);
   const res=[['Cômodo','Pé-direito (m)','Área piso (m²)','Perímetro (m)','Parede bruta (m²)','Aberturas (m²)','Parede líquida (m²)','Rodapé (m)','Volume (m³)','Fechamento planta (m)']];
   for(const r of p.rooms){const c=calc(r);res.push([r.name,R3(r.h),R3(c.area),R3(c.perim),R3(c.gross),R3(c.openA),R3(c.net),R3(c.rodape),R3(c.vol),R3(c.g.err)])}
   const t=totals(p);res.push(['TOTAL',null,R3(t.area),R3(t.perim),R3(t.gross),R3(t.openA),R3(t.net),R3(t.rodape),R3(t.vol),null]);
-  const wl=[['Cômodo','Parede','Real (m)','Projeto (m)','Δ (cm)','Giro após (°)','Alvenaria (m)','Shaft (m)']];for(const r of p.rooms){const cc=calc(r);if(r.h!=null||r.hPj!=null)wl.push([r.name,'Pé-direito',R3(r.h),R3(r.hPj),dcs(r.h,r.hPj)==null?null:+dcs(r.h,r.hPj).toFixed(1),null]);walls(r).forEach((w,i)=>{const pj=wallPj(r,i),dc=dcs(w.len,pj);wl.push([r.name,'P'+(i+1),R3(w.len),R3(pj),dc==null?null:+dc.toFixed(1),r.mode==='rect'?90:+w.ang,R3(cc.netW[i]),R3(cc.cut[i])])})}
+  const wl=[['Cômodo','Parede','Real (m)','Projeto (m)','Δ (cm)','Giro após (°)','Alvenaria (m)','Shaft (m)']];for(const r of p.rooms){const cc=calc(r);if(r.h!=null||r.hPj!=null)wl.push([r.name,'Pé-direito',R3(r.h),R3(r.hPj),dcs(r.h,r.hPj)==null?null:+dcs(r.h,r.hPj).toFixed(1),null]);walls(r).forEach((w,i)=>{const pj=wallPj(r,i),dc=dcs(w.len,pj);wl.push([r.name,'P'+(i+1)+(w.open?' (sem parede)':''),R3(w.len),R3(pj),dc==null?null:+dc.toFixed(1),r.mode==='rect'?90:+w.ang,R3(cc.netW[i]),R3(cc.cut[i])])})}
   const op=[['Cômodo','Tipo','Parede','Qtd','Largura (m)','Largura proj. (m)','Altura (m)','Altura proj. (m)','Dist. início (m)','Dist. início proj. (m)','Área total (m²)']];for(const r of p.rooms)r.openings.forEach(o=>op.push([r.name,o.t,o.wall==null?'':'P'+(o.wall+1),o.q||1,R3(o.w),R3(o.wPj),R3(o.h),R3(o.hPj),R3(o.off),R3(o.offPj),R3((o.w||0)*(o.h||0)*(o.q||1))]));
   const sx=[['Cômodo','Shaft','Canto','Ao longo de','Real (m)','Projeto (m)','Δ (cm)']];for(const r of p.rooms){const n=calc(r).g.ws.length;(r.shafts||[]).forEach((sh,i)=>{if(!n)return;const k=sh.corner;
     sx.push([r.name,'SH'+(i+1),'P'+(k+1)+'/P'+((k+1)%n+1),'P'+(k+1),R3(sh.a),R3(sh.aPj),dcs(sh.a,sh.aPj)==null?null:+dcs(sh.a,sh.aPj).toFixed(1)]);
@@ -592,14 +599,15 @@ function vRoom(p,r){const tab=V.tab||'med',c=calc(r),d=S.settings.dec;
     h+=`<div class="dim"><div class="drow"><span class="tag">PD</span>${F('h','Pé-direito',r.h,v=>r.h=v)}${PJ('h',r.hPj)}${DL(r.h,r.hPj)}</div></div>`;
     if(r.mode==='rect'){h+=`<div class="list" style="margin-top:6px"><div class="dim"><div class="drow"><span class="tag">P1/3</span>${F('a','Comprimento',r.a,v=>r.a=v)}${PJ('a',r.aPj)}${DL(r.a,r.aPj)}</div></div>
       <div class="dim"><div class="drow"><span class="tag">P2/4</span>${F('b','Largura',r.b,v=>r.b=v)}${PJ('b',r.bPj)}${DL(r.b,r.bPj)}</div></div>
+      <div class="dim"><div class="drow"><span class="hint">Sem parede:</span>${[0,1,2,3].map(k=>`<button class="btn sm${(r.virt||{})[k]?' pri':''}" data-act="rOpen" data-i="${k}" type="button">P${k+1}</button>`).join('')}</div></div>
       <div class="dim"><div class="drow"><span class="hint">Fotos:</span>${[0,1,2,3].map(k=>`<span class="tag">P${k+1}</span>${WPH(p,r,k)}`).join('')}</div>${[0,1,2,3].map(k=>WMIN(p,r,k)).join('')}</div></div>`;setTimeout(thumbs,0)}
     else{h+=`<div class="list" style="margin-top:6px">`;
       r.walls.forEach((w,i)=>{const last=i===r.walls.length-1&&w.len==null,pw=i>0?r.walls[i-1]:null,std=!pw||[90,-90,45,-45,135,-135].includes(+pw.ang);
         const sel=pw?`<select class="cs" style="flex:0 1 66px" data-act="ang" data-i="${i-1}" aria-label="Giro antes de P${i+1}">${[[90,'↰90°'],[-90,'↱90°'],[45,'↰45°'],[-45,'↱45°'],[135,'↰135°'],[-135,'↱135°']].map(([v,n])=>`<option value="${v}"${+pw.ang===v?' selected':''}>${n}</option>`).join('')}<option value="x"${std?'':' selected'}>outro</option></select>`:`<span class="hint" style="flex:0 1 66px;text-align:center">início</span>`;
-        h+=`<div class="dim"><div class="drow"><span class="tag">P${i+1}</span>${sel}${F('w:'+i,'Parede '+(i+1),w.len,v=>{r.walls[i].len=v;if(i===r.walls.length-1)r.walls.push({len:null,ang:90})})}${last?'':PJ('w:'+i,w.pj)}${DL(w.len,w.pj)}${last?'':WPH(p,r,i)}<button class="btn sm del xb" data-act="delW" data-i="${i}" type="button" aria-label="Apagar P${i+1}">✕</button></div>
+        h+=`<div class="dim"><div class="drow"><span class="tag">P${i+1}</span>${sel}${F('w:'+i,'Parede '+(i+1),w.len,v=>{r.walls[i].len=v;if(i===r.walls.length-1)r.walls.push({len:null,ang:90})})}${last?'':PJ('w:'+i,w.pj)}${DL(w.len,w.pj)}${last?'':`<button class="btn sm${w.open?' pri':''}" data-act="wOpen" data-i="${i}" type="button" aria-label="Sem parede (vão aberto)" title="Sem parede">┄</button>`+WPH(p,r,i)}<button class="btn sm del xb" data-act="delW" data-i="${i}" type="button" aria-label="Apagar P${i+1}">✕</button></div>
         ${!std?`<div class="drow" style="margin-top:4px"><span class="hint">Giro antes de P${i+1} (°, + esq / − dir)</span><input class="txt num" style="width:70px" data-act="angx" data-i="${i-1}" inputmode="decimal" value="${nf(+pw.ang,1)}" aria-label="Giro em graus"></div>`:''}${last?'':WMIN(p,r,i)}</div>`});
       h+=`</div><button class="btn sm" data-act="addW" type="button" style="margin-top:8px">+ Parede</button>`;setTimeout(thumbs,0);
-      const g=c.g;if(g.ws.length>=3)h+=g.err<0.02?`<p class="okbox">Planta fechada. Erro de fechamento: ${nf(g.err*100,1)} cm.</p>`:`<p class="warnbox">Não fecha: faltam ${nf(g.err,3)} m.</p>`}
+      const g=c.g;if(g.ws.length>=3)h+=g.err<0.02?`<p class="okbox">Planta fechada. Erro de fechamento: ${nf(g.err*100,1)} cm.</p>`:r.autoClose?`<div class="okbox row"><span class="grow">Fechado por linha sem parede: ${flu(g.err)} (fora do perímetro)</span><button class="btn sm" data-act="autoC" type="button">Desfazer</button></div>`:`<div class="warnbox row"><span class="grow">Não fecha: faltam ${flu(g.err)}.</span><button class="btn sm" data-act="autoC" type="button">Fechar com linha sem parede</button></div>`}
     {const n=c.g.ws.length;h+=`<h2 style="margin:16px 0 6px">Shafts nos cantos</h2><div class="list">`;
       (r.shafts||[]).forEach((sh,i)=>{const k=sh.corner;h+=`<div class="dim"><div class="drow"><span class="tag">SH${i+1}</span><select class="cs" style="flex:0 1 130px" data-act="shC" data-i="${i}" aria-label="Canto">${Array.from({length:n},(_,j)=>`<option value="${j}"${k===j?' selected':''}>Canto P${j+1}/P${(j+1)%n+1}</option>`).join('')}</select><button class="btn sm del xb" data-act="delSh2" data-i="${i}" type="button">✕</button></div>
         <div class="drow" style="margin-top:4px">${F('s:'+i+':a','Lado P'+(k+1),sh.a,v=>r.shafts[i].a=v)}${PJ('s:'+i+':a',sh.aPj)}<span class="sep"></span>${F('s:'+i+':b','Lado P'+((k+1)%n+1),sh.b,v=>r.shafts[i].b=v)}${PJ('s:'+i+':b',sh.bPj)}</div>
@@ -626,7 +634,7 @@ function vRoom(p,r){const tab=V.tab||'med',c=calc(r),d=S.settings.dec;
   if(tab==='plan'){const s=planSVG(r,{W:480,H:380});h+=`<div class="plan" style="margin-top:12px">${s||'<div class="plan-empty">Sem paredes medidas.</div>'}</div>`;
     if(s)h+=`<button class="btn pri" data-act="planPng" type="button">Salvar planta (PNG)</button>`}
   if(tab==='sum'){h+=`<div class="card" style="margin-top:12px"><dl class="kv">
-    <dt>Pé-direito</dt><dd>${flu(r.h)}</dd><dt>Área de piso / forro${c.shA?' (− shafts)':''}</dt><dd>${nf(c.area,2)} m²</dd><dt>Perímetro</dt><dd>${flu(c.perim)}</dd>
+    <dt>Pé-direito</dt><dd>${flu(r.h)}</dd><dt>Área de piso / forro${c.shA?' (− shafts)':''}</dt><dd>${nf(c.area,2)} m²</dd><dt>Perímetro${c.vLen?' (só paredes)':''}</dt><dd>${flu(c.perim)}</dd>${c.vLen?`<dt>Trechos sem parede (vão)</dt><dd>${flu(c.vLen)}</dd>`:''}
     ${c.shL?`<dt>Parede de alvenaria (comprimento)</dt><dd>${flu(c.alv)}</dd><dt>Faces de shaft drywall (comprimento)</dt><dd>${flu(c.shL)}</dd><dt>Área de faces de shaft (× PD)</dt><dd>${nf(c.shL*c.H,2)} m²</dd><dt>Área ocupada por shafts</dt><dd>${nf(c.shA,2)} m²</dd>`:''}
     <dt>Parede bruta (perímetro × PD)</dt><dd>${nf(c.gross,2)} m²</dd><dt>Aberturas (total)</dt><dd>${nf(c.openA,2)} m²</dd><dt>Aberturas descontadas</dt><dd>${nf(c.ded,2)} m²</dd>
     <dt>Parede líquida</dt><dd>${nf(c.net,2)} m²</dd><dt>Rodapé (perímetro − portas/vãos)</dt><dd>${flu(c.rodape)}</dd><dt>Volume</dt><dd>${nf(c.vol,2)} m³</dd>
@@ -807,7 +815,8 @@ function vReport(p){const t=totals(p),d=new Date();
   for(const r of p.rooms){const c=calc(r);h+=`<div class="room"><h3>${esc(r.name)}</h3><div class="two"><div class="plan">${planSVG(r,{W:360,H:270,exp:true})||'<div class="plan-empty">sem planta</div>'}</div><div>
     <div class="tbl"><table><thead><tr><th>Item</th><th>Real</th><th>Projeto</th><th>Δ</th></tr></thead><tbody>
     ${r.h!=null||r.hPj!=null?`<tr><td>Pé-direito</td><td>${fl(r.h)}</td><td>${fl(r.hPj)}</td><td>${dtxt(dcs(r.h,r.hPj))}</td></tr>`:''}
-    ${walls(r).map((w,i)=>{const pj=wallPj(r,i);return`<tr><td>Parede P${i+1}</td><td>${fl(w.len)}</td><td>${fl(pj)}</td><td>${dtxt(dcs(w.len,pj))}</td></tr>`}).join('')}
+    ${walls(r).map((w,i)=>{const pj=wallPj(r,i);return`<tr><td>${w.open?'Vão P'+(i+1)+' (sem parede)':'Parede P'+(i+1)}</td><td>${fl(w.len)}</td><td>${fl(pj)}</td><td>${dtxt(dcs(w.len,pj))}</td></tr>`}).join('')}
+    ${c.vClose?`<tr><td>Fechamento sem parede</td><td>${fl(c.vClose)}</td><td>—</td><td>—</td></tr>`:''}
     ${(r.shafts||[]).map((sh,i)=>{const n=c.g.ws.length,k=sh.corner;return n?`<tr><td>Shaft SH${i+1} · ao longo P${k+1}</td><td>${fl(sh.a)}</td><td>${fl(sh.aPj)}</td><td>${dtxt(dcs(sh.a,sh.aPj))}</td></tr><tr><td>Shaft SH${i+1} · ao longo P${(k+1)%n+1}</td><td>${fl(sh.b)}</td><td>${fl(sh.bPj)}</td><td>${dtxt(dcs(sh.b,sh.bPj))}</td></tr>`:''}).join('')}
     ${c.shL?c.g.ws.map((w,j)=>c.cut[j]?`<tr><td>P${j+1} alvenaria + shaft</td><td colspan="3">${fl(c.netW[j])} + ${fl(c.cut[j])} = ${fl(w.len)}</td></tr>`:'').join(''):''}
     ${r.openings.map(o=>{const nm=(o.t==='vao'?'Vão':o.t[0].toUpperCase()+o.t.slice(1))+(o.wall!=null?' (P'+(o.wall+1)+')':'')+((o.q||1)>1?' ×'+o.q:'');
@@ -888,6 +897,9 @@ document.addEventListener('click',async e=>{const t=e.target.closest('[data-t],[
       d.lo=[nx*pn_+(-ny)*pt_, ny*pn_+nx*pt_];save();return render()}
     case'addSh2':{const n=calc(r).g.ws.length;(r.shafts=r.shafts||[]).push({id:uid(),corner:0,a:null,b:null});save();target='s:'+(r.shafts.length-1)+':a';return render()}
     case'delSh2':r.shafts.splice(i,1);save();return render();
+    case'wOpen':r.walls[i].open=!r.walls[i].open;save();return render();
+    case'rOpen':r.virt=r.virt||{};r.virt[i]=!r.virt[i];save();return render();
+    case'autoC':r.autoClose=!r.autoClose;save();return render();
     case'wPh':LINK={rid:r.id,wall:i};return $('#fileph').click();
     case'dHide':{const sh=p.photos.find(x=>x.id===V.phid);sh.dims[i].hide=!sh.dims[i].hide;save();return render()}
     case'dCol':{const sh=p.photos.find(x=>x.id===V.phid);sh.dims[i].color=t.dataset.c||null;save();return render()}
