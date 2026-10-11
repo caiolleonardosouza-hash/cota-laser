@@ -696,7 +696,7 @@ function geralSVG(p,{W,H,vx,vy,k,exp=false,sel=null,cotas=true}){
       const mx=(a[0]+b[0])/2,my=(a[1]+b[1])/2,vx_=cc[0]-mx,vy_=cc[1]-my,vl=Math.hypot(vx_,vy_)||1,tx=mx+vx_/vl*11,ty=my+vy_/vl*11+3.5,ang=Math.atan2(b[1]-a[1],b[0]-a[0])*180/Math.PI,ra=ang>90||ang<-90?ang+180:ang;
       o+=`<text transform="translate(${f(tx)},${f(ty)}) rotate(${f(ra)})" text-anchor="middle" font-size="${Math.max(8,Math.min(11,k*0.18)).toFixed(1)}" font-weight="600" fill="${WK(wl)==='p'?C.mut:WK(wl)==='v'?C.acc:C.mut}"${WK(wl)!=='p'?' font-style="italic"':''}>${fl(wl.len)}</text>`})}
   for(const w of RW){const c=S(polyC(w.v)),cl=calc(w.r),fs=Math.max(9,Math.min(15,k*0.28));
-    o+=`<text x="${f(c[0])}" y="${f(c[1]-2)}" text-anchor="middle" font-size="${f(fs)}" font-weight="700" fill="${C.txt}">${esc(w.r.name)}</text><text x="${f(c[0])}" y="${f(c[1]+fs)}" text-anchor="middle" font-size="${f(fs*0.8)}" fill="${C.mut}">${nf(cl.area,2)} m²</text>`}
+    o+=`<text x="${f(c[0])}" y="${f(c[1]-2)}" text-anchor="middle" font-size="${f(fs)}" font-weight="700" fill="${C.txt}">${esc(w.r.name)}</text><text x="${f(c[0])}" y="${f(c[1]+fs)}" text-anchor="middle" font-size="${f(fs*0.8)}" fill="${C.mut}">piso ${nf(cl.area,2)} m²</text>${w.r.h>0?`<text x="${f(c[0])}" y="${f(c[1]+fs*1.9)}" text-anchor="middle" font-size="${f(fs*0.8)}" fill="${C.mut}">parede ${nf(cl.net,2)} m²</text>`:''}`}
   return o+'</svg>'}
 function vGeral(p){initPos(p);const RW=p.rooms.map(rWorld).filter(Boolean),tot=p.rooms.reduce((s,r)=>s+calc(r).area,0),sr=p.rooms.find(r=>r.id===GV.sel);
   if(!RW.length)return`<div class="plan-empty" style="margin-top:14px">Meça as paredes dos cômodos para montar a planta geral.</div>`;
@@ -705,7 +705,13 @@ function vGeral(p){initPos(p);const RW=p.rooms.map(rWorld).filter(Boolean),tot=p
   h+=sr?`<div class="card list" style="margin-top:8px"><div class="row"><b class="grow">${esc(sr.name)}</b><button class="btn sm" data-act="gRot" data-k="90" type="button">⟲ 90°</button><button class="btn sm" data-act="gRot" data-k="-90" type="button">⟳ 90°</button></div>
     <div class="row"><span class="hint">Ajuste fino</span><button class="btn sm" data-act="gNud" data-k="-1,0" type="button">←</button><button class="btn sm" data-act="gNud" data-k="0,1" type="button">↑</button><button class="btn sm" data-act="gNud" data-k="0,-1" type="button">↓</button><button class="btn sm" data-act="gNud" data-k="1,0" type="button">→</button>
     <select id="gStep" class="cs" style="flex:0 1 90px" aria-label="Passo">${[[0.01,'1 cm'],[0.05,'5 cm'],[0.15,'15 cm'],[0.5,'50 cm']].map(([v,n])=>`<option value="${v}"${GV.step===v?' selected':''}>${n}</option>`).join('')}</select></div></div>`:`<p class="hint">Toque num cômodo para selecionar. Arraste o cômodo para posicionar; os cantos encaixam sozinhos.</p>`;
-  h+=`<div class="stats" style="margin-top:10px"><div class="stat"><small>Área total dos cômodos</small><b>${nf(tot,2)}<i>m²</i></b></div><div class="stat"><small>Cômodos na planta</small><b>${RW.length}<i>de ${p.rooms.length}</i></b></div></div>`;
+  const rows=p.rooms.map(r=>({r,c:calc(r)})),T={area:0,gross:0,ded:0,net:0};rows.forEach(({c})=>{T.area+=c.area;T.gross+=c.gross;T.ded+=c.ded;T.net+=c.net});
+  const semPD=rows.filter(x=>!(x.r.h>0)&&x.c.perim>0);
+  h+=`<div class="stats" style="margin-top:10px"><div class="stat"><small>Área de piso</small><b>${nf(T.area,2)}<i>m²</i></b></div><div class="stat"><small>Área de parede líquida</small><b>${nf(T.net,2)}<i>m²</i></b></div></div>
+  <div class="tbl" style="margin-top:10px"><table><thead><tr><th>Cômodo</th><th>Piso (m²)</th><th>Parede bruta (m²)</th><th>Vãos/aberturas (m²)</th><th>Parede líquida (m²)</th></tr></thead><tbody>
+  ${rows.map(({r,c})=>`<tr><td>${esc(r.name)}</td><td>${nf(c.area,2)}</td><td>${r.h>0?nf(c.gross,2):'—'}</td><td>${nf(c.ded,2)}</td><td>${r.h>0?nf(c.net,2):'—'}</td></tr>`).join('')}</tbody>
+  <tfoot><tr><td>Total</td><td>${nf(T.area,2)}</td><td>${nf(T.gross,2)}</td><td>${nf(T.ded,2)}</td><td>${nf(T.net,2)}</td></tr></tfoot></table></div>
+  ${semPD.length?`<p class="warnbox">Sem pé-direito: ${semPD.map(x=>esc(x.r.name)).join(', ')} — área de parede não calculada.</p>`:''}`;
   return h}
 function gDraw(){const R=GR;if(!R)return;const p=P(GV.pid);if(!p)return;R.stage.innerHTML=geralSVG(p,{W:R.w,H:R.h,vx:GV.vx,vy:GV.vy,k:GV.k,sel:GV.sel,cotas:GV.cotas})}
 function gFit(){const R=GR,p=P(GV.pid);const b=gBounds(p.rooms.map(rWorld).filter(Boolean));if(!b)return;const pad=0.9,bw=b[2]-b[0]+2*pad,bh=b[3]-b[1]+2*pad;
