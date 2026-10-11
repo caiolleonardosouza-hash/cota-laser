@@ -242,7 +242,7 @@ function planSVG(r,{W=360,H=270,exp=false}={}){
   const C=exp?{bg:'#ffffff',fill:'#e8eef9',wall:'#19201d',txt:'#19201d',mut:'#5b6661',acc:'#c9321b',err:'#c9321b'}
             :{bg:'var(--surface)',fill:'color-mix(in srgb,var(--accent) 10%,transparent)',wall:'var(--ink)',txt:'var(--ink)',mut:'var(--muted)',acc:'var(--laser)',err:'var(--laser)'};
   const pts=g.v.map(([x,y])=>[x,-y]);const xs=pts.map(p=>p[0]),ys=pts.map(p=>p[1]);
-  const mnx=Math.min(...xs),mxx=Math.max(...xs),mny=Math.min(...ys),mxy=Math.max(...ys);const pad=48;
+  const mnx=Math.min(...xs),mxx=Math.max(...xs),mny=Math.min(...ys),mxy=Math.max(...ys);const pad=(r.shafts||[]).length?58:48;
   const s=Math.min((W-2*pad)/((mxx-mnx)||1),(H-2*pad)/((mxy-mny)||1));
   const ox=(W-(mxx-mnx)*s)/2,oy=(H-(mxy-mny)*s)/2;
   const T=([x,y])=>[ox+(x-mnx)*s,oy+(y-mny)*s];const sp=pts.map(T);
@@ -260,7 +260,8 @@ function planSVG(r,{W=360,H=270,exp=false}={}){
     const anc=n[0]>0.5?'start':n[0]<-0.5?'end':'middle';const ix=(a[0]+b[0])/2-n[0]*12,iy=(a[1]+b[1])/2-n[1]*12;
     o+=`<text x="${mx.toFixed(1)}" y="${(my+4).toFixed(1)}" text-anchor="${anc}" font-size="12" font-weight="700" fill="${C.txt}">${fl(w.len)}</text>`;
     o+=`<text x="${ix.toFixed(1)}" y="${(iy+3).toFixed(1)}" text-anchor="middle" font-size="9" fill="${C.mut}">P${i+1}</text>`;
-    if(CC.cut[i]>0)o+=`<text x="${(Math.abs(n[0])>0.5?mx:mx+n[0]*14).toFixed(1)}" y="${(Math.abs(n[0])>0.5?my+16:my+n[1]*14+4).toFixed(1)}" text-anchor="${anc}" font-size="8.5" fill="${C.mut}">${fl(CC.netW[i])} + ${fl(CC.cut[i])}</text>`;
+    if(CC.cut[i]>0){if(Math.abs(n[0])>0.5)o+=`<text x="${mx.toFixed(1)}" y="${(my+15).toFixed(1)}" text-anchor="${anc}" font-size="8.5" fill="${C.mut}"><tspan x="${mx.toFixed(1)}">${fl(CC.netW[i])}</tspan><tspan x="${mx.toFixed(1)}" dy="10">+ ${fl(CC.cut[i])}</tspan></text>`;
+      else o+=`<text x="${mx.toFixed(1)}" y="${(my+n[1]*13+4).toFixed(1)}" text-anchor="middle" font-size="8.5" fill="${C.mut}">${fl(CC.netW[i])} + ${fl(CC.cut[i])}</text>`}
     r.openings.filter(op=>op.wall===i&&op.w>0).forEach((op,k,arr)=>{const f=Math.min(1,op.w/w.len);let c=(k+1)/(arr.length+1);
       if(op.off!=null)c=Math.min(1,(op.off+op.w/2)/w.len);
       const t0=Math.max(0,c-f/2),t1=Math.min(1,c+f/2);
@@ -269,15 +270,17 @@ function planSVG(r,{W=360,H=270,exp=false}={}){
         for(const[px,py]of[[bx,by],[qx,qy]])o+=`<line x1="${(px-n[0]*3).toFixed(1)}" y1="${(py-n[1]*3).toFixed(1)}" x2="${(px+n[0]*3).toFixed(1)}" y2="${(py+n[1]*3).toFixed(1)}" stroke="${C.acc}" stroke-width="1"/>`;
         o+=`<text x="${((bx+qx)/2-n[0]*8).toFixed(1)}" y="${((by+qy)/2-n[1]*8+3).toFixed(1)}" text-anchor="middle" font-size="8.5" font-weight="700" fill="${C.acc}">${fl(op.off)}</text>`}
       o+=`<line x1="${(a[0]+ex*t0).toFixed(1)}" y1="${(a[1]+ey*t0).toFixed(1)}" x2="${(a[0]+ex*t1).toFixed(1)}" y2="${(a[1]+ey*t1).toFixed(1)}" stroke="${C.acc}" stroke-width="6"/>`;
-      const lx=a[0]+ex*c-n[0]*12,ly=a[1]+ey*c-n[1]*12;
+      const lx=a[0]+ex*c-n[0]*23,ly=a[1]+ey*c-n[1]*23;
       o+=`<text x="${lx.toFixed(1)}" y="${(ly+3).toFixed(1)}" text-anchor="middle" font-size="9" font-weight="700" fill="${C.acc}">${op.t==='porta'?'PT':op.t==='janela'?'JA':'VÃ'}</text>`})});
   const c=calc(r),n0=g.ws.length;
   (r.shafts||[]).forEach((sh,si)=>{if(sh.corner==null||sh.corner>=n0||!(sh.a>0&&sh.b>0))return;const k=sh.corner,V=g.v[k+1],P0=g.v[k],V2=k+2<=n0?g.v[k+2]:g.v[1];
     const l1=g.ws[k].len,l2=g.ws[(k+1)%n0].len,u1=[(V[0]-P0[0])/l1,(V[1]-P0[1])/l1],u2=[(V2[0]-V[0])/l2,(V2[1]-V[1])/l2];
     const q=[V,[V[0]-u1[0]*sh.a,V[1]-u1[1]*sh.a],[V[0]-u1[0]*sh.a+u2[0]*sh.b,V[1]-u1[1]*sh.a+u2[1]*sh.b],[V[0]+u2[0]*sh.b,V[1]+u2[1]*sh.b]].map(([x,y])=>T([x,-y]));
     o+=`<polygon points="${q.map(p=>p.map(v=>v.toFixed(1)).join(',')).join(' ')}" fill="${exp?'#c8ccd2':'color-mix(in srgb,var(--muted) 45%,transparent)'}" stroke="${C.wall}" stroke-width="1.5"/>`;
-    const cx=q.reduce((s,p)=>s+p[0],0)/4,cy=q.reduce((s,p)=>s+p[1],0)/4;
-    o+=`<text x="${cx.toFixed(1)}" y="${(cy-2).toFixed(1)}" text-anchor="middle" font-size="8" font-weight="700" fill="${C.txt}">SH</text><text x="${cx.toFixed(1)}" y="${(cy+7).toFixed(1)}" text-anchor="middle" font-size="7.5" fill="${C.txt}">${fl(sh.a)}×${fl(sh.b)}</text>`});
+    const cx=q.reduce((s,p)=>s+p[0],0)/4,cy=q.reduce((s,p)=>s+p[1],0)/4,dx=cx-q[0][0],dy=cy-q[0][1],dl=Math.hypot(dx,dy)||1;
+    const lx=cx+dx/dl*30,ly=cy+dy/dl*22,txt='SH'+(si+1)+' '+fl(sh.a)+'×'+fl(sh.b),tw=txt.length*4.3+6;
+    o+=`<line x1="${cx.toFixed(1)}" y1="${cy.toFixed(1)}" x2="${lx.toFixed(1)}" y2="${ly.toFixed(1)}" stroke="${C.mut}" stroke-width="0.8"/>`;
+    o+=`<rect x="${(lx-tw/2).toFixed(1)}" y="${(ly-7).toFixed(1)}" width="${tw.toFixed(1)}" height="12" rx="2" fill="${C.bg}" stroke="${C.mut}" stroke-width="0.6"/><text x="${lx.toFixed(1)}" y="${(ly+2).toFixed(1)}" text-anchor="middle" font-size="7.5" font-weight="700" fill="${C.txt}">${txt}</text>`});
   if(closed){const cx=sp.slice(0,-1).reduce((s,p)=>s+p[0],0)/(sp.length-1),cy=sp.slice(0,-1).reduce((s,p)=>s+p[1],0)/(sp.length-1);
     o+=`<text x="${cx.toFixed(1)}" y="${cy.toFixed(1)}" text-anchor="middle" font-size="14" font-weight="700" fill="${C.txt}">${nf(c.area,2)} m²</text>`;
     o+=`<text x="${cx.toFixed(1)}" y="${(cy+14).toFixed(1)}" text-anchor="middle" font-size="10" fill="${C.mut}">${esc(r.name)}</text>`}
