@@ -38,6 +38,7 @@ button,input,select{font:inherit;color:inherit}
 header.top{position:sticky;top:0;z-index:5;background:var(--bg);border-bottom:1px solid var(--line);
   padding:calc(env(safe-area-inset-top,0px) + 10px) 16px 10px;display:flex;align-items:center;gap:10px}
 header.top h1{font:700 22px/1.1 var(--f-disp);letter-spacing:.02em;margin:0;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-transform:uppercase}
+.prow{display:flex;gap:8px;align-items:stretch}.prow .item{flex:1;min-width:0}.prow .del{align-self:center}
 .back{border:1px solid var(--line);background:var(--surface);border-radius:8px;width:40px;height:40px;font-size:20px;cursor:pointer}
 h2{font:600 18px/1.2 var(--f-disp);text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:22px 0 10px}
 .card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px}
@@ -148,12 +149,12 @@ pre.log{font:11px/1.4 var(--f-num);background:var(--sunk);padding:8px;border-rad
 </style>
 </head>
 <body>
-<header class="top"><button class="back" id="back" type="button" aria-label="Voltar" hidden>‹</button><h1 id="ttl">Cota Laser</h1></header>
+<header class="top"><button class="back" id="back" type="button" aria-label="Voltar" hidden>‹</button><h1 id="ttl">Cota Laser</h1><button class="back" id="gear" type="button" aria-label="Ajustes">⚙</button></header>
 <main class="wrap" id="app"></main>
 
 <div id="dock">
   <div class="in">
-    <div class="lcd" id="lcd"><span class="dot" id="dot"></span><span id="rv">—</span><small>m</small></div>
+    <div class="lcd" id="lcd"><span class="dot" id="dot"></span><span id="rv">—</span><small id="runit">m</small></div>
     <button class="btn pri" id="bt" type="button">Conectar trena</button>
     <div id="tgt"></div>
     <div class="man"><input class="txt num" id="man" inputmode="decimal" placeholder="ou digite a medida (m)" autocomplete="off"><button class="btn" id="manok" type="button">OK</button></div>
@@ -173,6 +174,9 @@ const uid=()=>Math.random().toString(36).slice(2,8)+Date.now().toString(36).slic
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const nf=(n,d=2)=>(n==null||!isFinite(n))?'—':n.toLocaleString('pt-BR',{minimumFractionDigits:d,maximumFractionDigits:d});
 const pn=s=>{if(s==null)return null;s=String(s).trim().replace(/\s/g,'').replace(',','.');if(s==='')return null;const v=parseFloat(s);return isFinite(v)?v:null};
+const FMTS={m3:{k:1,d:3,s:'m',n:'Metros · 0,000 (mm)'},m2:{k:1,d:2,s:'m',n:'Metros · 0,00 (cm)'},cm1:{k:100,d:1,s:'cm',n:'Centímetros · 0,0'},cm0:{k:100,d:0,s:'cm',n:'Centímetros · 0'},mm:{k:1000,d:0,s:'mm',n:'Milímetros · 0'}};
+const UF=()=>FMTS[(typeof S!=='undefined'&&S&&S.settings.fmt)||'m3']||FMTS.m3;
+const UN=()=>UF().s,fl=v=>(v==null||!isFinite(v))?'—':nf(v*UF().k,UF().d),flu=v=>fl(v)+' '+UN(),parseL=t=>{const v=pn(t);return v==null?null:v/UF().k};
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 let toastT;function toast(m){const t=$('#toast');t.textContent=m;t.hidden=false;clearTimeout(toastT);toastT=setTimeout(()=>t.hidden=true,2600)}
 
@@ -181,7 +185,7 @@ const KEY='cotalaser.v1';
 let S;
 function load(){try{S=JSON.parse(localStorage.getItem(KEY))}catch(e){S=null}
   if(!S||!Array.isArray(S.projects)){S={projects:[],free:[],settings:{minOpen:0,dec:3}};seed()}
-  S.free=S.free||[];S.settings=Object.assign({minOpen:0,dec:3,tol:1},S.settings||{});
+  S.free=S.free||[];S.settings=Object.assign({minOpen:0,dec:3,tol:1,vib:true,wake:true},S.settings||{});if(!S.settings.fmt)S.settings.fmt=S.settings.dec==2?'m2':'m3';
   for(const p of S.projects)for(const f of p.photos||[]){f.kind=f.kind||'photo';f.dims=(f.dims||[]).map(d=>Object.assign({id:uid(),ph:[]},d))}}
 function save(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){toast('Não consegui salvar no aparelho (memória cheia?)')}}
 function newRoom(name){return{id:uid(),name,mode:'rect',a:null,b:null,h:null,walls:[{len:null,ang:90}],openings:[],objects:[]}}
@@ -291,12 +295,12 @@ async function pdfPage(doc,n,name,bytes){toast('Renderizando página '+n+'…');
   if(bytes){try{await idb.put('pdf:'+sh.id,bytes);sh.pdf={page:n,rs:sh.w/v1.width};save()}catch(e){}}go({v:'photo',pid:V.pid,phid:sh.id})}
 
 function dimText(sh,d){const dec=S.settings.dec>2?3:2,isPlan=sh.kind==='plan';
-  if(stOf(sh).txt==='num'){const v=d.val!=null?d.val:isPlan?projOf(sh,d):null;return{l1:v==null?'?':nf(v,dec),l2:null,ok:null}}
-  const l1=(d.label?d.label+'  ':isPlan&&d.cat&&d.cat!=='outro'?CATS[d.cat]+'  ':'')+(d.val!=null?nf(d.val,dec)+' m':isPlan&&projOf(sh,d)!=null?'proj. '+nf(projOf(sh,d),dec)+' m':'? m');
+  if(stOf(sh).txt==='num'){const v=d.val!=null?d.val:isPlan?projOf(sh,d):null;return{l1:v==null?'?':fl(v),l2:null,ok:null}}
+  const l1=(d.label?d.label+'  ':isPlan&&d.cat&&d.cat!=='outro'?CATS[d.cat]+'  ':'')+(d.val!=null?flu(d.val):isPlan&&projOf(sh,d)!=null?'proj. '+flu(projOf(sh,d)):'? m');
   let l2=null,ok=null;
   if(isPlan){const p=projOf(sh,d),dc=deltaCm(sh,d);
-    if(d.ref)l2='ESCALA · proj. '+nf(d.proj,dec)+' m';
-    else if(d.val!=null&&p!=null){ok=okD(dc);l2='proj. '+nf(p,dec)+'  Δ '+(dc>0?'+':'')+nf(dc,1)+' cm'}
+    if(d.ref)l2='ESCALA · proj. '+flu(d.proj);
+    else if(d.val!=null&&p!=null){ok=okD(dc);l2='proj. '+fl(p)+'  Δ '+(dc>0?'+':'')+nf(dc,1)+' cm'}
     if(d.ph&&d.ph.length)l2=(l2?l2+'  ·  ':'')+d.ph.length+' foto'+(d.ph.length>1?'s':'')}
   return{l1,l2,ok}}
 function lineAng(d){let a=Math.atan2(d.y2-d.y1,d.x2-d.x1)*180/Math.PI;if(a>90)a-=180;if(a<=-90)a+=180;return a}
@@ -414,7 +418,7 @@ const BT={dev:null,chr:null,state:'off',log:[],last:null,wake:null,
     await this.chr.startNotifications();await sleep(400);
     await this.chr.writeValueWithResponse(new Uint8Array([0xc0,0x55,0x02,0x01,0x00,0x1a]));
     this.push('conectado: '+(this.dev.name||'GLM'));this.set('on');toast('Trena conectada. Aperte medir na trena.');
-    try{this.wake=await navigator.wakeLock.request('screen')}catch(e){}},
+    try{if(S.settings.wake)this.wake=await navigator.wakeLock.request('screen')}catch(e){}},
   onVal(dv){this.push('rx '+this.hex(dv));
     if(dv.byteLength>=11&&dv.getUint8(0)===0xc0&&dv.getUint8(1)===0x55&&dv.getUint8(2)===0x10&&dv.getUint8(3)===0x06){
       const m=dv.getFloat32(7,true);if(isFinite(m)&&m>0&&m<300)reading(m,true)}},
@@ -427,14 +431,14 @@ document.addEventListener('visibilitychange',async()=>{if(document.visibilitySta
 /* ===== campos de medida / alvo ===== */
 let REG=new Map(),ORDER=[],target=null;
 function F(key,label,val,set){REG.set(key,{label,set});ORDER.push(key);
-  return`<button type="button" class="mf${target===key?' on':''}${val==null?' empty':''}" data-t="${esc(key)}"><span class="mfl">${esc(label)}</span><span class="mfv">${val==null?'—':nf(val,S.settings.dec)}</span></button>`}
+  return`<button type="button" class="mf${target===key?' on':''}${val==null?' empty':''}" data-t="${esc(key)}"><span class="mfl">${esc(label)}</span><span class="mfv">${val==null?'—':fl(val)}</span></button>`}
 function reading(m,fromLaser){m=Math.round(m*1000)/1000;BT.last=m;
-  const l=$('#lcd');l.classList.remove('flash');void l.offsetWidth;l.classList.add('flash');if(fromLaser&&navigator.vibrate)navigator.vibrate(35);
+  const l=$('#lcd');l.classList.remove('flash');void l.offsetWidth;l.classList.add('flash');if(fromLaser&&S.settings.vib&&navigator.vibrate)navigator.vibrate(35);
   if(target&&REG.has(target)){const k=target;REG.get(k).set(m);save();render();const i=ORDER.indexOf(k);target=i>=0&&ORDER[i+1]?ORDER[i+1]:null;render();
     if(target){const el=document.querySelector(`[data-t="${CSS.escape(target)}"]`);el&&el.scrollIntoView({block:'nearest',behavior:'smooth'})}}
-  else{S.free.unshift({id:uid(),pid:V.pid||null,v:m,label:'',t:Date.now()});save();toast('Medida avulsa salva: '+nf(m,S.settings.dec)+' m');if(V.v==='project'&&V.tab==='free'||V.v==='home')render()}
+  else{S.free.unshift({id:uid(),pid:V.pid||null,v:m,label:'',t:Date.now()});save();toast('Medida avulsa salva: '+flu(m));if(V.v==='project'&&V.tab==='free'||V.v==='home')render()}
   updateDock()}
-function updateDock(){$('#rv').textContent=BT.last==null?'—':nf(BT.last,S.settings.dec);
+function updateDock(){$('#rv').textContent=BT.last==null?'—':fl(BT.last);$('#runit').textContent=UN();$('#man').placeholder='ou digite a medida ('+UN()+')';
   const d=$('#dot');d.className='dot'+(BT.state==='on'?' on':BT.state==='busy'?' busy':'');
   $('#bt').textContent=BT.state==='on'?'Desconectar':BT.state==='busy'?'Conectando…':'Conectar trena';$('#bt').classList.toggle('pri',BT.state!=='on');
   $('#tgt').innerHTML=target&&REG.has(target)?'Leitura → <b>'+esc(REG.get(target).label)+'</b>':'Leitura → <b>avulsa</b>'}
@@ -443,15 +447,17 @@ function updateDock(){$('#rv').textContent=BT.last==null?'—':nf(BT.last,S.sett
 let V={v:'home'};const HIST=[];
 function go(nv,push=true){if(push)HIST.push(V);V=Object.assign({},nv);target=null;render();window.scrollTo(0,0)}
 function back(){V=HIST.pop()||{v:'home'};target=null;render()}
-$('#back').onclick=back;
+$('#back').onclick=back;$('#gear').onclick=()=>go({v:'cfg'});
 history.replaceState({x:0},'');window.addEventListener('popstate',()=>{if(HIST.length){back();history.pushState({x:1},'')}});history.pushState({x:1},'');
 
 /* ===== telas ===== */
 function render(){REG=new Map();ORDER=[];const app=$('#app');let h='';
   const p=P(V.pid),r=R(p,V.rid);
-  if(V.v!=='home'&&!p){V={v:'home'}}
+  if(V.v!=='home'&&V.v!=='cfg'&&!p){V={v:'home'}}
   $('#back').hidden=V.v==='home';
+  $('#gear').hidden=V.v!=='home';
   if(V.v==='home'){$('#ttl').textContent='Cota Laser';h=vHome()}
+  else if(V.v==='cfg'){$('#ttl').textContent='Ajustes';h=vCfg()}
   else if(V.v==='project'){$('#ttl').textContent=p.name;h=vProject(p)}
   else if(V.v==='room'&&r){$('#ttl').textContent=r.name;h=vRoom(p,r)}
   else if(V.v==='photo'){const ph=p.photos.find(x=>x.id===V.phid);$('#ttl').textContent=ph?ph.name:'Foto';h=ph?vPhoto(p,ph):''}
@@ -461,19 +467,25 @@ function render(){REG=new Map();ORDER=[];const app=$('#app');let h='';
 function after(){RT=null;hideLoupe();if(V.v==='photo')setupEditor();if(V.v==='report')fillReportPhotos()}
 
 function vHome(){const ps=S.projects;let h=`<h2>Obras</h2><div class="list">`;
-  for(const p of ps){const t=totals(p);h+=`<button class="item" data-act="openP" data-id="${p.id}"><div class="grow"><b>${esc(p.name)}</b><div class="sub">${p.rooms.length} cômodo(s) · ${p.photos.length} foto(s)</div></div><div class="num">${nf(t.area,2)} m²</div></button>`}
+  for(const p of ps){const t=totals(p);h+=`<div class="prow"><button class="item" data-act="openP" data-id="${p.id}"><div class="grow"><b>${esc(p.name)}</b><div class="sub">${p.rooms.length} cômodo(s) · ${p.photos.filter(f=>f.kind==='plan').length} planta(s) · ${p.photos.filter(f=>f.kind!=='plan').length} foto(s)</div></div><div class="num">${nf(t.area,2)} m²</div></button><button class="btn sm del" data-act="delPid" data-id="${p.id}" type="button" aria-label="Excluir obra">Excluir</button></div>`}
   h+=`</div><form class="row" data-form="newP" style="margin-top:10px"><input class="txt grow" id="np" placeholder="Nome da obra / unidade (ex.: Riviera T2 ap 1204)" required><button class="btn pri">Criar</button></form>`;
   const fr=S.free.filter(f=>!f.pid);if(fr.length)h+=`<h2>Medidas avulsas sem obra</h2>`+freeList(fr);
-  h+=`<h2>Ajustes</h2><div class="card list">
-   <label class="row"><span class="grow">Casas decimais nas medidas</span><select id="sdec"><option value="2"${S.settings.dec==2?' selected':''}>2 (cm)</option><option value="3"${S.settings.dec==3?' selected':''}>3 (mm)</option></select></label>
-   <label class="row"><span class="grow">Descontar da parede só aberturas com área maior que (m²)</span><input class="txt num" style="width:90px" id="smin" inputmode="decimal" value="${nf(+S.settings.minOpen,2)}"></label>
-   <div class="row"><button class="btn" data-act="backup" type="button">Exportar backup</button><button class="btn" data-act="restore" type="button">Importar backup</button></div>
-   <button class="btn" data-act="btAll" type="button">Conectar mostrando todos os aparelhos Bluetooth</button>
-   <details><summary>Diagnóstico Bluetooth</summary><pre class="log" id="btlog">${esc(BT.log.join('\n'))||'(vazio)'}</pre></details>
-  </div>
-  `;
   return h}
-function freeList(fr){return`<div class="card list">`+fr.map(f=>`<div class="row"><span class="num" style="font-weight:700;min-width:90px">${nf(f.v,S.settings.dec)} m</span><input class="txt grow" data-act="freeLbl" data-id="${f.id}" value="${esc(f.label)}" placeholder="descrição"><button class="btn sm del" data-act="delFree" data-id="${f.id}" type="button">✕</button></div>`).join('')+`</div>`}
+function vCfg(){const st=defStyle();return`<h2>Medidas</h2><div class="card list">
+   <label class="row"><span class="grow">Unidade e precisão</span><select id="sfmt">${Object.entries(FMTS).map(([k,f])=>`<option value="${k}"${S.settings.fmt===k?' selected':''}>${f.n}</option>`).join('')}</select></label>
+   <label class="row"><span class="grow">Tolerância padrão projeto × real (cm)</span><input class="txt num" style="width:90px" id="stol" inputmode="decimal" value="${nf(tolCm(),1)}"></label>
+   <label class="row"><span class="grow">Descontar da parede só aberturas maiores que (m²)</span><input class="txt num" style="width:90px" id="smin" inputmode="decimal" value="${nf(+S.settings.minOpen,2)}"></label>
+   <p class="hint" style="margin:0">Excel e CSV saem sempre em metros.</p></div>
+  <h2>Trena</h2><div class="card list">
+   <label class="row"><input type="checkbox" id="svib"${S.settings.vib?' checked':''}> <span class="grow">Vibrar ao receber leitura</span></label>
+   <label class="row"><input type="checkbox" id="swake"${S.settings.wake?' checked':''}> <span class="grow">Manter tela ligada com a trena conectada</span></label>
+   <button class="btn" data-act="btAll" type="button">Conectar mostrando todos os aparelhos</button>
+   <details><summary>Diagnóstico Bluetooth</summary><pre class="log" id="btlog">${esc(BT.log.join('\n'))||'(vazio)'}</pre></details></div>
+  <h2>Cotas</h2><div class="card list">
+   <div class="row"><span class="grow">Estilo padrão: texto ${st.fs}, espessura ${st.lw}, ${st.txt==='num'?'só número':'completo'}</span><button class="btn sm" data-act="stReset" type="button">Restaurar padrão</button></div></div>
+  <h2>Dados</h2><div class="card list">
+   <div class="row"><button class="btn" data-act="backup" type="button">Exportar backup</button><button class="btn" data-act="restore" type="button">Importar backup</button></div></div>`}
+function freeList(fr){return`<div class="card list">`+fr.map(f=>`<div class="row"><span class="num" style="font-weight:700;min-width:90px">${flu(f.v)}</span><input class="txt grow" data-act="freeLbl" data-id="${f.id}" value="${esc(f.label)}" placeholder="descrição"><button class="btn sm del" data-act="delFree" data-id="${f.id}" type="button">✕</button></div>`).join('')+`</div>`}
 
 function vProject(p){const tab=V.tab||'rooms',t=totals(p);
   let h=`<div class="stats" style="margin-top:14px">
@@ -531,7 +543,7 @@ function vRoom(p,r){const tab=V.tab||'med',c=calc(r),d=S.settings.dec;
   if(tab==='plan'){const s=planSVG(r,{W:480,H:380});h+=`<div class="plan" style="margin-top:12px">${s||'<div class="plan-empty">Sem paredes medidas.</div>'}</div>`;
     if(s)h+=`<button class="btn pri" data-act="planPng" type="button">Salvar planta (PNG)</button>`}
   if(tab==='sum'){h+=`<div class="card" style="margin-top:12px"><dl class="kv">
-    <dt>Pé-direito</dt><dd>${nf(r.h,d)} m</dd><dt>Área de piso / forro</dt><dd>${nf(c.area,2)} m²</dd><dt>Perímetro</dt><dd>${nf(c.perim,2)} m</dd>
+    <dt>Pé-direito</dt><dd>${flu(r.h)}</dd><dt>Área de piso / forro</dt><dd>${nf(c.area,2)} m²</dd><dt>Perímetro</dt><dd>${nf(c.perim,2)} m</dd>
     <dt>Parede bruta (perímetro × PD)</dt><dd>${nf(c.gross,2)} m²</dd><dt>Aberturas (total)</dt><dd>${nf(c.openA,2)} m²</dd><dt>Aberturas descontadas</dt><dd>${nf(c.ded,2)} m²</dd>
     <dt>Parede líquida</dt><dd>${nf(c.net,2)} m²</dd><dt>Rodapé (perímetro − portas/vãos)</dt><dd>${nf(c.rodape,2)} m</dd><dt>Volume</dt><dd>${nf(c.vol,2)} m³</dd>
     ${r.objects.length?`<dt>Objetos (área / volume)</dt><dd>${nf(c.objA,2)} m² / ${nf(c.objV,3)} m³</dd>`:''}
@@ -576,7 +588,7 @@ function vPhoto(p,ph){const isPlan=ph.kind==='plan',st=stOf(ph),dec=S.settings.d
     h+=`<div class="card dim${sel?' sel':''}" data-act="selD" data-i="${i}"><div class="row"><span class="sw" style="background:${col}"></span><b class="num">C${i+1}</b>
       ${isPlan?`<select data-act="dCat" data-i="${i}" aria-label="Categoria">${Object.entries(CATS).map(([k,n])=>`<option value="${k}"${(d.cat||'outro')===k?' selected':''}>${n}</option>`).join('')}</select>`:''}
       <input class="txt grow" data-act="dLbl" data-i="${i}" value="${esc(d.label||'')}" placeholder="descrição"><button class="btn sm del" data-act="delD" data-i="${i}" type="button" aria-label="Apagar cota">✕</button></div>
-      <div class="row">${isPlan?`<label class="mf" style="cursor:text"><span class="mfl">Projeto</span><input class="pin num" data-act="dProj" data-i="${i}" inputmode="decimal" value="${d.proj!=null?nf(d.proj,dec):''}" placeholder="${projOf(ph,d)!=null&&d.proj==null?nf(projOf(ph,d),dec)+' (escala)':'digite'}"></label>`:''}
+      <div class="row">${isPlan?`<label class="mf" style="cursor:text"><span class="mfl">Projeto (${UN()})</span><input class="pin num" data-act="dProj" data-i="${i}" inputmode="decimal" value="${d.proj!=null?fl(d.proj):''}" placeholder="${projOf(ph,d)!=null&&d.proj==null?fl(projOf(ph,d))+' (escala)':UN()}"></label>`:''}
       ${F('d:'+ph.id+':'+i,isPlan?'Real (trena)':'Medida',d.val,v=>ph.dims[i].val=v)}
       ${isPlan&&dc!=null?`<span class="pill ${ok?'ok':'bad'}">Δ ${(dc>0?'+':'')+nf(dc,1)} cm</span>`:''}</div>
       ${sel?`<div class="row"><span class="hint">Texto:</span><button type="button" class="btn sm${!d.la?' pri':''}" data-act="dTxt" data-i="${i}" data-k="h">Horizontal</button><button type="button" class="btn sm${d.la==='line'?' pri':''}" data-act="dTxt" data-i="${i}" data-k="line">Alinhado à cota</button><button type="button" class="btn sm" data-act="dTxt" data-i="${i}" data-k="reset">Posição automática</button><button type="button" class="btn sm${d.hide?' pri':''}" data-act="dHide" data-i="${i}">${d.hide?'Mostrar traço':'Ocultar traço'}</button></div>`:''}
@@ -699,7 +711,7 @@ function vReport(p){const t=totals(p),d=new Date();
   for(const r of p.rooms){const c=calc(r);h+=`<tr><td>${esc(r.name)}</td><td>${nf(r.h,2)}</td><td>${nf(c.area,2)}</td><td>${nf(c.perim,2)}</td><td>${nf(c.gross,2)}</td><td>${nf(c.openA,2)}</td><td>${nf(c.net,2)}</td><td>${nf(c.rodape,2)}</td><td>${nf(c.vol,2)}</td></tr>`}
   h+=`</tbody><tfoot><tr><td>Total</td><td></td><td>${nf(t.area,2)}</td><td>${nf(t.perim,2)}</td><td>${nf(t.gross,2)}</td><td>${nf(t.openA,2)}</td><td>${nf(t.net,2)}</td><td>${nf(t.rodape,2)}</td><td>${nf(t.vol,2)}</td></tr></tfoot></table></div>`;
   for(const r of p.rooms){const c=calc(r);h+=`<div class="room"><h3>${esc(r.name)}</h3><div class="two"><div class="plan">${planSVG(r,{W:360,H:270,exp:true})||'<div class="plan-empty">sem planta</div>'}</div><div>
-    <div class="tbl"><table><tbody>${walls(r).map((w,i)=>`<tr><td>Parede P${i+1}</td><td>${nf(w.len,S.settings.dec)} m</td></tr>`).join('')}
+    <div class="tbl"><table><tbody>${walls(r).map((w,i)=>`<tr><td>Parede P${i+1}</td><td>${flu(w.len)}</td></tr>`).join('')}
     ${r.openings.map(o=>`<tr><td>${o.t==='vao'?'Vão':o.t[0].toUpperCase()+o.t.slice(1)}${o.wall!=null?' (P'+(o.wall+1)+')':''}${(o.q||1)>1?' ×'+o.q:''}</td><td>${nf(o.w,2)} × ${nf(o.h,2)} m</td></tr>`).join('')}
     ${r.objects.map(o=>`<tr><td>${esc(o.n||'Objeto')}</td><td>${nf(o.a,2)} × ${nf(o.b,2)} × ${nf(o.c,2)} m</td></tr>`).join('')}
     ${r.mode==='poly'&&c.g.ws.length>=3?`<tr><td>Erro de fechamento</td><td>${nf(c.g.err*100,1)} cm</td></tr>`:''}</tbody></table></div></div></div>`;
@@ -707,14 +719,14 @@ function vReport(p){const t=totals(p),d=new Date();
   for(const pl of p.photos.filter(f=>f.kind==='plan')){const g=catSummary(pl),ks=Object.keys(g),dec=S.settings.dec;
     h+=`<div class="room"><h3>${esc(pl.name)} — projeto × real</h3><img data-rph="${pl.id}" alt="${esc(pl.name)}">`;
     if(ks.length)h+=`<div class="tbl" style="margin-top:8px"><table><thead><tr><th>Categoria</th><th>Qtd</th><th>Σ Projeto (m)</th><th>Σ Real (m)</th><th>Δ (cm)</th><th>Fora</th></tr></thead><tbody>${ks.map(k=>{const a=g[k],dc=a.cmp?(a.rr-a.pp)*100:null;return`<tr><td>${CATS[k]}${k==='parede'?' (perímetro)':''}</td><td>${a.n}</td><td>${nf(a.p,2)}</td><td>${nf(a.r,2)}</td><td>${dc==null?'—':(dc>0?'+':'')+nf(dc,1)}</td><td>${a.bad}</td></tr>`}).join('')}</tbody></table></div>`;
-    h+=`<div class="tbl" style="margin-top:8px"><table><thead><tr><th>Cota</th><th>Categoria</th><th>Projeto (m)</th><th>Real (m)</th><th>Δ (cm)</th><th>Status</th></tr></thead><tbody>${pl.dims.map((d,i)=>{const pj=projOf(pl,d),dc=deltaCm(pl,d),ok=okD(dc);
-      return`<tr><td>C${i+1}${d.label?' '+esc(d.label):''}</td><td>${d.ref?'Escala':CATS[d.cat||'outro']}</td><td>${nf(pj,dec)}</td><td>${nf(d.val,dec)}</td><td>${dc==null?'—':(dc>0?'+':'')+nf(dc,1)}</td><td>${ok==null?'—':ok?'<span class="pill ok">OK</span>':'<span class="pill bad">FORA</span>'}</td></tr>`}).join('')}</tbody></table></div>
+    h+=`<div class="tbl" style="margin-top:8px"><table><thead><tr><th>Cota</th><th>Categoria</th><th>Projeto (${UN()})</th><th>Real (${UN()})</th><th>Δ (cm)</th><th>Status</th></tr></thead><tbody>${pl.dims.map((d,i)=>{const pj=projOf(pl,d),dc=deltaCm(pl,d),ok=okD(dc);
+      return`<tr><td>C${i+1}${d.label?' '+esc(d.label):''}</td><td>${d.ref?'Escala':CATS[d.cat||'outro']}</td><td>${fl(pj)}</td><td>${fl(d.val)}</td><td>${dc==null?'—':(dc>0?'+':'')+nf(dc,1)}</td><td>${ok==null?'—':ok?'<span class="pill ok">OK</span>':'<span class="pill bad">FORA</span>'}</td></tr>`}).join('')}</tbody></table></div>
       <p class="hint">Tolerância usada: ± ${nf(tolCm(),1)} cm (critério definido pelo usuário).</p>`;
     const lk=pl.dims.flatMap((d,i)=>(d.ph||[]).map(id=>({id,i,d}))).filter(x=>p.photos.some(f=>f.id===x.id));
     if(lk.length)h+=`<div class="two" style="margin-top:8px">${lk.map(x=>{const f=p.photos.find(y=>y.id===x.id);return`<figure style="margin:0"><img data-rph="${f.id}" alt="${esc(f.name)}"><figcaption class="hint">C${x.i+1} ${esc(x.d.label||CATS[x.d.cat||'outro'])} — ${esc(f.name)}</figcaption></figure>`}).join('')}</div>`;
     h+=`</div>`}
   const loose=p.photos.filter(f=>(f.kind||'photo')==='photo'&&!f.link&&(!f.rid||!R(p,f.rid)));if(loose.length)h+=`<h2>Fotos</h2><div class="two">${loose.map(f=>`<figure style="margin:0"><img data-rph="${f.id}" alt="${esc(f.name)}"><figcaption class="hint">${esc(f.name)}</figcaption></figure>`).join('')}</div>`;
-  const fr=S.free.filter(f=>f.pid===p.id);if(fr.length)h+=`<h2>Medidas avulsas</h2><div class="tbl"><table><tbody>${fr.map(f=>`<tr><td>${esc(f.label||'—')}</td><td>${nf(f.v,S.settings.dec)} m</td></tr>`).join('')}</tbody></table></div>`;
+  const fr=S.free.filter(f=>f.pid===p.id);if(fr.length)h+=`<h2>Medidas avulsas</h2><div class="tbl"><table><tbody>${fr.map(f=>`<tr><td>${esc(f.label||'—')}</td><td>${flu(f.v)}</td></tr>`).join('')}</tbody></table></div>`;
   h+=`<p class="hint" style="margin-top:16px">Parede líquida = perímetro × pé-direito − aberturas (limite de desconto: ${nf(+S.settings.minOpen,2)} m²). Rodapé = perímetro − larguras de portas e vãos. Área pelo método de Gauss sobre as paredes medidas.</p></div>`;return h}
 async function fillReportPhotos(){const p=P(V.pid);for(const el of document.querySelectorAll('img[data-rph]')){const ph=p.photos.find(x=>x.id===el.dataset.rph);const u=ph&&await photoBlob(ph,ph.kind==='plan'?2000:1000);if(u)el.src=u}}
 
@@ -753,6 +765,8 @@ document.addEventListener('click',async e=>{const t=e.target.closest('[data-t],[
     case'dCol':{const sh=p.photos.find(x=>x.id===V.phid);sh.dims[i].color=t.dataset.c||null;save();return render()}
     case'dPh':{const sh=p.photos.find(x=>x.id===V.phid);LINK={sid:sh.id,did:sh.dims[i].id,rid:sh.rid};return $('#fileph').click()}
     case'delP':if(!armed())return;for(const f of p.photos)idb.del(f.id);S.projects=S.projects.filter(x=>x!==p);S.free=S.free.filter(f=>f.pid!==p.id);save();HIST.length=0;return go({v:'home'},false);
+    case'delPid':{if(!armed())return;const q=P(t.dataset.id);if(!q)return;for(const f of q.photos)delSheet(q,f.id);S.projects=S.projects.filter(x=>x!==q);S.free=S.free.filter(f=>f.pid!==q.id);save();return render()}
+    case'stReset':S.settings.style=null;save();toast('Estilo padrão restaurado');return render();
     case'delR':if(!armed())return;p.rooms=p.rooms.filter(x=>x!==r);save();return back();
     case'mode':r.mode=t.dataset.k;if(r.mode==='poly'&&!r.walls.some(w=>w.len>0)&&r.a&&r.b)r.walls=[{len:r.a,ang:90},{len:r.b,ang:90},{len:r.a,ang:90},{len:r.b,ang:90},{len:null,ang:90}];save();return render();
     case'addW':r.walls.push({len:null,ang:90});save();target='w:'+(r.walls.length-1);return render();
@@ -786,10 +800,12 @@ document.addEventListener('change',e=>{const t=e.target,a=t.dataset.act;if(!a&&!
     case'dLbl':ph.dims[i].label=t.value;break;
     case'dCat':ph.dims[i].cat=t.value;break;
     case'lastCat':ED.lastCat=t.value;return;
-    case'dProj':ph.dims[i].proj=pn(t.value);if(ph.dims[i].ref&&!(ph.dims[i].proj>0))ph.dims[i].ref=false;break;
+    case'dProj':ph.dims[i].proj=parseL(t.value);if(ph.dims[i].ref&&!(ph.dims[i].proj>0))ph.dims[i].ref=false;break;
     case'dRef':if(t.checked){if(!(ph.dims[i].proj>0)){t.checked=false;toast('Digite primeiro a medida do projeto desta cota');return}ph.dims.forEach((d,k)=>d.ref=k===i)}else ph.dims[i].ref=false;break;
     default:
-      if(t.id==='sdec'){S.settings.dec=+t.value;break}
+      if(t.id==='sfmt'){S.settings.fmt=t.value;S.settings.dec=FMTS[t.value].k===1?FMTS[t.value].d:3;break}
+      if(t.id==='svib'){S.settings.vib=t.checked;break}
+      if(t.id==='swake'){S.settings.wake=t.checked;break}
       if(t.id==='stol'){S.settings.tol=Math.max(0,pn(t.value)||0);break}
       if(['stLw','stFs','stFont','stColX','stOrtho','stEnd','stDash','stBg','stTxt','stLine'].includes(t.id)){const k={stLw:'lw',stFs:'fs',stFont:'font',stColX:'color',stOrtho:'ortho',stEnd:'end',stDash:'dash',stBg:'bg',stTxt:'txt',stLine:'line'}[t.id];ph.style=Object.assign(stOf(ph),{[k]:t.type==='checkbox'?t.checked:t.type==='range'?+t.value:t.value});break}
       if(t.id==='fileplan'&&t.files[0]){addPlan(t.files[0]);t.value='';return}
@@ -803,7 +819,7 @@ document.addEventListener('submit',e=>{e.preventDefault();const f=e.target.datas
   if(f==='newR'){const n=$('#nr').value.trim();if(!n)return;const p=P(V.pid),r=newRoom(n);p.rooms.push(r);save();go({v:'room',pid:p.id,rid:r.id});target='h';render()}});
 document.addEventListener('input',e=>{const t=e.target;if(!RT||!['stLw','stFs'].includes(t.id))return;const sh=RT.sh;sh.style=Object.assign(stOf(sh),{[t.id==='stLw'?'lw':'fs']:+t.value});t.nextElementSibling.textContent=t.value;edDraw()});
 $('#bt').onclick=()=>BT.state==='on'?BT.disconnect():BT.state==='off'&&BT.connect();
-const manGo=()=>{const v=pn($('#man').value);if(v==null||v<=0){toast('Digite um valor em metros, ex.: 2,35');return}$('#man').value='';reading(v,false)};
+const manGo=()=>{const v=parseL($('#man').value);if(v==null||v<=0){toast('Digite um valor em '+UN());return}$('#man').value='';reading(v,false)};
 $('#manok').onclick=manGo;$('#man').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();manGo()}});
 
 /* ===== início ===== */
