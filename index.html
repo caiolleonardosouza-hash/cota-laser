@@ -236,7 +236,7 @@ function calc(r){const g=geom(r),H=r.h||0,min=+S.settings.minOpen||0;
   const n=g.ws.length,cut=g.ws.map(()=>0);let shA=0,shL=0;
   for(const sh of r.shafts||[]){if(sh.corner==null||sh.corner>=n)continue;const a=sh.a||0,b=sh.b||0;cut[sh.corner]+=a;cut[(sh.corner+1)%n]+=b;shA+=a*b;shL+=a+b}
   const area0=r.mode==='rect'?(r.a||0)*(r.b||0):g.area,area=Math.max(0,area0-shA);
-  return{g,perim,perimAll,vLen,vaoLen,vClose,area,area0,H,gross,openA,ded,net:Math.max(0,gross-ded),rodape:Math.max(0,perim-passW),vol:area*H,objA,objV,shA,shL,alv:Math.max(0,perim-shL),cut,netW:g.ws.map((w,i)=>Math.max(0,w.len-cut[i]))}}
+  const exL=(r.extras||[]).reduce((s,e)=>s+(e.len>0?e.len:0),0);return{g,exL,perim,perimAll,vLen,vaoLen,vClose,area,area0,H,gross,openA,ded,net:Math.max(0,gross-ded),rodape:Math.max(0,perim-passW),vol:area*H,objA,objV,shA,shL,alv:Math.max(0,perim-shL),cut,netW:g.ws.map((w,i)=>Math.max(0,w.len-cut[i]))}}
 function totals(p){const t={area:0,perim:0,gross:0,openA:0,net:0,rodape:0,vol:0};for(const r of p.rooms){const c=calc(r);for(const k in t)t[k]+=c[k]}return t}
 
 /* ===== planta (SVG) ===== */
@@ -244,7 +244,8 @@ function planSVG(r,{W=360,H=270,exp=false}={}){
   const g=geom(r);if(g.ws.length<1)return'';
   const C=exp?{bg:'#ffffff',fill:'#e8eef9',wall:'#19201d',txt:'#19201d',mut:'#5b6661',acc:'#c9321b',err:'#c9321b'}
             :{bg:'var(--surface)',fill:'color-mix(in srgb,var(--accent) 10%,var(--surface))',wall:'var(--ink)',txt:'var(--ink)',mut:'var(--muted)',acc:'var(--laser)',err:'var(--laser)'};
-  const pts=g.v.map(([x,y])=>[x,-y]);const xs=pts.map(p=>p[0]),ys=pts.map(p=>p[1]);
+  const pts=g.v.map(([x,y])=>[x,-y]);const EX=(r.extras||[]).filter(e=>e.len>0&&e.at!=null&&e.at<g.v.length).map(e=>{const s0=g.v[e.at],d=(+e.dir||0)*Math.PI/180;return{e,a:[s0[0],-s0[1]],b:[s0[0]+e.len*Math.cos(d),-(s0[1]+e.len*Math.sin(d))]}});
+  const allP=pts.concat(EX.flatMap(x=>[x.a,x.b]));const xs=allP.map(p=>p[0]),ys=allP.map(p=>p[1]);
   const mnx=Math.min(...xs),mxx=Math.max(...xs),mny=Math.min(...ys),mxy=Math.max(...ys);const pad=((r.shafts||[]).length||walls(r).some(w=>WK(w)!=='p')||r.autoClose)?62:48;
   const s=Math.min((W-2*pad)/((mxx-mnx)||1),(H-2*pad)/((mxy-mny)||1));
   const ox=(W-(mxx-mnx)*s)/2,oy=(H-(mxy-mny)*s)/2;
@@ -257,22 +258,30 @@ function planSVG(r,{W=360,H=270,exp=false}={}){
   {const sw=closed?7:3;g.ws.forEach((w,i)=>{if(WK(w)!=='p')return;const a=sp[i],b=sp[i+1];o+=`<line x1="${a[0].toFixed(1)}" y1="${a[1].toFixed(1)}" x2="${b[0].toFixed(1)}" y2="${b[1].toFixed(1)}" stroke="${C.wall}" stroke-width="${sw}" stroke-linecap="square"/>`});
     if(closed)o+=`<polygon points="${poly}" fill="${C.fill}" stroke="none"/>`;
     const dash=(a,b)=>`<line x1="${a[0].toFixed(1)}" y1="${a[1].toFixed(1)}" x2="${b[0].toFixed(1)}" y2="${b[1].toFixed(1)}" stroke="${C.mut}" stroke-width="1.4" stroke-dasharray="6 4"/>`;
-    g.ws.forEach((w,i)=>{const k=WK(w);if(k==='s')o+=dash(sp[i],sp[i+1]);if(k==='v'){const a=sp[i],b=sp[i+1];o+=`<line x1="${a[0].toFixed(1)}" y1="${a[1].toFixed(1)}" x2="${b[0].toFixed(1)}" y2="${b[1].toFixed(1)}" stroke="${C.acc}" stroke-width="2" stroke-dasharray="2 4" stroke-linecap="round"/>`;
+    g.ws.forEach((w,i)=>{const k=WK(w);if(k==='s')o+=dash(sp[i],sp[i+1]);if(k==='v'&&false){const a=sp[i],b=sp[i+1];o+=`<line x1="${a[0].toFixed(1)}" y1="${a[1].toFixed(1)}" x2="${b[0].toFixed(1)}" y2="${b[1].toFixed(1)}" stroke="${C.acc}" stroke-width="2" stroke-dasharray="2 4" stroke-linecap="round"/>`;
       for(const q of[a,b]){const ex=b[0]-a[0],ey=b[1]-a[1],L=Math.hypot(ex,ey)||1,nx=-ey/L*6,ny=ex/L*6;o+=`<line x1="${(q[0]-nx).toFixed(1)}" y1="${(q[1]-ny).toFixed(1)}" x2="${(q[0]+nx).toFixed(1)}" y2="${(q[1]+ny).toFixed(1)}" stroke="${C.wall}" stroke-width="2.5"/>`}}});
     if(autoC){const a=sp[sp.length-1],b=sp[0],ex=b[0]-a[0],ey=b[1]-a[1],L=Math.hypot(ex,ey)||1,n=sa>0?[ey/L,-ex/L]:[-ey/L,ex/L];o+=dash(a,b);
       const anc2=n[0]>0.5?'start':n[0]<-0.5?'end':'middle',tx=(a[0]+b[0])/2+n[0]*8,ty=(a[1]+b[1])/2+n[1]*10;
-      o+=`<text x="${tx.toFixed(1)}" y="${(ty+4).toFixed(1)}" text-anchor="${anc2}" font-size="12" font-weight="700" font-style="italic" fill="${C.mut}">${fl(g.err)}</text><text x="${tx.toFixed(1)}" y="${(ty+(Math.abs(n[0])>0.5?15:n[1]*12+4)).toFixed(1)}" text-anchor="${anc2}" font-size="8.5" font-style="italic" fill="${C.mut}">sem parede</text>`}}
+      o+=`<text x="${tx.toFixed(1)}" y="${(ty+4).toFixed(1)}" text-anchor="${anc2}" font-size="12" font-weight="700" font-style="italic" fill="${C.mut}">${fl(g.err)}</text>`}}
   if(!closed){
     if(g.ws.length>=2){const a=sp[sp.length-1],b=sp[0];o+=`<line x1="${a[0]}" y1="${a[1]}" x2="${b[0]}" y2="${b[1]}" stroke="${C.err}" stroke-width="1.5" stroke-dasharray="5 4"/>`}}
-  const CC=calc(r);
+  EX.forEach((x,k)=>{const a=T(x.a),b=T(x.b);o+=`<line x1="${a[0].toFixed(1)}" y1="${a[1].toFixed(1)}" x2="${b[0].toFixed(1)}" y2="${b[1].toFixed(1)}" stroke="${C.wall}" stroke-width="${closed?7:3}" stroke-linecap="square"/>`});
+  const CC=calc(r),BX=[];
+  EX.forEach((x,k)=>{const a=T(x.a),b=T(x.b);BX.push([Math.min(a[0],b[0])-4,Math.min(a[1],b[1])-4,Math.max(a[0],b[0])+4,Math.max(a[1],b[1])+4])});
+  const boxOf=(x,y,txt,fs,anc)=>{const w=txt.length*fs*0.56,x0=anc==='start'?x:anc==='end'?x-w:x-w/2;return[x0-1,y-fs*0.8,x0+w+1,y+fs*0.25]};
+  const hitB=b=>BX.some(c=>b[0]<c[2]&&c[0]<b[2]&&b[1]<c[3]&&c[1]<b[3]);
+  const putL=(x,y,txt,fs,anc,dx,dy,tries,attrs)=>{for(let k=0;k<=tries;k++){const X=x+dx*k*fs,Y=y+dy*k*fs,bb=boxOf(X,Y,txt,fs,anc);if(!hitB(bb)||k===tries){BX.push(bb);o+=`<text x="${X.toFixed(1)}" y="${Y.toFixed(1)}" text-anchor="${anc}" font-size="${fs}" ${attrs}>${txt}</text>`;return true}}};
+  let AL=null;if(closed){const Pp=closed0?sp.slice(0,-1):sp;let A=0,X=0,Y=0;for(let i=0;i<Pp.length;i++){const[p0,p1]=[Pp[i],Pp[(i+1)%Pp.length]],cr=p0[0]*p1[1]-p1[0]*p0[1];A+=cr;X+=(p0[0]+p1[0])*cr;Y+=(p0[1]+p1[1])*cr}
+    AL=Math.abs(A)>1e-6?[X/(3*A),Y/(3*A)]:[Pp.reduce((s,p)=>s+p[0],0)/Pp.length,Pp.reduce((s,p)=>s+p[1],0)/Pp.length];
+    BX.push(boxOf(AL[0],AL[1],nf(CC.area,2)+' m²',14,'middle'),boxOf(AL[0],AL[1]+14,r.name,10,'middle'))}
+  /* reserva o espaço das paredes desenhadas */
+  g.ws.forEach((w,i)=>{const a=sp[i],b=sp[i+1];BX.push([Math.min(a[0],b[0])-2,Math.min(a[1],b[1])-2,Math.max(a[0],b[0])+2,Math.max(a[1],b[1])+2])});
   g.ws.forEach((w,i)=>{const a=sp[i],b=sp[i+1],ex=b[0]-a[0],ey=b[1]-a[1],L=Math.hypot(ex,ey)||1;
     const n=sa>0?[ey/L,-ex/L]:[-ey/L,ex/L];const mx=(a[0]+b[0])/2+n[0]*8,my=(a[1]+b[1])/2+n[1]*10;
-    const anc=n[0]>0.5?'start':n[0]<-0.5?'end':'middle';const ix=(a[0]+b[0])/2-n[0]*12,iy=(a[1]+b[1])/2-n[1]*12;
-    o+=`<text x="${mx.toFixed(1)}" y="${(my+4).toFixed(1)}" text-anchor="${anc}" font-size="12" font-weight="700" fill="${WK(w)==='p'?C.txt:WK(w)==='v'?C.acc:C.mut}"${WK(w)!=='p'?' font-style="italic"':''}>${fl(w.len)}</text>`;
-    if(WK(w)!=='p'){const lb=WK(w)==='v'?'vão':'sem parede',cl=WK(w)==='v'?C.acc:C.mut;o+=Math.abs(n[0])>0.5?`<text x="${mx.toFixed(1)}" y="${(my+15).toFixed(1)}" text-anchor="${anc}" font-size="8.5" font-style="italic" fill="${cl}">${lb}</text>`:`<text x="${mx.toFixed(1)}" y="${(my+n[1]*12+4).toFixed(1)}" text-anchor="middle" font-size="8.5" font-style="italic" fill="${cl}">${lb}</text>`}
-    {const hasO=r.openings.some(op=>op.wall===i&&op.w>0),k2=hasO?32:12,px=(a[0]+b[0])/2-n[0]*k2,py=(a[1]+b[1])/2-n[1]*k2;o+=`<text x="${px.toFixed(1)}" y="${(py+3).toFixed(1)}" text-anchor="middle" font-size="9" fill="${C.mut}">P${i+1}</text>`}
-    if(CC.cut[i]>0){if(Math.abs(n[0])>0.5)o+=`<text x="${mx.toFixed(1)}" y="${(my+15).toFixed(1)}" text-anchor="${anc}" font-size="8.5" fill="${C.mut}"><tspan x="${mx.toFixed(1)}">${fl(CC.netW[i])}</tspan><tspan x="${mx.toFixed(1)}" dy="10">+ ${fl(CC.cut[i])}</tspan></text>`;
-      else o+=`<text x="${mx.toFixed(1)}" y="${(my+n[1]*13+4).toFixed(1)}" text-anchor="middle" font-size="8.5" fill="${C.mut}">${fl(CC.netW[i])} + ${fl(CC.cut[i])}</text>`}
+    const anc=n[0]>0.5?'start':n[0]<-0.5?'end':'middle';const k=WK(w);
+    putL(mx,my+4,fl(w.len),12,anc,n[0]*0.9,n[1]*0.9+(Math.abs(n[0])>0.5?0.9:0),4,`font-weight="700" fill="${k==='p'?C.txt:k==='v'?C.acc:C.mut}"${k!=='p'?' font-style="italic"':''}`);
+    if(L>=30){const hasO=r.openings.some(op=>op.wall===i&&op.w>0),k2=hasO?32:12,px=(a[0]+b[0])/2-n[0]*k2,py=(a[1]+b[1])/2-n[1]*k2,bb=boxOf(px,py+3,'P'+(i+1),9,'middle');if(!hitB(bb)){BX.push(bb);o+=`<text x="${px.toFixed(1)}" y="${(py+3).toFixed(1)}" text-anchor="middle" font-size="9" fill="${C.mut}">P${i+1}</text>`}}
+    if(CC.cut[i]>0)putL(mx,my+4+(Math.abs(n[0])>0.5?14:n[1]*13),fl(CC.netW[i])+' + '+fl(CC.cut[i]),8.5,anc,n[0],Math.abs(n[0])>0.5?1.2:n[1],4,`fill="${C.mut}"`);
     {const ops=r.openings.filter(op=>op.wall===i&&op.w>0),TG=op=>op.t==='porta'?'PT':op.t==='janela'?'JA':'VÃ';
       const bad=ops.filter(op=>op.off!=null&&op.off+op.w>w.len+0.0005),pos=ops.filter(op=>op.off!=null&&!bad.includes(op)).sort((x,y)=>x.off-y.off),free=ops.filter(op=>op.off==null);
       const P=t=>[a[0]+ex*t,a[1]+ey*t],Q=t=>[a[0]+ex*t+n[0]*3.5,a[1]+ey*t+n[1]*3.5],dim=(t0,t1,lab,col,bold)=>{const d=9,[x0,y0]=P(t0),[x1,y1]=P(t1),ox=-n[0]*d,oy=-n[1]*d;
@@ -299,7 +308,10 @@ function planSVG(r,{W=360,H=270,exp=false}={}){
     const lx=Math.min(W-tw/2-2,Math.max(tw/2+2,q[0][0]+dx/dl*26+(dx>0?tw/2-6:-(tw/2-6)))),ly=Math.min(H-6,Math.max(9,q[0][1]+dy/dl*20));
     o+=`<line x1="${cx.toFixed(1)}" y1="${cy.toFixed(1)}" x2="${lx.toFixed(1)}" y2="${ly.toFixed(1)}" stroke="${C.mut}" stroke-width="0.8"/>`;
     o+=`<rect x="${(lx-tw/2).toFixed(1)}" y="${(ly-7).toFixed(1)}" width="${tw.toFixed(1)}" height="12" rx="2" fill="${C.bg}" stroke="${C.mut}" stroke-width="0.6"/><text x="${lx.toFixed(1)}" y="${(ly+2).toFixed(1)}" text-anchor="middle" font-size="7.5" font-weight="700" fill="${C.txt}">${txt}</text>`});
-  if(closed){const cx=sp.slice(0,-1).reduce((s,p)=>s+p[0],0)/(sp.length-1),cy=sp.slice(0,-1).reduce((s,p)=>s+p[1],0)/(sp.length-1);
+  EX.forEach((x,k)=>{const a=T(x.a),b=T(x.b),ex=b[0]-a[0],ey=b[1]-a[1],L=Math.hypot(ex,ey)||1,n=[ey/L,-ex/L],side=Math.abs(n[0])>0.5,anc=side?(n[0]>0?'start':'end'):'middle';
+    putL((a[0]+b[0])/2+n[0]*9,(a[1]+b[1])/2+n[1]*10+4,fl(x.e.len),12,anc,n[0],side?1:n[1],4,`font-weight="700" fill="${C.txt}"`);
+    putL((a[0]+b[0])/2-n[0]*9,(a[1]+b[1])/2-n[1]*10+3,'PE'+(k+1),9,side?(anc==='start'?'end':'start'):'middle',-n[0],side?1:-n[1],3,`fill="${C.mut}"`)});
+  if(AL){const[cx,cy]=AL;
     o+=`<text x="${cx.toFixed(1)}" y="${cy.toFixed(1)}" text-anchor="middle" font-size="14" font-weight="700" fill="${C.txt}">${nf(c.area,2)} m²</text>`;
     o+=`<text x="${cx.toFixed(1)}" y="${(cy+14).toFixed(1)}" text-anchor="middle" font-size="10" fill="${C.mut}">${esc(r.name)}</text>`}
   return o+'</svg>'}
@@ -440,7 +452,7 @@ function rowsFor(p){const d=S.settings.dec,R3=n=>n==null?null:+(+n).toFixed(3);
   const res=[['Cômodo','Pé-direito (m)','Área piso (m²)','Perímetro (m)','Parede bruta (m²)','Aberturas (m²)','Parede líquida (m²)','Rodapé (m)','Volume (m³)','Fechamento planta (m)']];
   for(const r of p.rooms){const c=calc(r);res.push([r.name,R3(r.h),R3(c.area),R3(c.perim),R3(c.gross),R3(c.openA),R3(c.net),R3(c.rodape),R3(c.vol),R3(c.g.err)])}
   const t=totals(p);res.push(['TOTAL',null,R3(t.area),R3(t.perim),R3(t.gross),R3(t.openA),R3(t.net),R3(t.rodape),R3(t.vol),null]);
-  const wl=[['Cômodo','Parede','Real (m)','Projeto (m)','Δ (cm)','Giro após (°)','Alvenaria (m)','Shaft (m)']];for(const r of p.rooms){const cc=calc(r);if(r.h!=null||r.hPj!=null)wl.push([r.name,'Pé-direito',R3(r.h),R3(r.hPj),dcs(r.h,r.hPj)==null?null:+dcs(r.h,r.hPj).toFixed(1),null]);walls(r).forEach((w,i)=>{const pj=wallPj(r,i),dc=dcs(w.len,pj);wl.push([r.name,'P'+(i+1)+(WK(w)!=='p'?' ('+WKL[WK(w)]+')':''),R3(w.len),R3(pj),dc==null?null:+dc.toFixed(1),r.mode==='rect'?90:+w.ang,R3(cc.netW[i]),R3(cc.cut[i])])})}
+  const wl=[['Cômodo','Parede','Real (m)','Projeto (m)','Δ (cm)','Giro após (°)','Alvenaria (m)','Shaft (m)']];for(const r of p.rooms){const cc=calc(r);if(r.h!=null||r.hPj!=null)wl.push([r.name,'Pé-direito',R3(r.h),R3(r.hPj),dcs(r.h,r.hPj)==null?null:+dcs(r.h,r.hPj).toFixed(1),null]);(r.extras||[]).filter(e=>e.len>0).forEach((e,k)=>wl.push([r.name,'PE'+(k+1)+' (extra)',R3(e.len),null,null,null,null,null]));walls(r).forEach((w,i)=>{const pj=wallPj(r,i),dc=dcs(w.len,pj);wl.push([r.name,'P'+(i+1)+(WK(w)!=='p'?' ('+WKL[WK(w)]+')':''),R3(w.len),R3(pj),dc==null?null:+dc.toFixed(1),r.mode==='rect'?90:+w.ang,R3(cc.netW[i]),R3(cc.cut[i])])})}
   const op=[['Cômodo','Tipo','Parede','Qtd','Largura (m)','Largura proj. (m)','Altura (m)','Altura proj. (m)','Dist. início (m)','Dist. início proj. (m)','Área total (m²)']];for(const r of p.rooms)r.openings.forEach(o=>op.push([r.name,o.t,o.wall==null?'':'P'+(o.wall+1),o.q||1,R3(o.w),R3(o.wPj),R3(o.h),R3(o.hPj),R3(o.off),R3(o.offPj),R3((o.w||0)*(o.h||0)*(o.q||1))]));
   const sx=[['Cômodo','Shaft','Canto','Ao longo de','Real (m)','Projeto (m)','Δ (cm)']];for(const r of p.rooms){const n=calc(r).g.ws.length;(r.shafts||[]).forEach((sh,i)=>{if(!n)return;const k=sh.corner;
     sx.push([r.name,'SH'+(i+1),'P'+(k+1)+'/P'+((k+1)%n+1),'P'+(k+1),R3(sh.a),R3(sh.aPj),dcs(sh.a,sh.aPj)==null?null:+dcs(sh.a,sh.aPj).toFixed(1)]);
@@ -626,6 +638,12 @@ function vRoom(p,r){const tab=V.tab||'med',c=calc(r),d=S.settings.dec;
         ${DL(sh.a,sh.aPj)||DL(sh.b,sh.bPj)?`<div class="drow" style="margin-top:4px;gap:10px"><span class="hint">Δ P${k+1}</span>${DL(sh.a,sh.aPj)||'—'}<span class="hint">Δ P${(k+1)%n+1}</span>${DL(sh.b,sh.bPj)||'—'}</div>`:''}</div>`});
       h+=`</div>${n>=3?`<button class="btn sm" data-act="addSh2" type="button" style="margin-top:8px">+ Shaft</button>`:''}`;
       if(c.shL>0)h+=`<div class="tbl" style="margin-top:8px"><table><thead><tr><th>Parede</th><th>Total</th><th>Alvenaria</th><th>Shaft</th></tr></thead><tbody>${c.g.ws.map((w,j)=>`<tr><td>P${j+1}</td><td>${fl(w.len)}</td><td>${fl(c.netW[j])}</td><td>${c.cut[j]?fl(c.cut[j]):'—'}</td></tr>`).join('')}</tbody></table></div>`}
+    {const nv=c.g.ws.length;if(nv>=1){const ptn=j=>j===0?'Início P1':'Fim P'+j;
+      h+=`<h2 style="margin:16px 0 6px">Paredes extras</h2><div class="list">`;
+      (r.extras||[]).forEach((e,i)=>{h+=`<div class="dim"><div class="drow"><span class="tag">PE${i+1}</span><select class="cs" style="flex:0 1 110px" data-act="exAt" data-i="${i}" aria-label="Ponto de partida">${Array.from({length:nv+1},(_,j)=>`<option value="${j}"${e.at===j?' selected':''}>${ptn(j)}</option>`).join('')}</select>
+        <select class="cs" style="flex:0 1 58px" data-act="exDir" data-i="${i}" aria-label="Direção">${[[0,'→'],[180,'←'],[90,'↑'],[-90,'↓']].map(([v,n])=>`<option value="${v}"${(+e.dir||0)===v?' selected':''}>${n}</option>`).join('')}</select>
+        ${F('e:'+i,'Comprimento',e.len,v=>r.extras[i].len=v)}<button class="btn sm del xb" data-act="delEx" data-i="${i}" type="button">✕</button></div></div>`});
+      h+=`</div><button class="btn sm" data-act="addEx" type="button" style="margin-top:8px">+ Parede extra</button>`}}
     h+=`<div class="plan" style="margin-top:12px">${planSVG(r)||'<div class="plan-empty">Meça as paredes para desenhar a planta.</div>'}</div>`;
     h+=`<div class="stats" style="margin-top:10px"><div class="stat"><small>Área piso</small><b>${nf(c.area,2)}<i>m²</i></b></div><div class="stat"><small>Perímetro</small><b>${fl(c.perim)}<i>${UN()}</i></b></div><div class="stat"><small>Parede líquida</small><b>${nf(c.net,2)}<i>m²</i></b></div><div class="stat"><small>Volume</small><b>${nf(c.vol,2)}<i>m³</i></b></div></div>`}
   if(tab==='open'){const nW=c.g.ws.length;
@@ -646,7 +664,7 @@ function vRoom(p,r){const tab=V.tab||'med',c=calc(r),d=S.settings.dec;
   if(tab==='plan'){const s=planSVG(r,{W:480,H:380});h+=`<div class="plan" style="margin-top:12px">${s||'<div class="plan-empty">Sem paredes medidas.</div>'}</div>`;
     if(s)h+=`<button class="btn pri" data-act="planPng" type="button">Salvar planta (PNG)</button>`}
   if(tab==='sum'){h+=`<div class="card" style="margin-top:12px"><dl class="kv">
-    <dt>Pé-direito</dt><dd>${flu(r.h)}</dd><dt>Área de piso / forro${c.shA?' (− shafts)':''}</dt><dd>${nf(c.area,2)} m²</dd><dt>Perímetro${c.vLen?' (só paredes)':''}</dt><dd>${flu(c.perim)}</dd>${c.vLen?`<dt>Trechos sem parede</dt><dd>${flu(c.vLen)}</dd>`:''}${c.vaoLen?`<dt>Vãos abertos</dt><dd>${flu(c.vaoLen)}</dd>`:''}
+    <dt>Pé-direito</dt><dd>${flu(r.h)}</dd><dt>Área de piso / forro${c.shA?' (− shafts)':''}</dt><dd>${nf(c.area,2)} m²</dd><dt>Perímetro${c.vLen?' (só paredes)':''}</dt><dd>${flu(c.perim)}</dd>${c.vLen?`<dt>Trechos sem parede</dt><dd>${flu(c.vLen)}</dd>`:''}${c.vaoLen?`<dt>Vãos abertos</dt><dd>${flu(c.vaoLen)}</dd>`:''}${c.exL?`<dt>Paredes extras (fora do cômodo)</dt><dd>${flu(c.exL)}</dd><dt>Área das paredes extras (× PD)</dt><dd>${nf(c.exL*c.H,2)} m²</dd>`:''}
     ${c.shL?`<dt>Parede de alvenaria (comprimento)</dt><dd>${flu(c.alv)}</dd><dt>Faces de shaft drywall (comprimento)</dt><dd>${flu(c.shL)}</dd><dt>Área de faces de shaft (× PD)</dt><dd>${nf(c.shL*c.H,2)} m²</dd><dt>Área ocupada por shafts</dt><dd>${nf(c.shA,2)} m²</dd>`:''}
     <dt>Parede bruta (perímetro × PD)</dt><dd>${nf(c.gross,2)} m²</dd><dt>Aberturas (total)</dt><dd>${nf(c.openA,2)} m²</dd><dt>Aberturas descontadas</dt><dd>${nf(c.ded,2)} m²</dd>
     <dt>Parede líquida</dt><dd>${nf(c.net,2)} m²</dd><dt>Rodapé (perímetro − portas/vãos)</dt><dd>${flu(c.rodape)}</dd><dt>Volume</dt><dd>${nf(c.vol,2)} m³</dd>
@@ -828,6 +846,7 @@ function vReport(p){const t=totals(p),d=new Date();
     <div class="tbl"><table><thead><tr><th>Item</th><th>Real</th><th>Projeto</th><th>Δ</th></tr></thead><tbody>
     ${r.h!=null||r.hPj!=null?`<tr><td>Pé-direito</td><td>${fl(r.h)}</td><td>${fl(r.hPj)}</td><td>${dtxt(dcs(r.h,r.hPj))}</td></tr>`:''}
     ${walls(r).map((w,i)=>{const pj=wallPj(r,i);return`<tr><td>${WK(w)==='p'?'Parede P'+(i+1):'P'+(i+1)+' · '+WKL[WK(w)]}</td><td>${fl(w.len)}</td><td>${fl(pj)}</td><td>${dtxt(dcs(w.len,pj))}</td></tr>`}).join('')}
+    ${(r.extras||[]).filter(e=>e.len>0).map((e,k)=>`<tr><td>Parede extra PE${k+1}</td><td>${fl(e.len)}</td><td>—</td><td>—</td></tr>`).join('')}
     ${c.vClose?`<tr><td>Fechamento sem parede</td><td>${fl(c.vClose)}</td><td>—</td><td>—</td></tr>`:''}
     ${(r.shafts||[]).map((sh,i)=>{const n=c.g.ws.length,k=sh.corner;return n?`<tr><td>Shaft SH${i+1} · ao longo P${k+1}</td><td>${fl(sh.a)}</td><td>${fl(sh.aPj)}</td><td>${dtxt(dcs(sh.a,sh.aPj))}</td></tr><tr><td>Shaft SH${i+1} · ao longo P${(k+1)%n+1}</td><td>${fl(sh.b)}</td><td>${fl(sh.bPj)}</td><td>${dtxt(dcs(sh.b,sh.bPj))}</td></tr>`:''}).join('')}
     ${c.shL?c.g.ws.map((w,j)=>c.cut[j]?`<tr><td>P${j+1} alvenaria + shaft</td><td colspan="3">${fl(c.netW[j])} + ${fl(c.cut[j])} = ${fl(w.len)}</td></tr>`:'').join(''):''}
@@ -911,6 +930,8 @@ document.addEventListener('click',async e=>{const t=e.target.closest('[data-t],[
     case'delSh2':r.shafts.splice(i,1);save();return render();
     case'wOpen':{const w=r.walls[i],k=WK(w);w.kind=k==='p'?'s':k==='s'?'v':'p';delete w.open;save();return render()}
     case'rOpen':{r.virt=r.virt||{};const k=r.virt[i]===true?'s':(r.virt[i]||'p');r.virt[i]=k==='p'?'s':k==='s'?'v':'p';save();return render()}
+    case'addEx':{const n=calc(r).g.ws.length;(r.extras=r.extras||[]).push({id:uid(),at:0,dir:-90,len:null});save();target='e:'+(r.extras.length-1);return render()}
+    case'delEx':r.extras.splice(i,1);save();return render();
     case'close':{closeRoom(r,t.dataset.k);save();return render()}
     case'autoC':r.autoClose=!r.autoClose;save();return render();
     case'wPh':LINK={rid:r.id,wall:i};return $('#fileph').click();
@@ -954,6 +975,8 @@ document.addEventListener('change',e=>{const t=e.target,a=t.dataset.act;if(!a&&!
     case'dCat':ph.dims[i].cat=t.value;break;
     case'lastCat':ED.lastCat=t.value;return;
     case'dProj':ph.dims[i].proj=parseL(t.value);if(ph.dims[i].ref&&!(ph.dims[i].proj>0))ph.dims[i].ref=false;break;
+    case'exAt':r.extras[i].at=+t.value;break;
+    case'exDir':r.extras[i].dir=+t.value;break;
     case'shC':r.shafts[i].corner=+t.value;break;
     case'pj':setPj(r,t.dataset.k,parseL(t.value));break;
     case'dRef':if(t.checked){if(!(ph.dims[i].proj>0)){t.checked=false;toast('Digite primeiro a medida do projeto desta cota');return}ph.dims.forEach((d,k)=>d.ref=k===i)}else ph.dims[i].ref=false;break;
