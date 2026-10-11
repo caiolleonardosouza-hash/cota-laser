@@ -194,7 +194,7 @@ const uid=()=>Math.random().toString(36).slice(2,8)+Date.now().toString(36).slic
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const nf=(n,d=2)=>(n==null||!isFinite(n))?'—':n.toLocaleString('pt-BR',{minimumFractionDigits:d,maximumFractionDigits:d});
 const pn=s=>{if(s==null)return null;s=String(s).trim().replace(/\s/g,'').replace(',','.');if(s==='')return null;const v=parseFloat(s);return isFinite(v)?v:null};
-const FMTS={m3:{k:1,d:3,s:'m',n:'Metros · 0,000 (mm)'},m2:{k:1,d:2,s:'m',n:'Metros · 0,00 (cm)'},cm1:{k:100,d:1,s:'cm',n:'Centímetros · 0,0'},cm0:{k:100,d:0,s:'cm',n:'Centímetros · 0'},mm:{k:1000,d:0,s:'mm',n:'Milímetros · 0'}};
+const FMTS={m3:{k:1,d:3,s:'m',n:'Metros · 0,000'},cm1:{k:100,d:1,s:'cm',n:'Centímetros · 0,0'},mm:{k:1000,d:0,s:'mm',n:'Milímetros · 0'}};
 const UF=()=>FMTS[(typeof S!=='undefined'&&S&&S.settings.fmt)||'m3']||FMTS.m3;
 const UN=()=>UF().s,fl=v=>(v==null||!isFinite(v))?'—':nf(v*UF().k,UF().d),flu=v=>fl(v)+' '+UN(),parseL=t=>{const v=pn(t);return v==null?null:v/UF().k};
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
@@ -205,7 +205,7 @@ const KEY='cotalaser.v1';
 let S;
 function load(){try{S=JSON.parse(localStorage.getItem(KEY))}catch(e){S=null}
   if(!S||!Array.isArray(S.projects)){S={projects:[],free:[],settings:{minOpen:0,dec:3}};seed()}
-  S.free=S.free||[];S.settings=Object.assign({minOpen:0,dec:3,tol:1,vib:true,wake:true},S.settings||{});if(!S.settings.fmt)S.settings.fmt=S.settings.dec==2?'m2':'m3';
+  S.free=S.free||[];S.settings=Object.assign({minOpen:0,dec:3,tol:1,vib:true,wake:true},S.settings||{});if(!S.settings.fmt||!FMTS[S.settings.fmt])S.settings.fmt=S.settings.fmt==='cm0'?'cm1':'m3';S.settings.dec=3;
   for(const p of S.projects)for(const f of p.photos||[]){f.kind=f.kind||'photo';f.dims=(f.dims||[]).map(d=>Object.assign({id:uid(),ph:[]},d))}}
 function save(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){toast('Não consegui salvar no aparelho (memória cheia?)')}}
 function newRoom(name){return{id:uid(),name,mode:'rect',a:null,b:null,h:null,walls:[{len:null,ang:90}],openings:[],objects:[]}}
@@ -253,7 +253,7 @@ function planSVG(r,{W=360,H=270,exp=false}={}){
   g.ws.forEach((w,i)=>{const a=sp[i],b=sp[i+1],ex=b[0]-a[0],ey=b[1]-a[1],L=Math.hypot(ex,ey)||1;
     const n=sa>0?[ey/L,-ex/L]:[-ey/L,ex/L];const mx=(a[0]+b[0])/2+n[0]*8,my=(a[1]+b[1])/2+n[1]*10;
     const anc=n[0]>0.5?'start':n[0]<-0.5?'end':'middle';const ix=(a[0]+b[0])/2-n[0]*12,iy=(a[1]+b[1])/2-n[1]*12;
-    o+=`<text x="${mx.toFixed(1)}" y="${(my+4).toFixed(1)}" text-anchor="${anc}" font-size="12" font-weight="700" fill="${C.txt}">${nf(w.len,2)}</text>`;
+    o+=`<text x="${mx.toFixed(1)}" y="${(my+4).toFixed(1)}" text-anchor="${anc}" font-size="12" font-weight="700" fill="${C.txt}">${fl(w.len)}</text>`;
     o+=`<text x="${ix.toFixed(1)}" y="${(iy+3).toFixed(1)}" text-anchor="middle" font-size="9" fill="${C.mut}">P${i+1}</text>`;
     r.openings.filter(op=>op.wall===i&&op.w>0).forEach((op,k,arr)=>{const f=Math.min(1,op.w/w.len);const c=(k+1)/(arr.length+1);
       const t0=Math.max(0,c-f/2),t1=Math.min(1,c+f/2);
@@ -517,24 +517,24 @@ function freeList(fr){return`<div class="card list">`+fr.map(f=>`<div class="row
 function vProject(p){const tab=V.tab||'rooms',t=totals(p);
   const pt=planTotals(p);let h='';
   if(pt.n)h+=`<div class="stats" style="margin-top:14px">
-   <div class="stat"><small>Perímetro real · plantas</small><b>${nf(pt.r,2)}<i>m</i></b></div>
-   <div class="stat"><small>Perímetro projeto</small><b>${nf(pt.p,2)}<i>m</i></b></div>
+   <div class="stat"><small>Perímetro real · plantas</small><b>${fl(pt.r)}<i>${UN()}</i></b></div>
+   <div class="stat"><small>Perímetro projeto</small><b>${fl(pt.p)}<i>${UN()}</i></b></div>
    <div class="stat"><small>Δ real − projeto</small><b>${pt.cmp?(pt.dc>0?'+':'')+nf(pt.dc,1):'—'}<i>cm</i></b></div>
    <div class="stat"><small>Cotas fora (±${nf(tolCm(),1)} cm)</small><b style="${pt.bad?'color:var(--laser)':''}">${pt.bad}<i>de ${pt.cmpAll}</i></b></div></div>`;
   if(p.rooms.length||!pt.n)h+=`<div class="stats" style="margin-top:${pt.n?8:14}px">
    <div class="stat"><small>Área de piso${pt.n?' · cômodos':''}</small><b>${nf(t.area,2)}<i>m²</i></b></div>
    <div class="stat"><small>Parede líquida</small><b>${nf(t.net,2)}<i>m²</i></b></div>
-   <div class="stat"><small>Perímetro${pt.n?' · cômodos':''}</small><b>${nf(t.perim,2)}<i>m</i></b></div>
+   <div class="stat"><small>Perímetro${pt.n?' · cômodos':''}</small><b>${fl(t.perim)}<i>${UN()}</i></b></div>
    <div class="stat"><small>Volume</small><b>${nf(t.vol,2)}<i>m³</i></b></div></div>`;
   h+=`
   <div class="tabs">${[['rooms','Cômodos'],['plans','Plantas'],['photos','Fotos'],['free','Avulsas']].map(([k,n])=>`<button class="tab${tab===k?' on':''}" data-act="ptab" data-k="${k}" type="button">${n}</button>`).join('')}</div>`;
   if(tab==='rooms'){h+=`<div class="list" style="margin-top:10px">`;
-    for(const r of p.rooms){const c=calc(r);h+=`<button class="item" data-act="openR" data-id="${r.id}"><div class="grow"><b>${esc(r.name)}</b><div class="sub">${r.mode==='rect'?'Retângulo':'Paredes em série'} · PD ${nf(r.h,2)} m · ${r.openings.length} abertura(s)</div></div><div class="num" style="text-align:right">${nf(c.area,2)} m²<div class="sub">${nf(c.perim,2)} m</div></div></button>`}
+    for(const r of p.rooms){const c=calc(r);h+=`<button class="item" data-act="openR" data-id="${r.id}"><div class="grow"><b>${esc(r.name)}</b><div class="sub">${r.mode==='rect'?'Retângulo':'Paredes em série'} · PD ${flu(r.h)} · ${r.openings.length} abertura(s)</div></div><div class="num" style="text-align:right">${nf(c.area,2)} m²<div class="sub">${flu(c.perim)}</div></div></button>`}
     h+=`</div><form class="row" data-form="newR" style="margin-top:10px"><input class="txt grow" id="nr" placeholder="Nome do cômodo (ex.: Suíte 1)" required><button class="btn pri">Adicionar</button></form>
     <div class="row noprint" style="margin-top:16px"><button class="btn pri" data-act="report" type="button">Relatório / PDF</button><button class="btn" data-act="xlsx" type="button">Excel (.xlsx)</button><button class="btn" data-act="csv" type="button">CSV</button></div>`}
   if(tab==='plans'){const pls=p.photos.filter(f=>f.kind==='plan');
     if(PDFP)h+=`<div class="card list"><b>PDF com ${PDFP.doc.numPages} páginas — escolha a página:</b><div class="row">${Array.from({length:PDFP.doc.numPages},(_,k)=>`<button class="btn sm" data-act="pdfPg" data-k="${k+1}" type="button">${k+1}</button>`).join('')}</div></div>`;
-    h+=`<div class="thumbs">`+pls.map(f=>{const g=catSummary(f);const bad=Object.values(g).reduce((s,a)=>s+a.bad,0);return`<div class="tw"><button class="thumb" data-act="openPh" data-id="${f.id}" type="button"><img data-ph="${f.id}" alt="${esc(f.name)}"><span>${esc(f.name)} · ${f.dims.length} cota(s)${g.parede?` · perím. ${nf(g.parede.r,2)} m`:''}${bad?` · <b style="color:var(--laser)">${bad} fora</b>`:''}</span></button><button class="btn sm del" data-act="delSh" data-id="${f.id}" type="button">Excluir planta</button></div>`}).join('')+`</div>
+    h+=`<div class="thumbs">`+pls.map(f=>{const g=catSummary(f);const bad=Object.values(g).reduce((s,a)=>s+a.bad,0);return`<div class="tw"><button class="thumb" data-act="openPh" data-id="${f.id}" type="button"><img data-ph="${f.id}" alt="${esc(f.name)}"><span>${esc(f.name)} · ${f.dims.length} cota(s)${g.parede?` · perím. ${flu(g.parede.r)}`:''}${bad?` · <b style="color:var(--laser)">${bad} fora</b>`:''}</span></button><button class="btn sm del" data-act="delSh" data-id="${f.id}" type="button">Excluir planta</button></div>`}).join('')+`</div>
     <button class="btn pri" data-act="addPlan" type="button" style="margin-top:10px">+ Importar planta (PDF ou imagem)</button>`;setTimeout(thumbs,0)}
   if(tab==='photos'){h+=`<div class="thumbs" style="margin-top:12px">`;
     for(const f of p.photos.filter(f=>(f.kind||'photo')==='photo'))h+=`<div class="tw"><button class="thumb" data-act="openPh" data-id="${f.id}" type="button"><img data-ph="${f.id}" alt="${esc(f.name)}"><span>${esc(f.name)} · ${f.dims.length} cota(s)</span></button><button class="btn sm del" data-act="delSh" data-id="${f.id}" type="button">Excluir foto</button></div>`;
@@ -559,7 +559,7 @@ function vRoom(p,r){const tab=V.tab||'med',c=calc(r),d=S.settings.dec;
       h+=`</div><button class="btn sm" data-act="addW" type="button" style="margin-top:8px">+ Parede</button>`;
       const g=c.g;if(g.ws.length>=3)h+=g.err<0.02?`<p class="okbox">Planta fechada. Erro de fechamento: ${nf(g.err*100,1)} cm.</p>`:`<p class="warnbox">Não fecha: faltam ${nf(g.err,3)} m.</p>`}
     h+=`<div class="plan" style="margin-top:12px">${planSVG(r)||'<div class="plan-empty">Meça as paredes para desenhar a planta.</div>'}</div>`;
-    h+=`<div class="stats" style="margin-top:10px"><div class="stat"><small>Área piso</small><b>${nf(c.area,2)}<i>m²</i></b></div><div class="stat"><small>Perímetro</small><b>${nf(c.perim,2)}<i>m</i></b></div><div class="stat"><small>Parede líquida</small><b>${nf(c.net,2)}<i>m²</i></b></div><div class="stat"><small>Volume</small><b>${nf(c.vol,2)}<i>m³</i></b></div></div>`}
+    h+=`<div class="stats" style="margin-top:10px"><div class="stat"><small>Área piso</small><b>${nf(c.area,2)}<i>m²</i></b></div><div class="stat"><small>Perímetro</small><b>${fl(c.perim)}<i>${UN()}</i></b></div><div class="stat"><small>Parede líquida</small><b>${nf(c.net,2)}<i>m²</i></b></div><div class="stat"><small>Volume</small><b>${nf(c.vol,2)}<i>m³</i></b></div></div>`}
   if(tab==='open'){const nW=c.g.ws.length;
     h+=`<div class="row" style="margin:10px 0"><button class="btn sm" data-act="addO" data-k="porta" type="button">+ Porta</button><button class="btn sm" data-act="addO" data-k="janela" type="button">+ Janela</button><button class="btn sm" data-act="addO" data-k="vao" type="button">+ Vão</button></div><div class="list">`;
     r.openings.forEach((o,i)=>{h+=`<div class="card list"><div class="row"><select data-act="oT" data-i="${i}">${['porta','janela','vao'].map(t=>`<option value="${t}"${o.t===t?' selected':''}>${t==='vao'?'Vão':t[0].toUpperCase()+t.slice(1)}</option>`).join('')}</select>
@@ -576,9 +576,9 @@ function vRoom(p,r){const tab=V.tab||'med',c=calc(r),d=S.settings.dec;
   if(tab==='plan'){const s=planSVG(r,{W:480,H:380});h+=`<div class="plan" style="margin-top:12px">${s||'<div class="plan-empty">Sem paredes medidas.</div>'}</div>`;
     if(s)h+=`<button class="btn pri" data-act="planPng" type="button">Salvar planta (PNG)</button>`}
   if(tab==='sum'){h+=`<div class="card" style="margin-top:12px"><dl class="kv">
-    <dt>Pé-direito</dt><dd>${flu(r.h)}</dd><dt>Área de piso / forro</dt><dd>${nf(c.area,2)} m²</dd><dt>Perímetro</dt><dd>${nf(c.perim,2)} m</dd>
+    <dt>Pé-direito</dt><dd>${flu(r.h)}</dd><dt>Área de piso / forro</dt><dd>${nf(c.area,2)} m²</dd><dt>Perímetro</dt><dd>${flu(c.perim)}</dd>
     <dt>Parede bruta (perímetro × PD)</dt><dd>${nf(c.gross,2)} m²</dd><dt>Aberturas (total)</dt><dd>${nf(c.openA,2)} m²</dd><dt>Aberturas descontadas</dt><dd>${nf(c.ded,2)} m²</dd>
-    <dt>Parede líquida</dt><dd>${nf(c.net,2)} m²</dd><dt>Rodapé (perímetro − portas/vãos)</dt><dd>${nf(c.rodape,2)} m</dd><dt>Volume</dt><dd>${nf(c.vol,2)} m³</dd>
+    <dt>Parede líquida</dt><dd>${nf(c.net,2)} m²</dd><dt>Rodapé (perímetro − portas/vãos)</dt><dd>${flu(c.rodape)}</dd><dt>Volume</dt><dd>${nf(c.vol,2)} m³</dd>
     ${r.objects.length?`<dt>Objetos (área / volume)</dt><dd>${nf(c.objA,2)} m² / ${nf(c.objV,3)} m³</dd>`:''}
     ${r.mode==='poly'&&c.g.ws.length>=3?`<dt>Erro de fechamento</dt><dd>${nf(c.g.err*100,1)} cm</dd>`:''}</dl></div>
     <div class="row" style="margin-top:10px"><button class="btn" data-act="copySum" type="button">Copiar resumo</button><button class="btn del" data-act="delR" type="button">Excluir cômodo</button></div>`}
@@ -613,7 +613,7 @@ function vPhoto(p,ph){const isPlan=ph.kind==='plan',st=stOf(ph),dec=S.settings.d
     <button class="btn sm" data-act="stDef" type="button">Usar como padrão nas novas plantas e fotos</button></div>`;
   if(isPlan){const sc=sheetScale(ph);
     const g=catSummary(ph),ks=Object.keys(g);
-    if(ks.length)h+=`<div class="tbl" style="margin-top:10px"><table><thead><tr><th>Categoria</th><th>Qtd</th><th>Σ Projeto (m)</th><th>Σ Real (m)</th><th>Δ (cm)</th><th>Fora</th></tr></thead><tbody>${ks.map(k=>{const a=g[k];const dc=a.cmp?(a.rr-a.pp)*100:null;return`<tr><td>${CATS[k]}${k==='parede'?' (perímetro)':''}</td><td>${a.n}</td><td>${nf(a.p,2)}</td><td>${nf(a.r,2)}</td><td>${dc==null?'—':(dc>0?'+':'')+nf(dc,1)}</td><td>${a.bad?`<span class="pill bad">${a.bad}</span>`:a.cmp?'<span class="pill ok">0</span>':'—'}</td></tr>`}).join('')}</tbody></table></div>`}
+    if(ks.length)h+=`<div class="tbl" style="margin-top:10px"><table><thead><tr><th>Categoria</th><th>Qtd</th><th>Σ Projeto (m)</th><th>Σ Real (m)</th><th>Δ (cm)</th><th>Fora</th></tr></thead><tbody>${ks.map(k=>{const a=g[k];const dc=a.cmp?(a.rr-a.pp)*100:null;return`<tr><td>${CATS[k]}${k==='parede'?' (perímetro)':''}</td><td>${a.n}</td><td>${fl(a.p)}</td><td>${fl(a.r)}</td><td>${dc==null?'—':(dc>0?'+':'')+nf(dc,1)}</td><td>${a.bad?`<span class="pill bad">${a.bad}</span>`:a.cmp?'<span class="pill ok">0</span>':'—'}</td></tr>`}).join('')}</tbody></table></div>`}
   h+=`<div class="list" style="margin-top:10px">`;
   ph.dims.forEach((d,i)=>{const sel=ED.sel===d.id,col=d.color||st.color,dc=isPlan?deltaCm(ph,d):null,ok=okD(dc);
     h+=`<div class="dim${sel?' sel':''}" data-act="selD" data-i="${i}"><div class="drow"><span class="sw" style="background:${col}"></span><b class="num ctag">C${i+1}</b>
@@ -744,19 +744,19 @@ function pup(e){const R=RT;if(!R)return;R.ptrs.delete(e.pointerId);if(R.pinch){i
 function vReport(p){const t=totals(p),d=new Date();
   let h=`<div class="row noprint" style="margin:12px 0"><button class="btn pri" data-act="print" type="button">Imprimir / salvar PDF</button><button class="btn" data-act="xlsx" type="button">Excel (.xlsx)</button><button class="btn" data-act="csv" type="button">CSV</button></div>
   <div class="rep"><h1>${esc(p.name)}</h1><div class="hint">Relatório de medição · ${d.toLocaleDateString('pt-BR')} · trena laser + Cota Laser</div>
-  <div class="stats" style="margin-top:12px"><div class="stat"><small>Área de piso</small><b>${nf(t.area,2)}<i>m²</i></b></div><div class="stat"><small>Parede líquida</small><b>${nf(t.net,2)}<i>m²</i></b></div><div class="stat"><small>Rodapé</small><b>${nf(t.rodape,2)}<i>m</i></b></div><div class="stat"><small>Volume</small><b>${nf(t.vol,2)}<i>m³</i></b></div></div>
+  <div class="stats" style="margin-top:12px"><div class="stat"><small>Área de piso</small><b>${nf(t.area,2)}<i>m²</i></b></div><div class="stat"><small>Parede líquida</small><b>${nf(t.net,2)}<i>m²</i></b></div><div class="stat"><small>Rodapé</small><b>${fl(t.rodape)}<i>${UN()}</i></b></div><div class="stat"><small>Volume</small><b>${nf(t.vol,2)}<i>m³</i></b></div></div>
   <h2>Quadro resumo</h2><div class="tbl"><table><thead><tr><th>Cômodo</th><th>PD (m)</th><th>Piso (m²)</th><th>Perím. (m)</th><th>Parede bruta (m²)</th><th>Aberturas (m²)</th><th>Parede líq. (m²)</th><th>Rodapé (m)</th><th>Vol. (m³)</th></tr></thead><tbody>`;
-  for(const r of p.rooms){const c=calc(r);h+=`<tr><td>${esc(r.name)}</td><td>${nf(r.h,2)}</td><td>${nf(c.area,2)}</td><td>${nf(c.perim,2)}</td><td>${nf(c.gross,2)}</td><td>${nf(c.openA,2)}</td><td>${nf(c.net,2)}</td><td>${nf(c.rodape,2)}</td><td>${nf(c.vol,2)}</td></tr>`}
-  h+=`</tbody><tfoot><tr><td>Total</td><td></td><td>${nf(t.area,2)}</td><td>${nf(t.perim,2)}</td><td>${nf(t.gross,2)}</td><td>${nf(t.openA,2)}</td><td>${nf(t.net,2)}</td><td>${nf(t.rodape,2)}</td><td>${nf(t.vol,2)}</td></tr></tfoot></table></div>`;
+  for(const r of p.rooms){const c=calc(r);h+=`<tr><td>${esc(r.name)}</td><td>${fl(r.h)}</td><td>${nf(c.area,2)}</td><td>${fl(c.perim)}</td><td>${nf(c.gross,2)}</td><td>${nf(c.openA,2)}</td><td>${nf(c.net,2)}</td><td>${fl(c.rodape)}</td><td>${nf(c.vol,2)}</td></tr>`}
+  h+=`</tbody><tfoot><tr><td>Total</td><td></td><td>${nf(t.area,2)}</td><td>${fl(t.perim)}</td><td>${nf(t.gross,2)}</td><td>${nf(t.openA,2)}</td><td>${nf(t.net,2)}</td><td>${fl(t.rodape)}</td><td>${nf(t.vol,2)}</td></tr></tfoot></table></div>`;
   for(const r of p.rooms){const c=calc(r);h+=`<div class="room"><h3>${esc(r.name)}</h3><div class="two"><div class="plan">${planSVG(r,{W:360,H:270,exp:true})||'<div class="plan-empty">sem planta</div>'}</div><div>
     <div class="tbl"><table><tbody>${walls(r).map((w,i)=>`<tr><td>Parede P${i+1}</td><td>${flu(w.len)}</td></tr>`).join('')}
-    ${r.openings.map(o=>`<tr><td>${o.t==='vao'?'Vão':o.t[0].toUpperCase()+o.t.slice(1)}${o.wall!=null?' (P'+(o.wall+1)+')':''}${(o.q||1)>1?' ×'+o.q:''}</td><td>${nf(o.w,2)} × ${nf(o.h,2)} m</td></tr>`).join('')}
-    ${r.objects.map(o=>`<tr><td>${esc(o.n||'Objeto')}</td><td>${nf(o.a,2)} × ${nf(o.b,2)} × ${nf(o.c,2)} m</td></tr>`).join('')}
+    ${r.openings.map(o=>`<tr><td>${o.t==='vao'?'Vão':o.t[0].toUpperCase()+o.t.slice(1)}${o.wall!=null?' (P'+(o.wall+1)+')':''}${(o.q||1)>1?' ×'+o.q:''}</td><td>${fl(o.w)} × ${flu(o.h)}</td></tr>`).join('')}
+    ${r.objects.map(o=>`<tr><td>${esc(o.n||'Objeto')}</td><td>${fl(o.a)} × ${fl(o.b)} × ${flu(o.c)}</td></tr>`).join('')}
     ${r.mode==='poly'&&c.g.ws.length>=3?`<tr><td>Erro de fechamento</td><td>${nf(c.g.err*100,1)} cm</td></tr>`:''}</tbody></table></div></div></div>`;
     const phs=p.photos.filter(f=>f.rid===r.id&&(f.kind||'photo')==='photo'&&!f.link);if(phs.length)h+=`<div class="two" style="margin-top:8px">${phs.map(f=>`<figure style="margin:0"><img data-rph="${f.id}" alt="${esc(f.name)}"><figcaption class="hint">${esc(f.name)}</figcaption></figure>`).join('')}</div>`;h+=`</div>`}
   for(const pl of p.photos.filter(f=>f.kind==='plan')){const g=catSummary(pl),ks=Object.keys(g),dec=S.settings.dec;
     h+=`<div class="room"><h3>${esc(pl.name)} — projeto × real</h3><img data-rph="${pl.id}" alt="${esc(pl.name)}">`;
-    if(ks.length)h+=`<div class="tbl" style="margin-top:8px"><table><thead><tr><th>Categoria</th><th>Qtd</th><th>Σ Projeto (m)</th><th>Σ Real (m)</th><th>Δ (cm)</th><th>Fora</th></tr></thead><tbody>${ks.map(k=>{const a=g[k],dc=a.cmp?(a.rr-a.pp)*100:null;return`<tr><td>${CATS[k]}${k==='parede'?' (perímetro)':''}</td><td>${a.n}</td><td>${nf(a.p,2)}</td><td>${nf(a.r,2)}</td><td>${dc==null?'—':(dc>0?'+':'')+nf(dc,1)}</td><td>${a.bad}</td></tr>`}).join('')}</tbody></table></div>`;
+    if(ks.length)h+=`<div class="tbl" style="margin-top:8px"><table><thead><tr><th>Categoria</th><th>Qtd</th><th>Σ Projeto (m)</th><th>Σ Real (m)</th><th>Δ (cm)</th><th>Fora</th></tr></thead><tbody>${ks.map(k=>{const a=g[k],dc=a.cmp?(a.rr-a.pp)*100:null;return`<tr><td>${CATS[k]}${k==='parede'?' (perímetro)':''}</td><td>${a.n}</td><td>${fl(a.p)}</td><td>${fl(a.r)}</td><td>${dc==null?'—':(dc>0?'+':'')+nf(dc,1)}</td><td>${a.bad}</td></tr>`}).join('')}</tbody></table></div>`;
     h+=`<div class="tbl" style="margin-top:8px"><table><thead><tr><th>Cota</th><th>Categoria</th><th>Projeto (${UN()})</th><th>Real (${UN()})</th><th>Δ (cm)</th><th>Status</th></tr></thead><tbody>${pl.dims.map((d,i)=>{const pj=projOf(pl,d),dc=deltaCm(pl,d),ok=okD(dc);
       return`<tr><td>C${i+1}${d.label?' '+esc(d.label):''}</td><td>${d.ref?'Escala':CATS[d.cat||'outro']}</td><td>${fl(pj)}</td><td>${fl(d.val)}</td><td>${dc==null?'—':(dc>0?'+':'')+nf(dc,1)}</td><td>${ok==null?'—':ok?'<span class="pill ok">OK</span>':'<span class="pill bad">FORA</span>'}</td></tr>`}).join('')}</tbody></table></div>
       <p class="hint">Tolerância usada: ± ${nf(tolCm(),1)} cm (critério definido pelo usuário).</p>`;
@@ -816,7 +816,7 @@ document.addEventListener('click',async e=>{const t=e.target.closest('[data-t],[
     case'delOb':r.objects.splice(i,1);save();return render();
     case'delFree':S.free=S.free.filter(f=>f.id!==t.dataset.id);save();return render();
     case'planPng':{const b=await svgToPng(planSVG(r,{W:480,H:380,exp:true}));return saveBlob(b,slug(p.name)+'_'+slug(r.name)+'_planta.png')}
-    case'copySum':{const c=calc(r);const s=`${r.name}\nPé-direito: ${nf(r.h,2)} m\nÁrea piso: ${nf(c.area,2)} m²\nPerímetro: ${nf(c.perim,2)} m\nParede bruta: ${nf(c.gross,2)} m²\nAberturas: ${nf(c.openA,2)} m²\nParede líquida: ${nf(c.net,2)} m²\nRodapé: ${nf(c.rodape,2)} m\nVolume: ${nf(c.vol,2)} m³`;
+    case'copySum':{const c=calc(r);const s=`${r.name}\nPé-direito: ${flu(r.h)}\nÁrea piso: ${nf(c.area,2)} m²\nPerímetro: ${flu(c.perim)}\nParede bruta: ${nf(c.gross,2)} m²\nAberturas: ${nf(c.openA,2)} m²\nParede líquida: ${nf(c.net,2)} m²\nRodapé: ${flu(c.rodape)}\nVolume: ${nf(c.vol,2)} m³`;
       try{await navigator.clipboard.writeText(s);toast('Resumo copiado')}catch(err){toast('Não consegui copiar')}return}
     case'phSave':{const ph=p.photos.find(x=>x.id===V.phid);const b=await photoBlob(ph);return b&&saveBlob(b,slug(p.name)+'_'+slug(ph.name)+'.jpg')}
     case'delPh':{if(!armed())return;delSheet(p,V.phid);return back()}
@@ -842,7 +842,7 @@ document.addEventListener('change',e=>{const t=e.target,a=t.dataset.act;if(!a&&!
     case'dProj':ph.dims[i].proj=parseL(t.value);if(ph.dims[i].ref&&!(ph.dims[i].proj>0))ph.dims[i].ref=false;break;
     case'dRef':if(t.checked){if(!(ph.dims[i].proj>0)){t.checked=false;toast('Digite primeiro a medida do projeto desta cota');return}ph.dims.forEach((d,k)=>d.ref=k===i)}else ph.dims[i].ref=false;break;
     default:
-      if(t.id==='sfmt'){S.settings.fmt=t.value;S.settings.dec=FMTS[t.value].k===1?FMTS[t.value].d:3;break}
+      if(t.id==='sfmt'){S.settings.fmt=t.value;S.settings.dec=3;break}
       if(t.id==='svib'){S.settings.vib=t.checked;break}
       if(t.id==='swake'){S.settings.wake=t.checked;break}
       if(t.id==='stol'){S.settings.tol=Math.max(0,pn(t.value)||0);break}
