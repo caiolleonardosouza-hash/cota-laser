@@ -520,6 +520,46 @@ function rowsFor(p){const d=S.settings.dec,R3=n=>n==null?null:+(+n).toFixed(3);
   const px=[['Planta','Cota','Categoria','Descrição','Projeto (m)','Real (m)','Δ (cm)','Status','Fotos']];
   for(const pl of p.photos.filter(f=>f.kind==='plan'))pl.dims.forEach((d,i)=>{const dc=deltaCm(pl,d),ok=okD(dc);px.push([pl.name,'C'+(i+1),d.ref?'Escala':CATS[d.cat||'outro'],d.label||'',R3(projOf(pl,d)),R3(d.val),dc==null?null:+dc.toFixed(1),ok==null?'':ok?'OK':'FORA',(d.ph||[]).length])});
   return{Resumo:res,'Projeto x Real':px,Paredes:wl,Aberturas:op,Shafts:sx,Sancas:scx,Revestimentos:rvx,Requadros:rqx,Objetos:ob,Avulsas:fr}}
+function tomb(id){S.del=S.del||{};S.del[id]=Date.now()}
+/* ===== sincronização Google Drive (pasta oculta do app no SEU Drive) ===== */
+const GSC='https://www.googleapis.com/auth/drive.appdata',GAPI='https://www.googleapis.com/drive/v3/files',GUP='https://www.googleapis.com/upload/drive/v3/files';
+let GTOK=null,GEXP=0,SYNCING=false;
+function gisLoad(){if(window.google&&google.accounts&&google.accounts.oauth2)return Promise.resolve();return loadScript('https://accounts.google.com/gsi/client')}
+function gToken(){if(GTOK&&Date.now()<GEXP-60000)return Promise.resolve(GTOK);const cid=(S.settings.gcid||'').trim();
+  if(!cid)return Promise.reject(new Error('Informe o Client ID do Google em Ajustes'));
+  if(!(window.google&&google.accounts&&google.accounts.oauth2)){gisLoad().catch(()=>{});return Promise.reject(new Error('Carregando login do Google… toque de novo'))}
+  return new Promise((res,rej)=>{const tc=google.accounts.oauth2.initTokenClient({client_id:cid,scope:GSC,
+    callback:r=>{if(r.error)return rej(new Error('Google: '+r.error));GTOK=r.access_token;GEXP=Date.now()+(+r.expires_in||3600)*1000;S.settings.gok=1;saveRaw();res(GTOK)},
+    error_callback:e=>rej(new Error(e&&e.type==='popup_closed'?'Login cancelado':'Login bloqueado ('+(e&&e.type||'erro')+')'))});
+    tc.requestAccessToken({prompt:S.settings.gok?'':'consent'})})}
+async function gd(url,opt={}){const t=await gToken();const r=await fetch(url,Object.assign({},opt,{headers:Object.assign({},opt.headers||{},{Authorization:'Bearer '+t})}));
+  if(r.status===401){GTOK=null}if(!r.ok)throw new Error('Drive '+r.status+': '+(await r.text()).slice(0,140));return r}
+async function gList(){let out=[],pt='';do{const r=await(await gd(GAPI+'?spaces=appDataFolder&pageSize=1000&fields=nextPageToken,files(id,name,appProperties)'+(pt?'&pageToken='+pt:''))).json();out=out.concat(r.files||[]);pt=r.nextPageToken||''}while(pt);return out}
+async function gPut(id,name,props,body,mime){const meta=id?{appProperties:props}:{name,parents:['appDataFolder'],appProperties:props};
+  const fd=new FormData();fd.append('metadata',new Blob([JSON.stringify(meta)],{type:'application/json'}));fd.append('file',new Blob([body],{type:mime}));
+  return(await gd(id?GUP+'/'+id+'?uploadType=multipart':GUP+'?uploadType=multipart',{method:id?'PATCH':'POST',body:fd})).json()}
+function saveRaw(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){toast('Não consegui salvar no aparelho (memória cheia?)')}}
+function blobKeys(){const ks=[];for(const p of S.projects)for(const f of p.photos||[]){ks.push(f.id);if(f.pdf)ks.push('pdf:'+f.id)}return ks}
+async function syncDrive(){if(SYNCING)return;SYNCING=true;const st=$('#syncSt');const say=m=>{if(st)st.textContent=m};
+  try{say('Conectando ao Google…');await gToken();say('Lendo o Drive…');const files=await gList(),byName=new Map(files.map(f=>[f.name,f]));
+    const df=byName.get('trenout-data.json');let Rm={projects:[],free:[],del:{}};if(df){Rm=await(await gd(GAPI+'/'+df.id+'?alt=media')).json()}
+    const del=Object.assign({},Rm.del||{});for(const[k,v]of Object.entries(S.del||{}))del[k]=Math.max(del[k]||0,v);
+    const pm=new Map();let nIn=0;for(const p of Rm.projects||[])pm.set(p.id,p);
+    for(const p of S.projects){const o=pm.get(p.id);if(!o||(p.upd||0)>=(o.upd||0))pm.set(p.id,p)}
+    for(const p of Rm.projects||[]){const l=S.projects.find(x=>x.id===p.id);if(pm.get(p.id)===p&&(!l||(p.upd||0)>(l.upd||0)))nIn++}
+    const projects=[...pm.values()].filter(p=>!(del[p.id]>=(p.upd||0)));
+    const fm=new Map();for(const f of Rm.free||[])fm.set(f.id,f);for(const f of S.free)fm.set(f.id,f);
+    const free=[...fm.values()].filter(f=>!del[f.id]).sort((a,b)=>(b.t||0)-(a.t||0));
+    S.projects=projects;S.free=free;S.del=del;saveRaw();
+    say('Enviando dados…');await gPut(df&&df.id,'trenout-data.json',{k:'data'},JSON.stringify({v:1,t:Date.now(),projects,free,del}),'application/json');
+    let up=0,dn=0;const ks=blobKeys();for(let i=0;i<ks.length;i++){const k=ks[i],nm='b_'+encodeURIComponent(k),rf=byName.get(nm);say('Fotos e plantas '+(i+1)+'/'+ks.length+'…');
+      const loc=await idb.get(k);
+      if(loc!=null&&!rf){const str=typeof loc==='string';await gPut(null,nm,{k,t:str?'s':'b'},str?loc:(loc instanceof ArrayBuffer?loc:loc.buffer||loc),str?'text/plain':'application/octet-stream');up++}
+      else if(loc==null&&rf){const r=await gd(GAPI+'/'+rf.id+'?alt=media');await idb.put(k,(rf.appProperties||{}).t==='s'?await r.text():await r.arrayBuffer());dn++}}
+    S.settings.lastSync=Date.now();saveRaw();IMG.clear&&IMG.clear();
+    toast('Sincronizado'+(nIn?' · '+nIn+' obra(s) atualizada(s)':'')+(up||dn?' · fotos ↑'+up+' ↓'+dn:''));render()}
+  catch(e){say('');toast(e.message||String(e))}finally{SYNCING=false;const s2=$('#syncSt');if(s2)s2.textContent=syncTxt()}}
+function syncTxt(){const t=S.settings.lastSync;return t?'Última: '+new Date(t).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'Nunca sincronizado'}
 function loadScript(src){return new Promise((res,rej)=>{const s=document.createElement('script');s.src=src;s.onload=res;s.onerror=rej;document.head.appendChild(s)})}
 async function exportXlsx(p){const sh=rowsFor(p);try{if(!window.XLSX)await loadScript('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js');
     const wb=XLSX.utils.book_new();for(const[n,rows]of Object.entries(sh)){const ws=XLSX.utils.aoa_to_sheet(rows);ws['!cols']=rows[0].map((h,i)=>({wch:i===0?24:Math.max(12,String(h).length+2)}));XLSX.utils.book_append_sheet(wb,ws,n.slice(0,31))}
@@ -607,7 +647,8 @@ function render(){REG=new Map();ORDER=[];const app=$('#app');let h='';
 function after(){RT=null;GR=null;hideLoupe();if(V.v==='project'&&V.tab==='geral')setupGeral();if(V.v==='photo')setupEditor();if(V.v==='report')fillReportPhotos()}
 
 function vHome(){const ps=S.projects,dt=t=>t?new Date(t).toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'}):'';
-  let h=`<form class="row" data-form="newP" style="margin-top:4px"><input class="txt grow" id="np" placeholder="Nova obra / unidade (ex.: Riviera T2 ap 1204)" required><button class="btn pri">Criar</button></form>`;
+  let h=S.settings.gcid?`<div class="row" style="margin-bottom:8px"><button class="btn sm" data-act="sync" type="button">☁ Sincronizar</button><span class="hint grow" id="syncSt">${syncTxt()}</span></div>`:'';
+  h+=`<form class="row" data-form="newP" style="margin-top:4px"><input class="txt grow" id="np" placeholder="Nova obra / unidade (ex.: Riviera T2 ap 1204)" required><button class="btn pri">Criar</button></form>`;
   if(ps.length){let A=0,N=0,W=0;const T=ps.map(p=>{const t=totals(p);A+=t.area;W+=t.net;N+=p.rooms.length;return t});
     h+=`<div class="stats" style="margin-top:12px;grid-template-columns:repeat(4,1fr);gap:6px"><div class="stat"><small>Obras</small><b>${ps.length}</b></div><div class="stat"><small>Cômodos</small><b>${N}</b></div><div class="stat"><small>Piso</small><b>${nf(A,1)}<i>m²</i></b></div><div class="stat"><small>Parede líq.</small><b>${nf(W,1)}<i>m²</i></b></div></div>`;
     const last=ps.find(p=>p.id===S.settings.lastP);if(last)h+=`<button class="btn pri" data-act="openP" data-id="${last.id}" type="button" style="width:100%;margin-top:10px">Continuar: ${esc(last.name)}</button>`;
@@ -628,6 +669,10 @@ function vCfg(){const st=defStyle();return`<h2>Medidas</h2><div class="card list
    <details><summary>Diagnóstico Bluetooth</summary><pre class="log" id="btlog">${esc(BT.log.join('\n'))||'(vazio)'}</pre></details></div>
   <h2>Cotas</h2><div class="card list">
    <div class="row"><span class="grow">Estilo padrão: texto ${st.fs}, espessura ${st.lw}, ${st.txt==='num'?'só número':'completo'}</span><button class="btn sm" data-act="stReset" type="button">Restaurar padrão</button></div></div>
+  <h2>Sincronizar (Google Drive)</h2><div class="card list">
+   <label class="list" style="gap:4px"><span class="hint">Client ID do Google (o mesmo no celular e no PC)</span><input class="txt" id="sgcid" value="${esc(S.settings.gcid||'')}" placeholder="xxxx.apps.googleusercontent.com" autocomplete="off"></label>
+   <div class="row"><button class="btn pri" data-act="sync" type="button">☁ Sincronizar agora</button><span class="hint grow" id="syncSt">${syncTxt()}</span></div>
+   <p class="hint" style="margin:0">Os dados ficam numa pasta oculta do app no seu Drive. Na mesma obra editada nos dois aparelhos, vale a edição mais recente.</p></div>
   <h2>Dados</h2><div class="card list">
    <div class="row"><button class="btn" data-act="backup" type="button">Exportar backup</button><button class="btn" data-act="restore" type="button">Importar backup</button></div></div>`}
 function freeList(fr){return`<div class="card list">`+fr.map(f=>`<div class="row"><span class="num" style="font-weight:700;min-width:90px">${flu(f.v)}</span><input class="txt grow" data-act="freeLbl" data-id="${f.id}" value="${esc(f.label)}" placeholder="descrição"><button class="btn sm del" data-act="delFree" data-id="${f.id}" type="button">✕</button></div>`).join('')+`</div>`}
@@ -1062,6 +1107,7 @@ document.addEventListener('click',async e=>{const t=e.target.closest('[data-t],[
     case'csv':return exportCsv(p);
     case'print':return window.print();
     case'backup':return exportBackup();
+    case'sync':return syncDrive();
     case'btAll':return BT.connect(true);
     case'restore':return $('#filejs').click();
     case'addPh':LINK=null;return $('#fileph').click();
@@ -1097,8 +1143,8 @@ document.addEventListener('click',async e=>{const t=e.target.closest('[data-t],[
     case'dHide':{const sh=p.photos.find(x=>x.id===V.phid);sh.dims[i].hide=!sh.dims[i].hide;save();return render()}
     case'dCol':{const sh=p.photos.find(x=>x.id===V.phid);sh.dims[i].color=t.dataset.c||null;save();return render()}
     case'dPh':{const sh=p.photos.find(x=>x.id===V.phid);LINK={sid:sh.id,did:sh.dims[i].id,rid:sh.rid};return $('#fileph').click()}
-    case'delP':if(!armed())return;for(const f of p.photos)idb.del(f.id);S.projects=S.projects.filter(x=>x!==p);S.free=S.free.filter(f=>f.pid!==p.id);save();HIST.length=0;return go({v:'home'},false);
-    case'delPid':{if(!armed())return;const q=P(t.dataset.id);if(!q)return;for(const f of q.photos)delSheet(q,f.id);S.projects=S.projects.filter(x=>x!==q);S.free=S.free.filter(f=>f.pid!==q.id);save();return render()}
+    case'delP':if(!armed())return;tomb(p.id);for(const f of p.photos)idb.del(f.id);S.projects=S.projects.filter(x=>x!==p);S.free=S.free.filter(f=>f.pid!==p.id);save();HIST.length=0;return go({v:'home'},false);
+    case'delPid':{if(!armed())return;const q=P(t.dataset.id);if(!q)return;tomb(q.id);for(const f of q.photos)delSheet(q,f.id);S.projects=S.projects.filter(x=>x!==q);S.free=S.free.filter(f=>f.pid!==q.id);save();return render()}
     case'stReset':S.settings.style=null;save();toast('Estilo padrão restaurado');return render();
     case'delR':if(!armed())return;p.rooms=p.rooms.filter(x=>x!==r);save();return back();
     case'mode':r.mode=t.dataset.k;if(r.mode==='poly'&&!r.walls.some(w=>w.len>0)&&r.a&&r.b)r.walls=[{len:r.a,ang:90},{len:r.b,ang:90},{len:r.a,ang:90},{len:r.b,ang:90},{len:null,ang:90}];save();return render();
@@ -1117,7 +1163,7 @@ document.addEventListener('click',async e=>{const t=e.target.closest('[data-t],[
     case'delO':r.openings.splice(i,1);save();return render();
     case'addOb':r.objects.push({n:'',a:null,b:null,c:null});save();target='b:'+(r.objects.length-1)+':a';return render();
     case'delOb':r.objects.splice(i,1);save();return render();
-    case'delFree':S.free=S.free.filter(f=>f.id!==t.dataset.id);save();return render();
+    case'delFree':tomb(t.dataset.id);S.free=S.free.filter(f=>f.id!==t.dataset.id);save();return render();
     case'planPng':{const b=await svgToPng(planSVG(r,{W:480,H:380,exp:true}));return saveBlob(b,slug(p.name)+'_'+slug(r.name)+'_planta.png')}
     case'copySum':{const c=calc(r);const s=`${r.name}\nPé-direito: ${flu(r.h)}\nÁrea piso: ${nf(c.area,2)} m²\nPerímetro: ${flu(c.perim)}\nParede bruta: ${nf(c.gross,2)} m²\nAberturas: ${nf(c.openA,2)} m²\nParede líquida: ${nf(c.net,2)} m²\nRodapé: ${flu(c.rodape)}\nVolume: ${nf(c.vol,2)} m³`;
       try{await navigator.clipboard.writeText(s);toast('Resumo copiado')}catch(err){toast('Não consegui copiar')}return}
@@ -1161,6 +1207,7 @@ document.addEventListener('change',e=>{const t=e.target,a=t.dataset.act;if(!a&&!
       if(t.id==='sfmt'){S.settings.fmt=t.value;S.settings.dec=3;break}
       if(t.id==='svib'){S.settings.vib=t.checked;break}
       if(t.id==='swake'){S.settings.wake=t.checked;break}
+      if(t.id==='sgcid'){S.settings.gcid=t.value.trim();S.settings.gok=0;GTOK=null;if(S.settings.gcid)gisLoad().catch(()=>{});break}
       if(t.id==='stol'){S.settings.tol=Math.max(0,pn(t.value)||0);break}
       if(['stLw','stFs','stZr','stFont','stColX','stOrtho','stEnd','stDash','stBg','stTxt','stLine'].includes(t.id)){const k={stZr:'zref',stLw:'lw',stFs:'fs',stFont:'font',stColX:'color',stOrtho:'ortho',stEnd:'end',stDash:'dash',stBg:'bg',stTxt:'txt',stLine:'line'}[t.id];ph.style=Object.assign(stOf(ph),{[k]:t.type==='checkbox'?t.checked:t.type==='range'?+t.value:t.value});
         if(k==='color')ph.dims.forEach(d=>d.color=null);if(k==='line')ph.dims.forEach(d=>d.hide=false);break}
@@ -1179,7 +1226,7 @@ const manGo=()=>{const v=parseL($('#man').value);if(v==null||v<=0){toast('Digite
 $('#manok').onclick=manGo;$('#man').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();manGo()}});
 
 /* ===== início ===== */
-load();render();
+load();render();if(S.settings.gcid)gisLoad().catch(()=>{});
 if('serviceWorker'in navigator&&location.protocol==='https:')navigator.serviceWorker.register('sw.js').catch(()=>{});
 window.__T={geom,calc,reading,S:()=>S,V:()=>V,setTarget:k=>{target=k;render()},go};
 </script>

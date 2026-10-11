@@ -1,5 +1,5 @@
 // Trenout — funciona offline depois do primeiro acesso
-const C = 'cotalaser-v46';
+const C = 'cotalaser-v47';
 const CORE = ['./', 'index.html', 'manifest.json', 'icon-192.png', 'icon-512.png'];
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(C).then(c => c.addAll(CORE)).then(() => self.skipWaiting()));
@@ -9,6 +9,8 @@ self.addEventListener('activate', e => {
 });
 self.addEventListener('fetch', e => {
   if (e.request.method !== 'GET') return;
+  const u = e.request.url;
+  if (!u.startsWith(self.location.origin) && !u.includes('cdnjs.cloudflare.com')) return; // Google/Drive: nunca cachear
   // rede primeiro (pega atualização), cache se estiver sem sinal
   e.respondWith(
     fetch(e.request).then(r => {
