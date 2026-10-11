@@ -256,7 +256,7 @@ async function img(id){if(IMG.has(id))return IMG.get(id);const d=await idb.get(i
 const FONTS={mono:'"JetBrains Mono",ui-monospace,monospace',sans:'Barlow,Arial,sans-serif',cond:'"Barlow Condensed","Arial Narrow",sans-serif',arial:'Arial,Helvetica,sans-serif'};
 const COLORS=['#ffd400','#ff3b1f','#00c2ff','#2ee66b','#ff4fd8','#ffffff','#111111'];
 const CATS={parede:'Parede',janela:'Janela',porta:'Porta',shaft:'Shaft',vao:'Vão',pilar:'Pilar',outro:'Outro'};
-const defStyle=()=>Object.assign({lw:3,fs:16,color:'#ffd400',font:'mono',ortho:true},S.settings.style||{});
+const defStyle=()=>Object.assign({lw:2.5,fs:18,color:'#ffd400',font:'mono',ortho:true,txt:'num',bg:'none'},S.settings.style||{});
 const stOf=sh=>Object.assign(defStyle(),sh.style||{});
 const pxLen=d=>Math.hypot(d.x2-d.x1,d.y2-d.y1);
 function sheetScale(sh){const r=sh.dims.find(d=>d.ref&&d.proj>0&&pxLen(d)>0);return r?r.proj/pxLen(r):null}
@@ -270,9 +270,9 @@ async function toStored(src,max,type,q){const im=new Image();await new Promise((
   const k=Math.min(1,max/Math.max(im.width,im.height));const c=document.createElement('canvas');c.width=Math.round(im.width*k);c.height=Math.round(im.height*k);
   const x=c.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,c.width,c.height);x.drawImage(im,0,0,c.width,c.height);return{data:c.toDataURL(type,q),w:c.width,h:c.height}}
 async function addSheet(dataUrl,kind,extra={}){const p=P(V.pid);if(!p)return;
-  const st=await toStored(dataUrl,kind==='plan'?3200:2000,'image/jpeg',kind==='plan'?0.9:0.88);const id=uid();await idb.put(id,st.data);
+  const st=await toStored(dataUrl,kind==='plan'?4000:3000,'image/jpeg',kind==='plan'?0.9:0.88);const id=uid();await idb.put(id,st.data);
   const n=p.photos.filter(x=>(x.kind||'photo')===kind).length+1;
-  const sh=Object.assign({id,kind,name:(kind==='plan'?'Planta ':'Foto ')+n,dims:[],t:Date.now(),w:st.w,h:st.h},kind==='plan'?{style:{fs:Math.max(defStyle().fs,26)}}:{},extra);
+  const sh=Object.assign({id,kind,name:(kind==='plan'?'Planta ':'Foto ')+n,dims:[],t:Date.now(),w:st.w,h:st.h},extra);
   p.photos.push(sh);save();return sh}
 async function addPhoto(file){const sh=await addSheet(await readAsDataURL(file),'photo',LINK?{rid:LINK.rid||null}:{});
   if(LINK){const p=P(V.pid),pl=p.photos.find(x=>x.id===LINK.sid),d=pl&&pl.dims.find(x=>x.id===LINK.did);if(d){(d.ph=d.ph||[]).push(sh.id);sh.link={sid:LINK.sid,did:LINK.did};sh.name=(d.label||CATS[d.cat]||'Cota')+' — foto';save()}LINK=null}
@@ -280,14 +280,15 @@ async function addPhoto(file){const sh=await addSheet(await readAsDataURL(file),
 let LINK=null,PDFP=null;
 async function addPlan(file){if(file.type==='application/pdf'||/\.pdf$/i.test(file.name)){
     try{toast('Abrindo PDF…');if(!window.pdfjsLib){await loadScript('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js');pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'}
-      const doc=await pdfjsLib.getDocument({data:new Uint8Array(await file.arrayBuffer())}).promise;
-      if(doc.numPages===1)return pdfPage(doc,1,file.name);PDFP={doc,name:file.name};render()}
+      const buf=await file.arrayBuffer(),keep=buf.slice(0);const doc=await pdfjsLib.getDocument({data:new Uint8Array(buf)}).promise;
+      if(doc.numPages===1)return pdfPage(doc,1,file.name,keep);PDFP={doc,name:file.name,bytes:keep};render()}
     catch(e){toast('Não consegui abrir o PDF (precisa de internet na 1ª vez). Tente imagem PNG/JPG.')}return}
   const sh=await addSheet(await readAsDataURL(file),'plan',{name:file.name.replace(/\.[^.]+$/,'')});go({v:'photo',pid:V.pid,phid:sh.id})}
-async function pdfPage(doc,n,name){toast('Renderizando página '+n+'…');const pg=await doc.getPage(n);const v1=pg.getViewport({scale:1});const sc=Math.min(4,3200/Math.max(v1.width,v1.height));
+async function pdfPage(doc,n,name,bytes){toast('Renderizando página '+n+'…');const pg=await doc.getPage(n);const v1=pg.getViewport({scale:1});const sc=Math.min(4,3200/Math.max(v1.width,v1.height));
   const vp=pg.getViewport({scale:sc});const c=document.createElement('canvas');c.width=vp.width;c.height=vp.height;const x=c.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,c.width,c.height);
   await pg.render({canvasContext:x,viewport:vp}).promise;PDFP=null;
-  const sh=await addSheet(c.toDataURL('image/png'),'plan',{name:name.replace(/\.[^.]+$/,'')+(doc.numPages>1?' p'+n:'')});go({v:'photo',pid:V.pid,phid:sh.id})}
+  const sh=await addSheet(c.toDataURL('image/png'),'plan',{name:name.replace(/\.[^.]+$/,'')+(doc.numPages>1?' p'+n:'')});
+  if(bytes){try{await idb.put('pdf:'+sh.id,bytes);sh.pdf={page:n,rs:sh.w/v1.width};save()}catch(e){}}go({v:'photo',pid:V.pid,phid:sh.id})}
 
 function dimText(sh,d){const dec=S.settings.dec>2?3:2,isPlan=sh.kind==='plan';
   if(stOf(sh).txt==='num'){const v=d.val!=null?d.val:isPlan?projOf(sh,d):null;return{l1:v==null?'?':nf(v,dec),l2:null,ok:null}}
@@ -359,7 +360,7 @@ async function photoBlob(ph,max=0){const im=await img(ph.id);if(!im)return null;
   if(max&&Math.max(c.width,c.height)>max){const k=max/Math.max(c.width,c.height),c2=document.createElement('canvas');c2.width=c.width*k;c2.height=c.height*k;c2.getContext('2d').drawImage(c,0,0,c2.width,c2.height);return c2.toDataURL('image/jpeg',0.82)}
   if(max)return c.toDataURL('image/jpeg',0.85);
   return new Promise(r=>c.toBlob(r,'image/jpeg',0.92))}
-function delSheet(p,id){idb.del(id);IMG.delete(id);p.photos=p.photos.filter(x=>x.id!==id);
+function delSheet(p,id){idb.del(id);idb.del('pdf:'+id);PAGES.delete(id);HIS.delete(id);IMG.delete(id);p.photos=p.photos.filter(x=>x.id!==id);
   for(const f of p.photos){for(const d of f.dims)if(d.ph)d.ph=d.ph.filter(x=>x!==id);if(f.link&&f.link.sid===id)delete f.link}save()}
 function catSummary(sh){const g={};for(const d of sh.dims){if(d.ref)continue;const k=d.cat||'outro';const a=g[k]||(g[k]={n:0,p:0,r:0,cmp:0,pp:0,rr:0,bad:0});a.n++;
     const p=projOf(sh,d);if(p!=null)a.p+=p;if(d.val!=null)a.r+=d.val;if(p!=null&&d.val!=null){a.cmp++;a.pp+=p;a.rr+=d.val;if(!okD(deltaCm(sh,d)))a.bad++}}return g}
@@ -600,22 +601,42 @@ function vPhoto(p,ph){const isPlan=ph.kind==='plan',st=stOf(ph),dec=S.settings.d
   setTimeout(thumbs,0);return h}
 
 const sc=()=>ED.fit*ED.z;
-function clampXY(){const R=RT;if(!R)return;const sw=R.stage.clientWidth,shh=R.stage.clientHeight,dw=R.sh.w*sc(),dh=R.sh.h*sc();
+const zMax=()=>RT&&RT.sh.pdf?40:12;
+function clampXY(){const R=RT;if(!R)return;const sw=R.cw,shh=R.ch,dw=R.sh.w*sc(),dh=R.sh.h*sc();
   ED.X=dw>sw?Math.min(0,Math.max(sw-dw,ED.X)):(sw-dw)/2;ED.Y=dh>shh?Math.min(0,Math.max(shh-dh,ED.Y)):(shh-dh)/2}
-function applyT(){if(!RT)return;clampXY();RT.cv.style.transform=`translate(${ED.X}px,${ED.Y}px) scale(${ED.z})`}
+function applyT(){if(!RT)return;clampXY();sched();hiLater()}
 function toImg(e){const r=RT.stage.getBoundingClientRect();return{x:(e.clientX-r.left-ED.X)/sc(),y:(e.clientY-r.top-ED.Y)/sc()}}
 const edK=()=>1000/(Math.max(RT.sh.w,RT.sh.h)*sc());
-function edDraw(){const R=RT;if(!R)return;const o={sel:ED.sel,pend:PEND,hr:12/sc(),k:edK()};
-  const thin=R.drag&&['h','new'].includes(R.drag.type)&&R.drag.moved;if(thin){o.thin=R.drag.i;o.thinW=1.4/sc()}
-  if(R.base&&R.drag){R.ctx.drawImage(R.base,0,0);drawSheet(R.ctx,R.im,R.sh,Object.assign(o,{noImg:true,only:R.drag.i}))}else drawSheet(R.ctx,R.im,R.sh,o)}
-function sched(){if(RT&&!RT.raf)RT.raf=requestAnimationFrame(()=>{RT.raf=0;edDraw();if(RT.lp)loupe(RT.lp)})}
-function buildBase(i){const R=RT,c=document.createElement('canvas');c.width=R.sh.w;c.height=R.sh.h;drawSheet(c.getContext('2d'),R.im,R.sh,{skip:i,sel:null,k:edK()});R.base=c}
-function loupe(lp){const L=$('#loupe'),dpr=window.devicePixelRatio||1,S0=160;L.hidden=false;
-  if(L.width!==S0*dpr){L.width=S0*dpr;L.height=S0*dpr}
+/* fundo na resolução da tela: imagem + (se PDF) recorte vetorial nítido */
+function drawBg(){const R=RT,b=R.bg,x=b.getContext('2d'),dpr=R.dpr,s=sc();x.setTransform(1,0,0,1,0,0);x.fillStyle='#8a8f8c';x.fillRect(0,0,b.width,b.height);
+  x.setTransform(dpr*s,0,0,dpr*s,dpr*ED.X,dpr*ED.Y);x.imageSmoothingEnabled=true;x.imageSmoothingQuality='high';x.drawImage(R.im,0,0,R.sh.w,R.sh.h);
+  const h=R.hi;if(h){x.setTransform(1,0,0,1,0,0);const f=s/h.s;x.drawImage(h.c,(ED.X-h.X*f)*dpr,(ED.Y-h.Y*f)*dpr,h.c.width*f,h.c.height*f)}}
+function edDraw(){const R=RT;if(!R)return;drawBg();const x=R.ctx,dpr=R.dpr,s=sc();x.setTransform(1,0,0,1,0,0);x.drawImage(R.bg,0,0);
+  x.setTransform(dpr*s,0,0,dpr*s,dpr*ED.X,dpr*ED.Y);
+  const o={sel:ED.sel,pend:PEND,hr:12/s,k:edK(),noImg:true};
+  if(R.drag&&['h','new'].includes(R.drag.type)&&R.drag.moved){o.thin=R.drag.i;o.thinW=1.4/s}
+  drawSheet(x,R.im,R.sh,o)}
+function sched(){if(RT&&!RT.raf)RT.raf=requestAnimationFrame(()=>{if(!RT)return;RT.raf=0;edDraw();if(RT.lp)loupe(RT.lp)})}
+function buildBase(){}
+let hiT=0;
+function hiLater(){clearTimeout(hiT);if(!RT||!RT.sh.pdf)return;hiT=setTimeout(renderHi,220)}
+async function renderHi(){const R=RT;if(!R||!R.sh.pdf||R.ptrs.size)return hiLater();
+  const s=sc(),pf=R.sh.pdf;if(s*R.dpr<=1.05){if(R.hi){R.hi=null;sched()}return}
+  try{if(!R.page){if(!window.pdfjsLib){await loadScript('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js');pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'}
+      const bytes=await idb.get('pdf:'+R.sh.id);if(!bytes)return;const doc=await pdfjsLib.getDocument({data:new Uint8Array(bytes)}).promise;if(RT!==R)return;R.page=await doc.getPage(pf.page);PAGES.set(R.sh.id,R.page)}
+    if(R.task){try{R.task.cancel()}catch(_){}}
+    const X=ED.X,Y=ED.Y,c=document.createElement('canvas');c.width=R.bg.width;c.height=R.bg.height;const cx=c.getContext('2d');cx.fillStyle='#fff';cx.fillRect(0,0,c.width,c.height);
+    const vp=R.page.getViewport({scale:pf.rs*s*R.dpr,offsetX:X*R.dpr,offsetY:Y*R.dpr});
+    R.task=R.page.render({canvasContext:cx,viewport:vp});await R.task.promise;R.task=null;
+    if(RT!==R)return;R.hi={c,X,Y,s};HIS.set(R.sh.id,R.hi);sched()}
+  catch(e){R.task=null}}
+function loupe(lp){const L=$('#loupe'),R=RT,dpr=R.dpr,S0=160;L.hidden=false;
+  if(L.width!==Math.round(S0*dpr)){L.width=Math.round(S0*dpr);L.height=Math.round(S0*dpr)}
   let top=lp.cy-S0-70;if(top<8)top=lp.cy+50;L.style.left=Math.min(window.innerWidth-S0-6,Math.max(6,lp.cx-S0/2))+'px';L.style.top=top+'px';
-  const x=L.getContext('2d'),k=1/(sc()*3),sw=S0*k;x.fillStyle='#222';x.fillRect(0,0,L.width,L.height);
-  const sx=lp.pt.x-sw/2,sy=lp.pt.y-sw/2,f=L.width/sw;x.drawImage(RT.im,sx,sy,sw,sw,0,0,L.width,L.height);
-  if(lp.d){x.strokeStyle=lp.col||'#ffd400';x.lineWidth=1.5*dpr;x.setLineDash([5*dpr,4*dpr]);x.beginPath();x.moveTo((lp.d.x1-sx)*f,(lp.d.y1-sy)*f);x.lineTo((lp.d.x2-sx)*f,(lp.d.y2-sy)*f);x.stroke();x.setLineDash([])}
+  const x=L.getContext('2d'),M=2.5,sw=L.width/M,s=sc(),px=(lp.pt.x*s+ED.X)*dpr,py=(lp.pt.y*s+ED.Y)*dpr,sx=px-sw/2,sy=py-sw/2,f=M;
+  x.imageSmoothingEnabled=false;x.fillStyle='#555';x.fillRect(0,0,L.width,L.height);x.drawImage(R.bg,sx,sy,sw,sw,0,0,L.width,L.height);
+  if(lp.d){const m=(ix,iy)=>[((ix*s+ED.X)*dpr-sx)*f,((iy*s+ED.Y)*dpr-sy)*f];const a=m(lp.d.x1,lp.d.y1),b=m(lp.d.x2,lp.d.y2);
+    x.strokeStyle=lp.col||'#ffd400';x.lineWidth=1.5*dpr;x.setLineDash([5*dpr,4*dpr]);x.beginPath();x.moveTo(a[0],a[1]);x.lineTo(b[0],b[1]);x.stroke();x.setLineDash([])}
   const c=L.width/2;x.strokeStyle='#ff3b1f';x.lineWidth=1.5*dpr;x.beginPath();x.moveTo(c,c-18*dpr);x.lineTo(c,c-4*dpr);x.moveTo(c,c+4*dpr);x.lineTo(c,c+18*dpr);x.moveTo(c-18*dpr,c);x.lineTo(c-4*dpr,c);x.moveTo(c+4*dpr,c);x.lineTo(c+18*dpr,c);x.stroke()}
 function hideLoupe(){const L=$('#loupe');if(L)L.hidden=true;if(RT)RT.lp=null}
 function snap(ax,ay,bx,by){if(!stOf(RT.sh).ortho)return[bx,by];const dx=bx-ax,dy=by-ay,L=Math.hypot(dx,dy);if(L<1)return[bx,by];
@@ -633,17 +654,20 @@ function selectDim(i){const sh=RT.sh;ED.sel=sh.dims[i].id;target='d:'+sh.id+':'+
 function tapEmpty(pt){const sh=RT.sh;if(ED.sel){ED.sel=null;target=null;render();return}if(ED.mode!=='add')return;
   if(!PEND){PEND=[pt.x,pt.y];$('#edhint').innerHTML='Toque o <b>segundo ponto</b> (ou arraste de um ponto ao outro).';edDraw();return}
   const[b,c]=snap(PEND[0],PEND[1],pt.x,pt.y);sh.dims.push(newDim(PEND[0],PEND[1],b,c));PEND=null;save();selectDim(sh.dims.length-1)}
+const PAGES=new Map(),HIS=new Map();
 async function setupEditor(){const p=P(V.pid),sh=p&&p.photos.find(x=>x.id===V.phid),cv=$('#ph'),stage=$('#stage');if(!sh||!cv)return;
   const fresh=ED.id!==sh.id;if(fresh){Object.assign(ED,{id:sh.id,z:1,sel:null});PEND=null}
   const im=await img(sh.id);if(!im||!document.contains(cv))return;if(!sh.w){sh.w=im.width;sh.h=im.height;save()}
-  cv.width=sh.w;cv.height=sh.h;const sw=stage.clientWidth,maxH=Math.max(260,Math.min(window.innerHeight*0.6,900));
-  ED.fit=Math.min(sw/sh.w,maxH/sh.h);stage.style.height=Math.round(sh.h*ED.fit)+'px';cv.style.width=sh.w*ED.fit+'px';cv.style.height=sh.h*ED.fit+'px';
-  RT={sh,im,cv,stage,ctx:cv.getContext('2d'),ptrs:new Map(),drag:null,pinch:null,base:null,raf:0,lp:null};
-  if(fresh){ED.X=-1e9;ED.Y=-1e9}applyT();edDraw();
+  const sw=stage.clientWidth,maxH=Math.max(260,Math.min(window.innerHeight*0.6,900));ED.fit=Math.min(sw/sh.w,maxH/sh.h);
+  const ch=Math.round(sh.h*ED.fit),dpr=Math.min(3,window.devicePixelRatio||1);stage.style.height=ch+'px';
+  cv.style.width=sw+'px';cv.style.height=ch+'px';cv.width=Math.round(sw*dpr);cv.height=Math.round(ch*dpr);
+  const bg=document.createElement('canvas');bg.width=cv.width;bg.height=cv.height;
+  RT={sh,im,cv,stage,ctx:cv.getContext('2d'),bg,cw:sw,ch,dpr,ptrs:new Map(),drag:null,pinch:null,raf:0,lp:null,page:PAGES.get(sh.id)||null,hi:fresh?null:(HIS.get(sh.id)||null)};
+  if(fresh){ED.X=-1e9;ED.Y=-1e9}clampXY();edDraw();hiLater();
   stage.onpointerdown=pdown;stage.onpointermove=pmove;stage.onpointerup=pup;stage.onpointercancel=pup;
   stage.onwheel=e=>{e.preventDefault();zoomAt(e.deltaY<0?1.15:1/1.15,e.clientX,e.clientY)}}
 function zoomAt(f,cx,cy){const r=RT.stage.getBoundingClientRect();if(cx==null){cx=r.left+r.width/2;cy=r.top+r.height/2}
-  const ix=(cx-r.left-ED.X)/sc(),iy=(cy-r.top-ED.Y)/sc();ED.z=Math.max(1,Math.min(12,ED.z*f));ED.X=cx-r.left-ix*sc();ED.Y=cy-r.top-iy*sc();applyT();edDraw()}
+  const ix=(cx-r.left-ED.X)/sc(),iy=(cy-r.top-ED.Y)/sc();ED.z=Math.max(1,Math.min(zMax(),ED.z*f));ED.X=cx-r.left-ix*sc();ED.Y=cy-r.top-iy*sc();applyT();edDraw()}
 function pdown(e){const R=RT;if(!R)return;e.preventDefault();try{R.stage.setPointerCapture(e.pointerId)}catch(_){}R.ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});
   if(R.ptrs.size===2){if(R.drag&&R.drag.type==='new')R.sh.dims.pop();R.drag=null;R.base=null;hideLoupe();
     const[a,b]=[...R.ptrs.values()],r=R.stage.getBoundingClientRect();R.pinch={d0:Math.hypot(a.x-b.x,a.y-b.y)||1,z0:ED.z,X0:ED.X,Y0:ED.Y,mx:(a.x+b.x)/2-r.left,my:(a.y+b.y)/2-r.top};edDraw();return}
@@ -655,10 +679,10 @@ function pdown(e){const R=RT;if(!R)return;e.preventDefault();try{R.stage.setPoin
   else if(h&&h.body)R.drag=R.sh.dims[h.i].id===ED.sel?Object.assign(base,{type:'mv',i:h.i,p0:pt,o:Object.assign({},R.sh.dims[h.i])}):Object.assign(base,{type:'tap',i:h.i});
   else if(ED.mode==='add'&&!PEND){R.sh.dims.push(newDim(pt.x,pt.y,pt.x,pt.y));R.drag=Object.assign(base,{type:'new',i:R.sh.dims.length-1,end:2})}
   else R.drag=Object.assign(base,{type:'pan',X0:ED.X,Y0:ED.Y});
-  if(['h','mv','new','lab','rot'].includes(R.drag.type))buildBase(R.drag.i)}
+  }
 function pmove(e){const R=RT;if(!R||!R.ptrs.has(e.pointerId))return;R.ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});
   if(R.pinch){if(R.ptrs.size<2)return;const[a,b]=[...R.ptrs.values()],r=R.stage.getBoundingClientRect(),P0=R.pinch;
-    const z=Math.max(1,Math.min(12,P0.z0*Math.hypot(a.x-b.x,a.y-b.y)/P0.d0)),mx=(a.x+b.x)/2-r.left,my=(a.y+b.y)/2-r.top;
+    const z=Math.max(1,Math.min(zMax(),P0.z0*Math.hypot(a.x-b.x,a.y-b.y)/P0.d0)),mx=(a.x+b.x)/2-r.left,my=(a.y+b.y)/2-r.top;
     const ix=(P0.mx-P0.X0)/(ED.fit*P0.z0),iy=(P0.my-P0.Y0)/(ED.fit*P0.z0);ED.z=z;ED.X=mx-ix*sc();ED.Y=my-iy*sc();applyT();return}
   const dr=R.drag;if(!dr)return;if(Math.hypot(e.clientX-dr.sx,e.clientY-dr.sy)>6)dr.moved=true;if(!dr.moved)return;
   const d=R.sh.dims[dr.i],pt=toImg(e);
@@ -726,10 +750,10 @@ document.addEventListener('click',async e=>{const t=e.target.closest('[data-t],[
     case'restore':return $('#filejs').click();
     case'addPh':LINK=null;return $('#fileph').click();
     case'addPlan':return $('#fileplan').click();
-    case'pdfPg':return PDFP&&pdfPage(PDFP.doc,+t.dataset.k,PDFP.name);
+    case'pdfPg':return PDFP&&pdfPage(PDFP.doc,+t.dataset.k,PDFP.name,PDFP.bytes);
     case'edMode':ED.mode=t.dataset.k;PEND=null;return render();
     case'zoom':return RT&&zoomAt(+t.dataset.k);
-    case'zoomFit':ED.z=1;return RT&&(applyT(),edDraw());
+    case'zoomFit':ED.z=1;return RT&&applyT();
     case'stOpen':ED.styleOpen=!ED.styleOpen;return render();
     case'stCol':{const sh=p.photos.find(x=>x.id===V.phid);sh.style=Object.assign(stOf(sh),{color:t.dataset.c});save();return render()}
     case'stDef':{const sh=p.photos.find(x=>x.id===V.phid);S.settings.style=stOf(sh);save();return toast('Estilo salvo como padrão')}
