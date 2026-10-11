@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Trenout</title>
+<title>TrenON</title>
 <meta name="theme-color" content="#1d57c9">
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icon-192.png">
@@ -172,7 +172,7 @@ pre.log{font:11px/1.4 var(--f-num);background:var(--sunk);padding:8px;border-rad
 </style>
 </head>
 <body>
-<header class="top"><button class="back" id="back" type="button" aria-label="Voltar" hidden>‹</button><h1 id="ttl">Trenout</h1><input class="txt" id="ttlin" hidden aria-label="Nome"><button class="back" id="gear" type="button" aria-label="Ajustes">⚙</button></header>
+<header class="top"><button class="back" id="back" type="button" aria-label="Voltar" hidden>‹</button><h1 id="ttl">TrenON</h1><input class="txt" id="ttlin" hidden aria-label="Nome"><button class="back" id="gear" type="button" aria-label="Ajustes">⚙</button></header>
 <main class="wrap" id="app"></main>
 
 <div id="dock">
@@ -596,7 +596,7 @@ async function exportBackup(){const ph={};for(const p of S.projects)for(const f 
 async function importBackup(file){try{const j=JSON.parse(await file.text());if(j.app!=='cotalaser'||!j.data)throw 0;
   const ids=new Set(S.projects.map(p=>p.id));for(const p of j.data.projects)if(!ids.has(p.id))S.projects.push(p);
   S.free=S.free.concat((j.data.free||[]).filter(f=>!S.free.some(x=>x.id===f.id)));for(const[k,v]of Object.entries(j.photos||{}))await idb.put(k,v);save();toast('Backup importado');render()}
-  catch(e){toast('Arquivo inválido: use um backup gerado pelo Trenout')}}
+  catch(e){toast('Arquivo inválido: use um backup gerado pelo TrenON')}}
 
 /* ===== trena Bosch GLM (BLE) ===== */
 const SVC='02a6c0d0-0451-4000-b000-fb3210111989',CHR='02a6c0d1-0451-4000-b000-fb3210111989';
@@ -659,7 +659,7 @@ function render(){REG=new Map();ORDER=[];const app=$('#app');let h='';
   if(V.v!=='home'&&V.v!=='cfg'&&!p){V={v:'home'}}
   $('#back').hidden=V.v==='home';
   $('#gear').hidden=V.v!=='home';$('#ttl').classList.toggle('ed',['project','room','photo'].includes(V.v));$('#ttl').hidden=false;$('#ttlin').hidden=true;
-  if(V.v==='home'){$('#ttl').textContent='Trenout';h=vHome()}
+  if(V.v==='home'){$('#ttl').textContent='TrenON';h=vHome()}
   else if(V.v==='cfg'){$('#ttl').textContent='Ajustes';h=vCfg()}
   else if(V.v==='project'){$('#ttl').textContent=p.name;h=vProject(p)}
   else if(V.v==='room'&&r){$('#ttl').textContent=r.name;h=vRoom(p,r)}
@@ -1049,7 +1049,7 @@ function pup(e){const R=RT;if(!R)return;R.ptrs.delete(e.pointerId);if(R.pinch){i
 
 function vReport(p){const t=totals(p),d=new Date();
   let h=`<div class="row noprint" style="margin:12px 0"><button class="btn pri" data-act="print" type="button">Imprimir / salvar PDF</button><button class="btn" data-act="xlsx" type="button">Excel (.xlsx)</button><button class="btn" data-act="csv" type="button">CSV</button></div>
-  <div class="rep"><h1>${esc(p.name)}</h1><div class="hint">Relatório de medição · ${d.toLocaleDateString('pt-BR')} · trena laser + Trenout</div>
+  <div class="rep"><h1>${esc(p.name)}</h1><div class="hint">Relatório de medição · ${d.toLocaleDateString('pt-BR')} · trena laser + TrenON</div>
   <div class="stats" style="margin-top:12px"><div class="stat"><small>Área de piso</small><b>${nf(t.area,2)}<i>m²</i></b></div><div class="stat"><small>Área de teto</small><b>${nf(t.teto,2)}<i>m²</i></b></div><div class="stat"><small>Parede líquida</small><b>${nf(t.net,2)}<i>m²</i></b></div><div class="stat"><small>Rodapé</small><b>${fl(t.rodape)}<i>${UN()}</i></b></div><div class="stat"><small>Volume</small><b>${nf(t.vol,2)}<i>m³</i></b></div></div>
   ${p.rooms.some(r=>r.pos&&rWorld(r))?`<h2>Planta geral</h2><div class="plan">${(()=>{const RW=p.rooms.map(rWorld).filter(Boolean),b=gBounds(RW),W=760,H=Math.round(W*Math.min(1.4,Math.max(0.45,(b[3]-b[1]+1.8)/(b[2]-b[0]+1.8))));return geralSVG(p,{W,H,exp:true,cotas:true})})()}</div>`:''}
   <h2>Quadro resumo</h2><div class="tbl"><table><thead><tr><th>Cômodo</th><th>PD (m)</th><th>Piso (m²)</th><th>Teto (m²)</th><th>Perím. (m)</th><th>Parede bruta (m²)</th><th>Aberturas (m²)</th><th>Parede líq. (m²)</th><th>Rodapé (m)</th><th>Vol. (m³)</th></tr></thead><tbody>`;
