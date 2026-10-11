@@ -160,6 +160,7 @@ pre.log{font:11px/1.4 var(--f-num);background:var(--sunk);padding:8px;border-rad
 .rep .room h3{font:600 18px var(--f-disp);text-transform:uppercase;margin:0 0 6px;border-bottom:2px solid var(--ink)}
 .rep .two{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 @media (max-width:560px){.rep .two{grid-template-columns:1fr}}
+.rep .crops{display:grid;gap:10px}.rep .crops figure{break-inside:avoid}
 .rep img{width:100%;border-radius:6px;border:1px solid var(--line)}
 @media print{
   :root{--bg:#fff;--surface:#fff;--ink:#000;--muted:#444;--line:#999;color-scheme:light}
@@ -759,7 +760,7 @@ function vReport(p){const t=totals(p),d=new Date();
     ${r.mode==='poly'&&c.g.ws.length>=3?`<tr><td>Erro de fechamento</td><td>${nf(c.g.err*100,1)} cm</td></tr>`:''}</tbody></table></div></div></div>`;
     const phs=p.photos.filter(f=>f.rid===r.id&&(f.kind||'photo')==='photo'&&!f.link);if(phs.length)h+=`<div class="two" style="margin-top:8px">${phs.map(f=>`<figure style="margin:0"><img data-rph="${f.id}" alt="${esc(f.name)}"><figcaption class="hint">${esc(f.name)}</figcaption></figure>`).join('')}</div>`;h+=`</div>`}
   for(const pl of p.photos.filter(f=>f.kind==='plan')){const g=catSummary(pl),ks=Object.keys(g),dec=S.settings.dec;
-    h+=`<div class="room"><h3>${esc(pl.name)} — projeto × real</h3><img data-rph="${pl.id}" alt="${esc(pl.name)}">`;
+    h+=`<div class="room"><h3>${esc(pl.name)} — projeto × real</h3>${pl.dims.length?`<div class="crops" data-crops="${pl.id}"><span class="hint">Gerando recortes das áreas cotadas…</span></div>`:`<img data-rph="${pl.id}" alt="${esc(pl.name)}">`}`;
     if(ks.length)h+=`<div class="tbl" style="margin-top:8px"><table><thead><tr><th>Categoria</th><th>Qtd</th><th>Σ Projeto (m)</th><th>Σ Real (m)</th><th>Δ (cm)</th><th>Fora</th></tr></thead><tbody>${ks.map(k=>{const a=g[k],dc=a.cmp?(a.rr-a.pp)*100:null;return`<tr><td>${CATS[k]}${k==='parede'?' (perímetro)':''}</td><td>${a.n}</td><td>${fl(a.p)}</td><td>${fl(a.r)}</td><td>${dc==null?'—':(dc>0?'+':'')+nf(dc,1)}</td><td>${a.bad}</td></tr>`}).join('')}</tbody></table></div>`;
     h+=`<div class="tbl" style="margin-top:8px"><table><thead><tr><th>Cota</th><th>Categoria</th><th>Projeto (${UN()})</th><th>Real (${UN()})</th><th>Δ (cm)</th><th>Status</th></tr></thead><tbody>${pl.dims.map((d,i)=>{const pj=projOf(pl,d),dc=deltaCm(pl,d),ok=okD(dc);
       return`<tr><td>C${i+1}${d.label?' '+esc(d.label):''}</td><td>${d.ref?'Escala':CATS[d.cat||'outro']}</td><td>${fl(pj)}</td><td>${fl(d.val)}</td><td>${dc==null?'—':(dc>0?'+':'')+nf(dc,1)}</td><td>${ok==null?'—':ok?'<span class="pill ok">OK</span>':'<span class="pill bad">FORA</span>'}</td></tr>`}).join('')}</tbody></table></div>
@@ -770,7 +771,28 @@ function vReport(p){const t=totals(p),d=new Date();
   const loose=p.photos.filter(f=>(f.kind||'photo')==='photo'&&!f.link&&(!f.rid||!R(p,f.rid)));if(loose.length)h+=`<h2>Fotos</h2><div class="two">${loose.map(f=>`<figure style="margin:0"><img data-rph="${f.id}" alt="${esc(f.name)}"><figcaption class="hint">${esc(f.name)}</figcaption></figure>`).join('')}</div>`;
   const fr=S.free.filter(f=>f.pid===p.id);if(fr.length)h+=`<h2>Medidas avulsas</h2><div class="tbl"><table><tbody>${fr.map(f=>`<tr><td>${esc(f.label||'—')}</td><td>${flu(f.v)}</td></tr>`).join('')}</tbody></table></div>`;
   h+=`<p class="hint" style="margin-top:16px">Parede líquida = perímetro × pé-direito − aberturas (limite de desconto: ${nf(+S.settings.minOpen,2)} m²). Rodapé = perímetro − larguras de portas e vãos. Área pelo método de Gauss sobre as paredes medidas.</p></div>`;return h}
-async function fillReportPhotos(){const p=P(V.pid);for(const el of document.querySelectorAll('img[data-rph]')){const ph=p.photos.find(x=>x.id===el.dataset.rph);const u=ph&&await photoBlob(ph,ph.kind==='plan'?2000:1000);if(u)el.src=u}}
+/* recortes das áreas cotadas da planta (agrupa cotas próximas) */
+function cropRects(sh){const W=sh.w,H=sh.h,M=Math.max(W,H),m=0.05*M,mn=0.14*M;
+  let R=sh.dims.map(d=>{let x0=Math.min(d.x1,d.x2),x1=Math.max(d.x1,d.x2),y0=Math.min(d.y1,d.y2),y1=Math.max(d.y1,d.y2);
+    if(d.lo){const cx=(d.x1+d.x2)/2+d.lo[0],cy=(d.y1+d.y2)/2+d.lo[1];x0=Math.min(x0,cx);x1=Math.max(x1,cx);y0=Math.min(y0,cy);y1=Math.max(y1,cy)}
+    return[x0-m,y0-m,x1+m,y1+m]});
+  let merged=true;while(merged){merged=false;for(let i=0;i<R.length&&!merged;i++)for(let j=i+1;j<R.length;j++){const a=R[i],b=R[j];
+    if(a[0]<=b[2]&&b[0]<=a[2]&&a[1]<=b[3]&&b[1]<=a[3]){R[i]=[Math.min(a[0],b[0]),Math.min(a[1],b[1]),Math.max(a[2],b[2]),Math.max(a[3],b[3])];R.splice(j,1);merged=true;break}}}
+  return R.map(([x0,y0,x1,y1])=>{let w=x1-x0,h=y1-y0;if(w<mn){x0-=(mn-w)/2;w=mn}if(h<mn){y0-=(mn-h)/2;h=mn}
+    if(w/h>2.2){const nh=w/2.2;y0-=(nh-h)/2;h=nh}if(h/w>1.6){const nw=h/1.6;x0-=(nw-w)/2;w=nw}
+    x0=Math.max(0,Math.min(W-w,x0));y0=Math.max(0,Math.min(H-h,y0));w=Math.min(w,W);h=Math.min(h,H);return[x0,y0,w,h]})}
+async function pdfPageFor(sh){if(!sh.pdf)return null;if(PAGES.has(sh.id))return PAGES.get(sh.id);
+  try{if(!window.pdfjsLib){await loadScript('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js');pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'}
+    const bytes=await idb.get('pdf:'+sh.id);if(!bytes)return null;const doc=await pdfjsLib.getDocument({data:new Uint8Array(bytes)}).promise;const pg=await doc.getPage(sh.pdf.page);PAGES.set(sh.id,pg);return pg}catch(e){return null}}
+async function planCrops(sh){const im=await img(sh.id);if(!im)return[];const out=[],page=await pdfPageFor(sh);
+  for(const[rx,ry,rw,rh]of cropRects(sh)){const f=1800/rw,c=document.createElement('canvas');c.width=Math.round(rw*f);c.height=Math.round(rh*f);const x=c.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,c.width,c.height);
+    let ok=false;if(page){try{const vp=page.getViewport({scale:sh.pdf.rs*f,offsetX:-rx*f,offsetY:-ry*f});await page.render({canvasContext:x,viewport:vp}).promise;ok=true}catch(e){}}
+    if(!ok)x.drawImage(im,rx,ry,rw,rh,0,0,c.width,c.height);
+    x.setTransform(f,0,0,f,-rx*f,-ry*f);drawSheet(x,im,sh,{noImg:true,k:(rw/600)*1000/Math.max(sh.w,sh.h)});out.push(c.toDataURL('image/jpeg',0.9))}
+  return out}
+async function fillReportPhotos(){const p=P(V.pid);
+  for(const el of document.querySelectorAll('[data-crops]')){const sh=p.photos.find(x=>x.id===el.dataset.crops);const cs=sh?await planCrops(sh):[];if(!document.contains(el))return;
+    el.innerHTML=cs.map((u,i)=>`<figure style="margin:0"><img src="${u}" alt="Área cotada ${i+1}"><figcaption class="hint">Área ${i+1} de ${cs.length}</figcaption></figure>`).join('')}for(const el of document.querySelectorAll('img[data-rph]')){const ph=p.photos.find(x=>x.id===el.dataset.rph);const u=ph&&await photoBlob(ph,ph.kind==='plan'?2000:1000);if(u)el.src=u}}
 
 /* ===== eventos ===== */
 document.addEventListener('click',async e=>{const t=e.target.closest('[data-t],[data-act]');if(!t)return;
