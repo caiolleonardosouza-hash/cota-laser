@@ -210,7 +210,7 @@ function load(){try{S=JSON.parse(localStorage.getItem(KEY))}catch(e){S=null}
   if(!S||!Array.isArray(S.projects)){S={projects:[],free:[],settings:{minOpen:0,dec:3}};seed()}
   S.free=S.free||[];S.settings=Object.assign({minOpen:0,dec:3,tol:1,vib:true,wake:true},S.settings||{});for(const p of S.projects)for(const r of p.rooms||[]){delete r.extras;for(const sc of r.sancas||[])if(sc.wall!=null&&sc.corner==null){sc.corner=sc.wall;sc.a=sc.len||null;sc.b=0;delete sc.wall;delete sc.len;delete sc.off}}if(!S.settings.fmt||!FMTS[S.settings.fmt])S.settings.fmt=S.settings.fmt==='cm0'?'cm1':'m3';S.settings.dec=3;
   for(const p of S.projects)for(const f of p.photos||[]){f.kind=f.kind||'photo';f.dims=(f.dims||[]).map(d=>Object.assign({id:uid(),ph:[]},d))}}
-function save(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){toast('Não consegui salvar no aparelho (memória cheia?)')}}
+function save(){try{if(typeof V!=='undefined'&&V&&V.pid){const p=S.projects.find(x=>x.id===V.pid);if(p){p.upd=Date.now();S.settings.lastP=p.id}}}catch(_){}try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){toast('Não consegui salvar no aparelho (memória cheia?)')}}
 function newRoom(name){return{id:uid(),name,mode:'rect',a:null,b:null,h:null,walls:[{len:null,ang:90}],openings:[],objects:[]}}
 function seed(){const r=newRoom('Sala (exemplo)');r.a=4.2;r.b=3.1;r.h=2.7;
   r.openings=[{id:uid(),t:'porta',w:0.8,h:2.1,q:1,wall:0},{id:uid(),t:'janela',w:1.5,h:1.2,q:1,wall:1}];
@@ -606,10 +606,15 @@ function render(){REG=new Map();ORDER=[];const app=$('#app');let h='';
   app.innerHTML=h;if(target&&!REG.has(target))target=null;updateDock();after()}
 function after(){RT=null;GR=null;hideLoupe();if(V.v==='project'&&V.tab==='geral')setupGeral();if(V.v==='photo')setupEditor();if(V.v==='report')fillReportPhotos()}
 
-function vHome(){const ps=S.projects;let h=`<h2>Obras</h2><div class="list">`;
-  for(const p of ps){const t=totals(p);h+=`<div class="prow"><button class="item" data-act="openP" data-id="${p.id}"><div class="grow"><b>${esc(p.name)}</b><div class="sub">${p.rooms.length} cômodo(s) · ${p.photos.filter(f=>f.kind==='plan').length} planta(s) · ${p.photos.filter(f=>f.kind!=='plan').length} foto(s)</div></div><div class="num">${nf(t.area,2)} m²</div></button><button class="btn sm del" data-act="delPid" data-id="${p.id}" type="button" aria-label="Excluir obra">Excluir</button></div>`}
-  h+=`</div><form class="row" data-form="newP" style="margin-top:10px"><input class="txt grow" id="np" placeholder="Nome da obra / unidade (ex.: Riviera T2 ap 1204)" required><button class="btn pri">Criar</button></form>`;
-  const fr=S.free.filter(f=>!f.pid);if(fr.length)h+=`<h2>Medidas avulsas sem obra</h2>`+freeList(fr);
+function vHome(){const ps=S.projects,dt=t=>t?new Date(t).toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'}):'';
+  let h=`<form class="row" data-form="newP" style="margin-top:4px"><input class="txt grow" id="np" placeholder="Nova obra / unidade (ex.: Riviera T2 ap 1204)" required><button class="btn pri">Criar</button></form>`;
+  if(ps.length){let A=0,N=0,W=0;const T=ps.map(p=>{const t=totals(p);A+=t.area;W+=t.net;N+=p.rooms.length;return t});
+    h+=`<div class="stats" style="margin-top:12px;grid-template-columns:repeat(4,1fr);gap:6px"><div class="stat"><small>Obras</small><b>${ps.length}</b></div><div class="stat"><small>Cômodos</small><b>${N}</b></div><div class="stat"><small>Piso</small><b>${nf(A,1)}<i>m²</i></b></div><div class="stat"><small>Parede líq.</small><b>${nf(W,1)}<i>m²</i></b></div></div>`;
+    const last=ps.find(p=>p.id===S.settings.lastP);if(last)h+=`<button class="btn pri" data-act="openP" data-id="${last.id}" type="button" style="width:100%;margin-top:10px">Continuar: ${esc(last.name)}</button>`;
+    const ord=ps.map((p,i)=>({p,t:T[i]})).sort((a,b)=>(b.p.upd||0)-(a.p.upd||0));
+    h+=`<h2>Obras</h2><div class="list">`+ord.map(({p,t})=>`<div class="prow"><button class="item" data-act="openP" data-id="${p.id}"><div class="grow"><b>${esc(p.name)}</b><div class="sub">${p.rooms.length} cômodo(s) · ${p.photos.filter(f=>f.kind==='plan').length} planta(s) · ${p.photos.filter(f=>f.kind!=='plan').length} foto(s)${p.upd?' · '+dt(p.upd):''}</div><div class="sub num">piso ${nf(t.area,2)} m² · parede ${nf(t.net,2)} m² · teto ${nf(t.teto,2)} m²</div></div></button><button class="btn sm del" data-act="delPid" data-id="${p.id}" type="button" aria-label="Excluir obra">✕</button></div>`).join('')+`</div>`}
+  else h+=`<div class="card" style="margin-top:12px;text-align:center"><p style="margin:4px 0 10px"><b>Nenhuma obra cadastrada</b></p><button class="btn" data-act="restore" type="button">Importar backup</button></div>`;
+  const fr=S.free.filter(f=>!f.pid);h+=`<h2>Leituras avulsas${fr.length?' ('+fr.length+')':''}</h2>`+(fr.length?freeList(fr.slice(0,15))+(fr.length>15?`<p class="hint">+ ${fr.length-15} mais antigas</p>`:''):`<p class="hint">Leituras fora de uma obra ficam aqui.</p>`);
   return h}
 function vCfg(){const st=defStyle();return`<h2>Medidas</h2><div class="card list">
    <label class="row"><span class="grow">Unidade e precisão</span><select id="sfmt">${Object.entries(FMTS).map(([k,f])=>`<option value="${k}"${S.settings.fmt===k?' selected':''}>${f.n}</option>`).join('')}</select></label>
