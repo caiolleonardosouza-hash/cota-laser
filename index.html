@@ -41,6 +41,10 @@ header.top h1{font:700 22px/1.1 var(--f-disp);letter-spacing:.02em;margin:0;flex
 .prow{display:flex;gap:8px;align-items:stretch}.prow .item{flex:1;min-width:0}.prow .del{align-self:center}
 #ttl.ed{cursor:pointer}#ttl.ed::after{content:" ✎";font-size:.7em;opacity:.55}
 #ttlin{flex:1;min-width:0;font:700 20px/1.1 var(--f-disp);text-transform:uppercase}
+.sheetbg{position:fixed;inset:0;z-index:25;background:transparent}
+.sheet{position:fixed;left:0;right:0;bottom:0;z-index:26;max-height:52vh;overflow-y:auto;background:var(--surface);border-top:2px solid var(--ink);border-radius:14px 14px 0 0;
+  padding:12px 16px calc(env(safe-area-inset-bottom,0px) + 16px);box-shadow:0 -8px 24px rgba(0,0,0,.35)}
+.sheethd{position:sticky;top:-12px;background:var(--surface);padding-block:6px;z-index:1}
 .back{border:1px solid var(--line);background:var(--surface);border-radius:8px;width:40px;height:40px;font-size:20px;cursor:pointer}
 h2{font:600 18px/1.2 var(--f-disp);text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:22px 0 10px}
 .card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px}
@@ -569,7 +573,7 @@ function vPhoto(p,ph){const isPlan=ph.kind==='plan',st=stOf(ph),dec=S.settings.d
     <button class="btn sm${ED.styleOpen?' pri':''}" data-act="stOpen" type="button">Estilo</button></div>
   <div class="stage" id="stage"><canvas id="ph"></canvas></div>
   <p id="edhint" hidden></p>`;
-  if(ED.styleOpen)h+=`<div class="card list">
+  if(ED.styleOpen)h+=`<div class="sheetbg" data-act="stOpen"></div><div class="sheet list" role="dialog" aria-label="Estilo das cotas"><div class="row sheethd"><b class="grow">Estilo das cotas</b><button class="btn sm pri" data-act="stOpen" type="button">Fechar</button></div>
     <label class="row"><span style="width:110px">Espessura</span><input type="range" class="grow" min="1" max="12" step="0.5" id="stLw" value="${st.lw}"><span class="num" style="width:34px">${st.lw}</span></label>
     <label class="row"><span style="width:110px">Tamanho texto</span><input type="range" class="grow" min="8" max="48" step="1" id="stFs" value="${st.fs}"><span class="num" style="width:34px">${st.fs}</span></label>
     <label class="row"><span style="width:110px">Cota cresce até</span><input type="range" class="grow" min="1" max="20" step="1" id="stZr" value="${st.zref||4}"><span class="num" style="width:34px">${st.zref||4}×</span></label>
