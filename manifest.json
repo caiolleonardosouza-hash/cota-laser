@@ -1,7 +1,7 @@
 {
-  "name": "Cota Laser",
-  "short_name": "Cota Laser",
-  "description": "Medição de cômodos com trena laser Bosch GLM via Bluetooth",
+  "name": "Trenout",
+  "short_name": "Trenout",
+  "description": "Medição com trena laser via Bluetooth",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
