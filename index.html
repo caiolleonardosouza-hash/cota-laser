@@ -256,8 +256,13 @@ function planSVG(r,{W=360,H=270,exp=false}={}){
     const anc=n[0]>0.5?'start':n[0]<-0.5?'end':'middle';const ix=(a[0]+b[0])/2-n[0]*12,iy=(a[1]+b[1])/2-n[1]*12;
     o+=`<text x="${mx.toFixed(1)}" y="${(my+4).toFixed(1)}" text-anchor="${anc}" font-size="12" font-weight="700" fill="${C.txt}">${fl(w.len)}</text>`;
     o+=`<text x="${ix.toFixed(1)}" y="${(iy+3).toFixed(1)}" text-anchor="middle" font-size="9" fill="${C.mut}">P${i+1}</text>`;
-    r.openings.filter(op=>op.wall===i&&op.w>0).forEach((op,k,arr)=>{const f=Math.min(1,op.w/w.len);const c=(k+1)/(arr.length+1);
+    r.openings.filter(op=>op.wall===i&&op.w>0).forEach((op,k,arr)=>{const f=Math.min(1,op.w/w.len);let c=(k+1)/(arr.length+1);
+      if(op.off!=null)c=Math.min(1,(op.off+op.w/2)/w.len);
       const t0=Math.max(0,c-f/2),t1=Math.min(1,c+f/2);
+      if(op.off!=null&&op.off>0){const ix=-n[0]*9,iy=-n[1]*9,bx=a[0]+ix,by=a[1]+iy,qx=a[0]+ex*t0+ix,qy=a[1]+ey*t0+iy;
+        o+=`<line x1="${bx.toFixed(1)}" y1="${by.toFixed(1)}" x2="${qx.toFixed(1)}" y2="${qy.toFixed(1)}" stroke="${C.acc}" stroke-width="1"/>`;
+        for(const[px,py]of[[bx,by],[qx,qy]])o+=`<line x1="${(px-n[0]*3).toFixed(1)}" y1="${(py-n[1]*3).toFixed(1)}" x2="${(px+n[0]*3).toFixed(1)}" y2="${(py+n[1]*3).toFixed(1)}" stroke="${C.acc}" stroke-width="1"/>`;
+        o+=`<text x="${((bx+qx)/2-n[0]*8).toFixed(1)}" y="${((by+qy)/2-n[1]*8+3).toFixed(1)}" text-anchor="middle" font-size="8.5" font-weight="700" fill="${C.acc}">${fl(op.off)}</text>`}
       o+=`<line x1="${(a[0]+ex*t0).toFixed(1)}" y1="${(a[1]+ey*t0).toFixed(1)}" x2="${(a[0]+ex*t1).toFixed(1)}" y2="${(a[1]+ey*t1).toFixed(1)}" stroke="${C.acc}" stroke-width="6"/>`;
       const lx=a[0]+ex*c-n[0]*12,ly=a[1]+ey*c-n[1]*12;
       o+=`<text x="${lx.toFixed(1)}" y="${(ly+3).toFixed(1)}" text-anchor="middle" font-size="9" font-weight="700" fill="${C.acc}">${op.t==='porta'?'PT':op.t==='janela'?'JA':'VÃ'}</text>`})});
@@ -300,6 +305,7 @@ async function addSheet(dataUrl,kind,extra={}){const p=P(V.pid);if(!p)return;
   const sh=Object.assign({id,kind,name:(kind==='plan'?'Planta ':'Foto ')+n,dims:[],t:Date.now(),w:st.w,h:st.h},extra);
   p.photos.push(sh);save();return sh}
 async function addPhoto(file){const sh=await addSheet(await readAsDataURL(file),'photo',LINK?{rid:LINK.rid||null}:{});
+  if(LINK&&LINK.wall!=null){const p=P(V.pid),r=R(p,LINK.rid);if(r){r.wph=r.wph||{};(r.wph[LINK.wall]=r.wph[LINK.wall]||[]).push(sh.id);sh.link={rid:r.id,wall:LINK.wall};sh.rid=r.id;sh.name=r.name+' — P'+(LINK.wall+1);save()}LINK=null}
   if(LINK){const p=P(V.pid),pl=p.photos.find(x=>x.id===LINK.sid),d=pl&&pl.dims.find(x=>x.id===LINK.did);if(d){(d.ph=d.ph||[]).push(sh.id);sh.link={sid:LINK.sid,did:LINK.did};sh.name=(d.label||CATS[d.cat]||'Cota')+' — foto';save()}LINK=null}
   go({v:'photo',pid:V.pid,phid:sh.id})}
 let LINK=null,PDFP=null;
@@ -385,11 +391,11 @@ async function photoBlob(ph,max=0){const im=await img(ph.id);if(!im)return null;
   if(max&&Math.max(c.width,c.height)>max){const k=max/Math.max(c.width,c.height),c2=document.createElement('canvas');c2.width=c.width*k;c2.height=c.height*k;c2.getContext('2d').drawImage(c,0,0,c2.width,c2.height);return c2.toDataURL('image/jpeg',0.82)}
   if(max)return c.toDataURL('image/jpeg',0.85);
   return new Promise(r=>c.toBlob(r,'image/jpeg',0.92))}
-function cTag(p,ph,i){if(ph.link){const pl=p.photos.find(x=>x.id===ph.link.sid),k=pl?pl.dims.findIndex(x=>x.id===ph.link.did):-1;if(k>=0)return'C'+(k+1)+'.'+(i+1)}return'C'+(i+1)}
+function cTag(p,ph,i){if(ph.link&&ph.link.wall!=null)return'P'+(ph.link.wall+1)+'.'+(i+1);if(ph.link){const pl=p.photos.find(x=>x.id===ph.link.sid),k=pl?pl.dims.findIndex(x=>x.id===ph.link.did):-1;if(k>=0)return'C'+(k+1)+'.'+(i+1)}return'C'+(i+1)}
 function planTotals(p){const o={n:0,r:0,p:0,cmp:0,dc:0,bad:0,cmpAll:0};
   for(const pl of p.photos.filter(f=>f.kind==='plan')){for(const d of pl.dims){if(d.ref)continue;o.n++;const dc=deltaCm(pl,d);if(dc!=null){o.cmpAll++;if(!okD(dc))o.bad++}}
     const a=catSummary(pl).parede;if(a){o.r+=a.r;o.p+=a.p;o.cmp+=a.cmp;o.dc+=(a.rr-a.pp)*100}}return o}
-function delSheet(p,id){idb.del(id);idb.del('pdf:'+id);PAGES.delete(id);HIS.delete(id);IMG.delete(id);p.photos=p.photos.filter(x=>x.id!==id);
+function delSheet(p,id){for(const r of p.rooms)if(r.wph)for(const k in r.wph)r.wph[k]=r.wph[k].filter(x=>x!==id);idb.del(id);idb.del('pdf:'+id);PAGES.delete(id);HIS.delete(id);IMG.delete(id);p.photos=p.photos.filter(x=>x.id!==id);
   for(const f of p.photos){for(const d of f.dims)if(d.ph)d.ph=d.ph.filter(x=>x!==id);if(f.link&&f.link.sid===id)delete f.link}save()}
 function catSummary(sh){const g={};for(const d of sh.dims){if(d.ref)continue;const k=d.cat||'outro';const a=g[k]||(g[k]={n:0,p:0,r:0,cmp:0,pp:0,rr:0,bad:0});a.n++;
     const p=projOf(sh,d);if(p!=null)a.p+=p;if(d.val!=null)a.r+=d.val;if(p!=null&&d.val!=null){a.cmp++;a.pp+=p;a.rr+=d.val;if(!okD(deltaCm(sh,d)))a.bad++}}return g}
@@ -402,8 +408,8 @@ function rowsFor(p){const d=S.settings.dec,R3=n=>n==null?null:+(+n).toFixed(3);
   const res=[['Cômodo','Pé-direito (m)','Área piso (m²)','Perímetro (m)','Parede bruta (m²)','Aberturas (m²)','Parede líquida (m²)','Rodapé (m)','Volume (m³)','Fechamento planta (m)']];
   for(const r of p.rooms){const c=calc(r);res.push([r.name,R3(r.h),R3(c.area),R3(c.perim),R3(c.gross),R3(c.openA),R3(c.net),R3(c.rodape),R3(c.vol),R3(c.g.err)])}
   const t=totals(p);res.push(['TOTAL',null,R3(t.area),R3(t.perim),R3(t.gross),R3(t.openA),R3(t.net),R3(t.rodape),R3(t.vol),null]);
-  const wl=[['Cômodo','Parede','Comprimento (m)','Giro após (°)']];for(const r of p.rooms)walls(r).forEach((w,i)=>wl.push([r.name,'P'+(i+1),R3(w.len),r.mode==='rect'?90:+w.ang]));
-  const op=[['Cômodo','Tipo','Parede','Qtd','Largura (m)','Altura (m)','Área total (m²)']];for(const r of p.rooms)r.openings.forEach(o=>op.push([r.name,o.t,o.wall==null?'':'P'+(o.wall+1),o.q||1,R3(o.w),R3(o.h),R3((o.w||0)*(o.h||0)*(o.q||1))]));
+  const wl=[['Cômodo','Parede','Real (m)','Projeto (m)','Δ (cm)','Giro após (°)']];for(const r of p.rooms){if(r.h!=null||r.hPj!=null)wl.push([r.name,'Pé-direito',R3(r.h),R3(r.hPj),dcs(r.h,r.hPj)==null?null:+dcs(r.h,r.hPj).toFixed(1),null]);walls(r).forEach((w,i)=>{const pj=wallPj(r,i),dc=dcs(w.len,pj);wl.push([r.name,'P'+(i+1),R3(w.len),R3(pj),dc==null?null:+dc.toFixed(1),r.mode==='rect'?90:+w.ang])})}
+  const op=[['Cômodo','Tipo','Parede','Qtd','Largura (m)','Largura proj. (m)','Altura (m)','Altura proj. (m)','Dist. início (m)','Dist. início proj. (m)','Área total (m²)']];for(const r of p.rooms)r.openings.forEach(o=>op.push([r.name,o.t,o.wall==null?'':'P'+(o.wall+1),o.q||1,R3(o.w),R3(o.wPj),R3(o.h),R3(o.hPj),R3(o.off),R3(o.offPj),R3((o.w||0)*(o.h||0)*(o.q||1))]));
   const ob=[['Cômodo','Objeto','C (m)','L (m)','A (m)','Área (m²)','Volume (m³)']];for(const r of p.rooms)r.objects.forEach(o=>ob.push([r.name,o.n||'',R3(o.a),R3(o.b),R3(o.c),R3((o.a||0)*(o.b||0)),R3((o.a||0)*(o.b||0)*(o.c||0))]));
   const fr=[['Data/hora','Descrição','Medida (m)']];S.free.filter(f=>f.pid===p.id).forEach(f=>fr.push([new Date(f.t).toLocaleString('pt-BR'),f.label||'',R3(f.v)]));
   const px=[['Planta','Cota','Categoria','Descrição','Projeto (m)','Real (m)','Δ (cm)','Status','Fotos']];
@@ -546,29 +552,39 @@ function vProject(p){const tab=V.tab||'rooms',t=totals(p);
   return h}
 async function thumbs(){for(const el of document.querySelectorAll('img[data-ph]')){const p=P(V.pid),ph=p&&p.photos.find(x=>x.id===el.dataset.ph);if(!ph)continue;const u=await photoBlob(ph,500);if(u)el.src=u}}
 
+function PJ(k,v){return`<label class="mf cmp" style="cursor:text"><span class="mfl">Proj.</span><input class="pin num" data-act="pj" data-k="${k}" inputmode="decimal" value="${v!=null?fl(v):''}" placeholder="—"></label>`}
+function DL(real,pj){if(real==null||pj==null)return'';const dc=(real-pj)*100,ok=okD(dc);return`<span class="pill ${ok?'ok':'bad'}">${(dc>0?'+':'')+nf(dc,1)}</span>`}
+function wallPj(r,i){return r.mode==='rect'?(i%2?r.bPj:r.aPj):(r.walls.filter(w=>w.len>0)[i]||{}).pj}
+const dcs=(re,pj)=>re!=null&&pj!=null?(re-pj)*100:null,dtxt=dc=>dc==null?'—':(dc>0?'+':'')+nf(dc,1)+' cm';
+function setPj(r,k,v){const a=k.split(':');if(a[0]==='h')r.hPj=v;else if(a[0]==='a')r.aPj=v;else if(a[0]==='b')r.bPj=v;else if(a[0]==='w')r.walls[+a[1]].pj=v;else if(a[0]==='o')r.openings[+a[1]][a[2]+'Pj']=v}
+function wallPhotos(p,r,i){const ids=((r.wph||{})[i]||[]).filter(id=>p.photos.some(f=>f.id===id));return ids}
+function WPH(p,r,i){const n=wallPhotos(p,r,i).length;return`<button class="btn sm" data-act="wPh" data-i="${i}" type="button" aria-label="Foto da parede P${i+1}">📷${n?' '+n:''}</button>`}
+function WMIN(p,r,i){const ids=wallPhotos(p,r,i);return ids.length?`<div class="minis">${ids.map(id=>`<button class="mini" data-act="openPh" data-id="${id}" type="button"><img data-ph="${id}" alt="Foto P${i+1}"></button>`).join('')}</div>`:''}
 function vRoom(p,r){const tab=V.tab||'med',c=calc(r),d=S.settings.dec;
   let h=`<div class="tabs">${[['med','Medidas'],['open','Aberturas'],['obj','Objetos'],['plan','Planta'],['sum','Resumo']].map(([k,n])=>`<button class="tab${tab===k?' on':''}" data-act="rtab" data-k="${k}" type="button">${n}</button>`).join('')}</div>`;
   if(tab==='med'){
     h+=`<div class="row" style="margin:10px 0"><button class="btn sm${r.mode==='rect'?' pri':''}" data-act="mode" data-k="rect" type="button">Retângulo</button><button class="btn sm${r.mode==='poly'?' pri':''}" data-act="mode" data-k="poly" type="button">Paredes em série</button></div>`;
-    h+=`<div class="row">`+F('h','Pé-direito',r.h,v=>r.h=v);
-    if(r.mode==='rect')h+=F('a','Comprimento',r.a,v=>r.a=v)+F('b','Largura',r.b,v=>r.b=v)+`</div>`;
-    else{h+=`</div><div class="card" style="padding:4px 12px">`;
-      r.walls.forEach((w,i)=>{const std=[90,-90,45,-45,135,-135].includes(+w.ang);
-        h+=`<div class="wall"><span class="tag">P${i+1}</span><div class="row">${F('w:'+i,'Parede '+(i+1),w.len,v=>{r.walls[i].len=v;if(i===r.walls.length-1)r.walls.push({len:null,ang:90})})}
-        <select data-act="ang" data-i="${i}" aria-label="Giro após P${i+1}">${[[90,'↰ 90° esq'],[-90,'↱ 90° dir'],[45,'↰ 45° esq'],[-45,'↱ 45° dir'],[135,'↰ 135° esq'],[-135,'↱ 135° dir']].map(([v,n])=>`<option value="${v}"${+w.ang===v?' selected':''}>${n}</option>`).join('')}<option value="x"${std?'':' selected'}>outro…</option></select>
-        ${std?'':`<input class="txt num" style="width:80px" data-act="angx" data-i="${i}" inputmode="decimal" value="${nf(+w.ang,1)}" aria-label="Giro em graus (+ esq, − dir)">`}</div>
-        <button class="btn sm del" data-act="delW" data-i="${i}" type="button" aria-label="Apagar P${i+1}">✕</button></div>`});
-      h+=`</div><button class="btn sm" data-act="addW" type="button" style="margin-top:8px">+ Parede</button>`;
+    h+=`<div class="dim"><div class="drow"><span class="tag">PD</span>${F('h','Pé-direito',r.h,v=>r.h=v)}${PJ('h',r.hPj)}${DL(r.h,r.hPj)}</div></div>`;
+    if(r.mode==='rect'){h+=`<div class="list" style="margin-top:6px"><div class="dim"><div class="drow"><span class="tag">A</span>${F('a','Comprimento',r.a,v=>r.a=v)}${PJ('a',r.aPj)}${DL(r.a,r.aPj)}<span class="hint">P1 · P3</span></div></div>
+      <div class="dim"><div class="drow"><span class="tag">B</span>${F('b','Largura',r.b,v=>r.b=v)}${PJ('b',r.bPj)}${DL(r.b,r.bPj)}<span class="hint">P2 · P4</span></div></div>
+      <div class="dim"><div class="drow"><span class="hint">Fotos:</span>${[0,1,2,3].map(k=>`<span class="tag">P${k+1}</span>${WPH(p,r,k)}`).join('')}</div>${[0,1,2,3].map(k=>WMIN(p,r,k)).join('')}</div></div>`;setTimeout(thumbs,0)}
+    else{h+=`<div class="list" style="margin-top:6px">`;
+      r.walls.forEach((w,i)=>{const std=[90,-90,45,-45,135,-135].includes(+w.ang),last=i===r.walls.length-1&&w.len==null;
+        h+=`<div class="dim"><div class="drow"><span class="tag">P${i+1}</span>${F('w:'+i,'Parede '+(i+1),w.len,v=>{r.walls[i].len=v;if(i===r.walls.length-1)r.walls.push({len:null,ang:90})})}${last?'':PJ('w:'+i,w.pj)}${DL(w.len,w.pj)}<button class="btn sm del xb" data-act="delW" data-i="${i}" type="button" aria-label="Apagar P${i+1}">✕</button></div>
+        ${last?'':`<div class="drow" style="margin-top:4px"><select class="cs" style="flex:0 1 120px" data-act="ang" data-i="${i}" aria-label="Giro após P${i+1}">${[[90,'↰ 90° esq'],[-90,'↱ 90° dir'],[45,'↰ 45° esq'],[-45,'↱ 45° dir'],[135,'↰ 135° esq'],[-135,'↱ 135° dir']].map(([v,n])=>`<option value="${v}"${+w.ang===v?' selected':''}>${n}</option>`).join('')}<option value="x"${std?'':' selected'}>outro…</option></select>
+        ${std?'':`<input class="txt num" style="width:70px" data-act="angx" data-i="${i}" inputmode="decimal" value="${nf(+w.ang,1)}" aria-label="Giro em graus">`}${WPH(p,r,i)}</div>${WMIN(p,r,i)}`}</div>`});
+      h+=`</div><button class="btn sm" data-act="addW" type="button" style="margin-top:8px">+ Parede</button>`;setTimeout(thumbs,0);
       const g=c.g;if(g.ws.length>=3)h+=g.err<0.02?`<p class="okbox">Planta fechada. Erro de fechamento: ${nf(g.err*100,1)} cm.</p>`:`<p class="warnbox">Não fecha: faltam ${nf(g.err,3)} m.</p>`}
     h+=`<div class="plan" style="margin-top:12px">${planSVG(r)||'<div class="plan-empty">Meça as paredes para desenhar a planta.</div>'}</div>`;
     h+=`<div class="stats" style="margin-top:10px"><div class="stat"><small>Área piso</small><b>${nf(c.area,2)}<i>m²</i></b></div><div class="stat"><small>Perímetro</small><b>${fl(c.perim)}<i>${UN()}</i></b></div><div class="stat"><small>Parede líquida</small><b>${nf(c.net,2)}<i>m²</i></b></div><div class="stat"><small>Volume</small><b>${nf(c.vol,2)}<i>m³</i></b></div></div>`}
   if(tab==='open'){const nW=c.g.ws.length;
     h+=`<div class="row" style="margin:10px 0"><button class="btn sm" data-act="addO" data-k="porta" type="button">+ Porta</button><button class="btn sm" data-act="addO" data-k="janela" type="button">+ Janela</button><button class="btn sm" data-act="addO" data-k="vao" type="button">+ Vão</button></div><div class="list">`;
-    r.openings.forEach((o,i)=>{h+=`<div class="card list"><div class="row"><select data-act="oT" data-i="${i}">${['porta','janela','vao'].map(t=>`<option value="${t}"${o.t===t?' selected':''}>${t==='vao'?'Vão':t[0].toUpperCase()+t.slice(1)}</option>`).join('')}</select>
-      <select data-act="oW" data-i="${i}" aria-label="Parede"><option value="">sem parede</option>${Array.from({length:nW},(_,k)=>`<option value="${k}"${o.wall===k?' selected':''}>P${k+1}</option>`).join('')}</select>
-      <label class="row">Qtd <input class="txt num" style="width:60px" data-act="oQ" data-i="${i}" inputmode="numeric" value="${o.q||1}"></label><span class="grow"></span><button class="btn sm del" data-act="delO" data-i="${i}" type="button">✕</button></div>
-      <div class="row">${F('o:'+i+':w','Largura',o.w,v=>r.openings[i].w=v)}${F('o:'+i+':h','Altura',o.h,v=>r.openings[i].h=v)}<span class="num hint">${nf((o.w||0)*(o.h||0)*(o.q||1),2)} m²</span></div></div>`});
-    
+    r.openings.forEach((o,i)=>{const wn=o.wall!=null?'P'+(o.wall+1):'parede';h+=`<div class="dim"><div class="drow"><select class="cs" data-act="oT" data-i="${i}">${['porta','janela','vao'].map(t=>`<option value="${t}"${o.t===t?' selected':''}>${t==='vao'?'Vão':t[0].toUpperCase()+t.slice(1)}</option>`).join('')}</select>
+      <select class="cs" data-act="oW" data-i="${i}" aria-label="Parede"><option value="">sem parede</option>${Array.from({length:nW},(_,k)=>`<option value="${k}"${o.wall===k?' selected':''}>P${k+1}</option>`).join('')}</select>
+      <label class="row" style="gap:4px;font-size:13px">Qtd <input class="txt num" style="width:46px;padding:5px" data-act="oQ" data-i="${i}" inputmode="numeric" value="${o.q||1}"></label><button class="btn sm del xb" data-act="delO" data-i="${i}" type="button">✕</button></div>
+      <div class="drow" style="margin-top:4px"><span class="tag">L</span>${F('o:'+i+':w','Largura '+(o.t==='vao'?'vão':o.t),o.w,v=>r.openings[i].w=v)}${PJ('o:'+i+':w',o.wPj)}${DL(o.w,o.wPj)}</div>
+      <div class="drow" style="margin-top:4px"><span class="tag">H</span>${F('o:'+i+':h','Altura '+(o.t==='vao'?'vão':o.t),o.h,v=>r.openings[i].h=v)}${PJ('o:'+i+':h',o.hPj)}${DL(o.h,o.hPj)}</div>
+      <div class="drow" style="margin-top:4px"><span class="tag">↦</span>${F('o:'+i+':off','Início '+wn,o.off,v=>r.openings[i].off=v)}${PJ('o:'+i+':off',o.offPj)}${DL(o.off,o.offPj)}</div></div>`});
     h+=`</div><p class="hint">Total aberturas: <b class="num">${nf(c.openA,2)} m²</b> · descontado da parede: <b class="num">${nf(c.ded,2)} m²</b></p>`}
   if(tab==='obj'){h+=`<div class="list" style="margin-top:10px">`;
     r.objects.forEach((o,i)=>{h+=`<div class="card list"><div class="row"><input class="txt grow" data-act="obN" data-i="${i}" value="${esc(o.n||'')}" placeholder="nome do objeto"><button class="btn sm del" data-act="delOb" data-i="${i}" type="button">✕</button></div>
@@ -639,7 +655,9 @@ function vPhoto(p,ph){const isPlan=ph.kind==='plan',st=stOf(ph),dec=S.settings.d
       <label class="row">Tolerância ± <input class="txt num" style="width:64px" id="stol" inputmode="decimal" value="${nf(tolCm(),1)}"> cm</label></div></div></details>`}
   h+=`<div class="card list" style="margin-top:12px"><div class="row"><input class="txt grow" data-act="phName" value="${esc(ph.name)}" aria-label="Nome">
     <select data-act="phRoom" aria-label="Cômodo"><option value="">sem cômodo</option>${p.rooms.map(r=>`<option value="${r.id}"${ph.rid===r.id?' selected':''}>${esc(r.name)}</option>`).join('')}</select></div>
-    ${ph.link?(()=>{const pl=p.photos.find(x=>x.id===ph.link.sid);const k=pl?pl.dims.findIndex(x=>x.id===ph.link.did):-1;return pl?`<div class="row"><span class="hint grow">Vinculada a <b>${esc(pl.name)}</b>${k>=0?` › <b>C${k+1}</b> · proj. ${fl(projOf(pl,pl.dims[k]))} · real ${fl(pl.dims[k].val)}`:''}</span><button class="btn sm" data-act="openPh" data-id="${pl.id}" type="button">Abrir planta</button></div>`:''})():''}
+    ${ph.link&&ph.link.wall!=null?(()=>{const r=R(p,ph.link.rid);if(!r)return'';const wi=ph.link.wall,ws=walls(r),w=ws[wi],wp=r.mode==='rect'?(wi%2?r.bPj:r.aPj):(r.walls[wi]||{}).pj;
+      return`<div class="row"><span class="hint grow">Vinculada a <b>${esc(r.name)}</b> › <b>P${wi+1}</b> · proj. ${fl(wp)} · real ${fl(w&&w.len)}</span><button class="btn sm" data-act="openR" data-id="${r.id}" type="button">Abrir cômodo</button></div>`})():
+    ph.link?(()=>{const pl=p.photos.find(x=>x.id===ph.link.sid);const k=pl?pl.dims.findIndex(x=>x.id===ph.link.did):-1;return pl?`<div class="row"><span class="hint grow">Vinculada a <b>${esc(pl.name)}</b>${k>=0?` › <b>C${k+1}</b> · proj. ${fl(projOf(pl,pl.dims[k]))} · real ${fl(pl.dims[k].val)}`:''}</span><button class="btn sm" data-act="openPh" data-id="${pl.id}" type="button">Abrir planta</button></div>`:''})():''}
     <div class="row"><button class="btn pri" data-act="phSave" type="button">Salvar imagem com cotas</button><button class="btn del" data-act="delPh" type="button">${isPlan?'Excluir planta':'Excluir foto'}</button></div></div>`;
   setTimeout(thumbs,0);return h}
 
@@ -754,11 +772,14 @@ function vReport(p){const t=totals(p),d=new Date();
   for(const r of p.rooms){const c=calc(r);h+=`<tr><td>${esc(r.name)}</td><td>${fl(r.h)}</td><td>${nf(c.area,2)}</td><td>${fl(c.perim)}</td><td>${nf(c.gross,2)}</td><td>${nf(c.openA,2)}</td><td>${nf(c.net,2)}</td><td>${fl(c.rodape)}</td><td>${nf(c.vol,2)}</td></tr>`}
   h+=`</tbody><tfoot><tr><td>Total</td><td></td><td>${nf(t.area,2)}</td><td>${fl(t.perim)}</td><td>${nf(t.gross,2)}</td><td>${nf(t.openA,2)}</td><td>${nf(t.net,2)}</td><td>${fl(t.rodape)}</td><td>${nf(t.vol,2)}</td></tr></tfoot></table></div>`;
   for(const r of p.rooms){const c=calc(r);h+=`<div class="room"><h3>${esc(r.name)}</h3><div class="two"><div class="plan">${planSVG(r,{W:360,H:270,exp:true})||'<div class="plan-empty">sem planta</div>'}</div><div>
-    <div class="tbl"><table><tbody>${walls(r).map((w,i)=>`<tr><td>Parede P${i+1}</td><td>${flu(w.len)}</td></tr>`).join('')}
-    ${r.openings.map(o=>`<tr><td>${o.t==='vao'?'Vão':o.t[0].toUpperCase()+o.t.slice(1)}${o.wall!=null?' (P'+(o.wall+1)+')':''}${(o.q||1)>1?' ×'+o.q:''}</td><td>${fl(o.w)} × ${flu(o.h)}</td></tr>`).join('')}
+    <div class="tbl"><table><thead><tr><th>Item</th><th>Real</th><th>Projeto</th><th>Δ</th></tr></thead><tbody>
+    ${r.h!=null||r.hPj!=null?`<tr><td>Pé-direito</td><td>${fl(r.h)}</td><td>${fl(r.hPj)}</td><td>${dtxt(dcs(r.h,r.hPj))}</td></tr>`:''}
+    ${walls(r).map((w,i)=>{const pj=wallPj(r,i);return`<tr><td>Parede P${i+1}</td><td>${fl(w.len)}</td><td>${fl(pj)}</td><td>${dtxt(dcs(w.len,pj))}</td></tr>`}).join('')}
+    ${r.openings.map(o=>{const nm=(o.t==='vao'?'Vão':o.t[0].toUpperCase()+o.t.slice(1))+(o.wall!=null?' (P'+(o.wall+1)+')':'')+((o.q||1)>1?' ×'+o.q:'');
+      return`<tr><td>${nm} · largura</td><td>${fl(o.w)}</td><td>${fl(o.wPj)}</td><td>${dtxt(dcs(o.w,o.wPj))}</td></tr><tr><td>${nm} · altura</td><td>${fl(o.h)}</td><td>${fl(o.hPj)}</td><td>${dtxt(dcs(o.h,o.hPj))}</td></tr>${o.off!=null||o.offPj!=null?`<tr><td>${nm} · dist. início</td><td>${fl(o.off)}</td><td>${fl(o.offPj)}</td><td>${dtxt(dcs(o.off,o.offPj))}</td></tr>`:''}`}).join('')}
     ${r.objects.map(o=>`<tr><td>${esc(o.n||'Objeto')}</td><td>${fl(o.a)} × ${fl(o.b)} × ${flu(o.c)}</td></tr>`).join('')}
     ${r.mode==='poly'&&c.g.ws.length>=3?`<tr><td>Erro de fechamento</td><td>${nf(c.g.err*100,1)} cm</td></tr>`:''}</tbody></table></div></div></div>`;
-    const phs=p.photos.filter(f=>f.rid===r.id&&(f.kind||'photo')==='photo'&&!f.link);if(phs.length)h+=`<div class="two" style="margin-top:8px">${phs.map(f=>`<figure style="margin:0"><img data-rph="${f.id}" alt="${esc(f.name)}"><figcaption class="hint">${esc(f.name)}</figcaption></figure>`).join('')}</div>`;h+=`</div>`}
+    const phs=p.photos.filter(f=>f.rid===r.id&&(f.kind||'photo')==='photo'&&(!f.link||f.link.wall!=null));if(phs.length)h+=`<div class="two" style="margin-top:8px">${phs.map(f=>`<figure style="margin:0"><img data-rph="${f.id}" alt="${esc(f.name)}"><figcaption class="hint">${esc(f.name)}</figcaption></figure>`).join('')}</div>`;h+=`</div>`}
   for(const pl of p.photos.filter(f=>f.kind==='plan')){const g=catSummary(pl),ks=Object.keys(g),dec=S.settings.dec;
     h+=`<div class="room"><h3>${esc(pl.name)} — projeto × real</h3>${pl.dims.length?`<div class="crops" data-crops="${pl.id}"><span class="hint">Gerando recortes das áreas cotadas…</span></div>`:`<img data-rph="${pl.id}" alt="${esc(pl.name)}">`}`;
     if(ks.length)h+=`<div class="tbl" style="margin-top:8px"><table><thead><tr><th>Categoria</th><th>Qtd</th><th>Σ Projeto (m)</th><th>Σ Real (m)</th><th>Δ (cm)</th><th>Fora</th></tr></thead><tbody>${ks.map(k=>{const a=g[k],dc=a.cmp?(a.rr-a.pp)*100:null;return`<tr><td>${CATS[k]}${k==='parede'?' (perímetro)':''}</td><td>${a.n}</td><td>${fl(a.p)}</td><td>${fl(a.r)}</td><td>${dc==null?'—':(dc>0?'+':'')+nf(dc,1)}</td><td>${a.bad}</td></tr>`}).join('')}</tbody></table></div>`;
@@ -830,6 +851,7 @@ document.addEventListener('click',async e=>{const t=e.target.closest('[data-t],[
       const L=Math.hypot(d.x2-d.x1,d.y2-d.y1)||1,nx=-(d.y2-d.y1)/L,ny=(d.x2-d.x1)/L;let pn_=v[0]*nx+v[1]*ny,pt_=v[0]*(-ny)+v[1]*nx;const st=b.h*0.8;
       const k=t.dataset.k;if(k==='flip')pn_=-pn_;if(k==='in')pn_=Math.abs(pn_)<=st?0:pn_-Math.sign(pn_)*st;if(k==='out')pn_=pn_+(pn_>=0?1:-1)*st;if(k==='on')pn_=0;
       d.lo=[nx*pn_+(-ny)*pt_, ny*pn_+nx*pt_];save();return render()}
+    case'wPh':LINK={rid:r.id,wall:i};return $('#fileph').click();
     case'dHide':{const sh=p.photos.find(x=>x.id===V.phid);sh.dims[i].hide=!sh.dims[i].hide;save();return render()}
     case'dCol':{const sh=p.photos.find(x=>x.id===V.phid);sh.dims[i].color=t.dataset.c||null;save();return render()}
     case'dPh':{const sh=p.photos.find(x=>x.id===V.phid);LINK={sid:sh.id,did:sh.dims[i].id,rid:sh.rid};return $('#fileph').click()}
@@ -870,6 +892,7 @@ document.addEventListener('change',e=>{const t=e.target,a=t.dataset.act;if(!a&&!
     case'dCat':ph.dims[i].cat=t.value;break;
     case'lastCat':ED.lastCat=t.value;return;
     case'dProj':ph.dims[i].proj=parseL(t.value);if(ph.dims[i].ref&&!(ph.dims[i].proj>0))ph.dims[i].ref=false;break;
+    case'pj':setPj(r,t.dataset.k,parseL(t.value));break;
     case'dRef':if(t.checked){if(!(ph.dims[i].proj>0)){t.checked=false;toast('Digite primeiro a medida do projeto desta cota');return}ph.dims.forEach((d,k)=>d.ref=k===i)}else ph.dims[i].ref=false;break;
     default:
       if(t.id==='sfmt'){S.settings.fmt=t.value;S.settings.dec=3;break}
