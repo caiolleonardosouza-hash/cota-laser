@@ -262,7 +262,7 @@ async function img(id){if(IMG.has(id))return IMG.get(id);const d=await idb.get(i
 const FONTS={mono:'"JetBrains Mono",ui-monospace,monospace',sans:'Barlow,Arial,sans-serif',cond:'"Barlow Condensed","Arial Narrow",sans-serif',arial:'Arial,Helvetica,sans-serif'};
 const COLORS=['#ffd400','#ff3b1f','#00c2ff','#2ee66b','#ff4fd8','#ffffff','#111111'];
 const CATS={parede:'Parede',janela:'Janela',porta:'Porta',shaft:'Shaft',vao:'Vão',pilar:'Pilar',outro:'Outro'};
-const defStyle=()=>Object.assign({lw:2.5,fs:18,color:'#ffd400',font:'mono',ortho:true,txt:'num',bg:'none'},S.settings.style||{});
+const defStyle=()=>Object.assign({lw:2.5,fs:18,color:'#ffd400',font:'mono',ortho:true,txt:'num',bg:'none',zref:4},S.settings.style||{});
 const stOf=sh=>Object.assign(defStyle(),sh.style||{});
 const pxLen=d=>Math.hypot(d.x2-d.x1,d.y2-d.y1);
 function sheetScale(sh){const r=sh.dims.find(d=>d.ref&&d.proj>0&&pxLen(d)>0);return r?r.proj/pxLen(r):null}
@@ -572,6 +572,7 @@ function vPhoto(p,ph){const isPlan=ph.kind==='plan',st=stOf(ph),dec=S.settings.d
   if(ED.styleOpen)h+=`<div class="card list">
     <label class="row"><span style="width:110px">Espessura</span><input type="range" class="grow" min="1" max="12" step="0.5" id="stLw" value="${st.lw}"><span class="num" style="width:34px">${st.lw}</span></label>
     <label class="row"><span style="width:110px">Tamanho texto</span><input type="range" class="grow" min="8" max="48" step="1" id="stFs" value="${st.fs}"><span class="num" style="width:34px">${st.fs}</span></label>
+    <label class="row"><span style="width:110px">Cota cresce até</span><input type="range" class="grow" min="1" max="20" step="1" id="stZr" value="${st.zref||4}"><span class="num" style="width:34px">${st.zref||4}×</span></label>
     <label class="row"><span style="width:110px">Fonte</span><select id="stFont" class="grow">${[['mono','Mono (técnica)'],['sans','Barlow'],['cond','Condensada'],['arial','Arial']].map(([k,n])=>`<option value="${k}"${st.font===k?' selected':''}>${n}</option>`).join('')}</select></label>
     <div class="row"><span style="width:110px">Cor padrão</span>${COLORS.map(c=>`<button type="button" class="chip${st.color===c?' on':''}" style="background:${c}" data-act="stCol" data-c="${c}" aria-label="cor ${c}"></button>`).join('')}<input type="color" id="stColX" value="${st.color}" aria-label="outra cor"></div>
     <label class="row"><span style="width:110px">Ponta da cota</span><select id="stEnd" class="grow">${[['tick','Traço'],['slash','Barra 45° (arquitetura)'],['arrow','Seta'],['dot','Ponto']].map(([k,n])=>`<option value="${k}"${(st.end||'tick')===k?' selected':''}>${n}</option>`).join('')}</select></label>
@@ -612,7 +613,7 @@ function clampXY(){const R=RT;if(!R)return;const sw=R.cw,shh=R.ch,dw=R.sh.w*sc()
   ED.X=dw>sw?Math.min(0,Math.max(sw-dw,ED.X)):(sw-dw)/2;ED.Y=dh>shh?Math.min(0,Math.max(shh-dh,ED.Y)):(shh-dh)/2}
 function applyT(){if(!RT)return;clampXY();sched();hiLater()}
 function toImg(e){const r=RT.stage.getBoundingClientRect();return{x:(e.clientX-r.left-ED.X)/sc(),y:(e.clientY-r.top-ED.Y)/sc()}}
-const edK=()=>1000/(Math.max(RT.sh.w,RT.sh.h)*sc());
+const edK=()=>1000/(Math.max(RT.sh.w,RT.sh.h)*sc())*Math.min(1,ED.z/(+stOf(RT.sh).zref||4));
 /* fundo na resolução da tela: imagem + (se PDF) recorte vetorial nítido */
 function drawBg(){const R=RT,b=R.bg,x=b.getContext('2d'),dpr=R.dpr,s=sc();x.setTransform(1,0,0,1,0,0);x.fillStyle='#8a8f8c';x.fillRect(0,0,b.width,b.height);
   x.setTransform(dpr*s,0,0,dpr*s,dpr*ED.X,dpr*ED.Y);x.imageSmoothingEnabled=true;x.imageSmoothingQuality='high';x.drawImage(R.im,0,0,R.sh.w,R.sh.h);
@@ -811,7 +812,7 @@ document.addEventListener('change',e=>{const t=e.target,a=t.dataset.act;if(!a&&!
       if(t.id==='svib'){S.settings.vib=t.checked;break}
       if(t.id==='swake'){S.settings.wake=t.checked;break}
       if(t.id==='stol'){S.settings.tol=Math.max(0,pn(t.value)||0);break}
-      if(['stLw','stFs','stFont','stColX','stOrtho','stEnd','stDash','stBg','stTxt','stLine'].includes(t.id)){const k={stLw:'lw',stFs:'fs',stFont:'font',stColX:'color',stOrtho:'ortho',stEnd:'end',stDash:'dash',stBg:'bg',stTxt:'txt',stLine:'line'}[t.id];ph.style=Object.assign(stOf(ph),{[k]:t.type==='checkbox'?t.checked:t.type==='range'?+t.value:t.value});break}
+      if(['stLw','stFs','stZr','stFont','stColX','stOrtho','stEnd','stDash','stBg','stTxt','stLine'].includes(t.id)){const k={stZr:'zref',stLw:'lw',stFs:'fs',stFont:'font',stColX:'color',stOrtho:'ortho',stEnd:'end',stDash:'dash',stBg:'bg',stTxt:'txt',stLine:'line'}[t.id];ph.style=Object.assign(stOf(ph),{[k]:t.type==='checkbox'?t.checked:t.type==='range'?+t.value:t.value});break}
       if(t.id==='fileplan'&&t.files[0]){addPlan(t.files[0]);t.value='';return}
       if(t.id==='smin'){S.settings.minOpen=Math.max(0,pn(t.value)||0);break}
       if(t.id==='fileph'&&t.files[0]){addPhoto(t.files[0]);t.value='';return}
@@ -821,7 +822,7 @@ document.addEventListener('change',e=>{const t=e.target,a=t.dataset.act;if(!a&&!
 document.addEventListener('submit',e=>{e.preventDefault();const f=e.target.dataset.form;
   if(f==='newP'){const n=$('#np').value.trim();if(!n)return;const p={id:uid(),name:n,created:Date.now(),rooms:[],photos:[]};S.projects.unshift(p);save();go({v:'project',pid:p.id})}
   if(f==='newR'){const n=$('#nr').value.trim();if(!n)return;const p=P(V.pid),r=newRoom(n);p.rooms.push(r);save();go({v:'room',pid:p.id,rid:r.id});target='h';render()}});
-document.addEventListener('input',e=>{const t=e.target;if(!RT||!['stLw','stFs'].includes(t.id))return;const sh=RT.sh;sh.style=Object.assign(stOf(sh),{[t.id==='stLw'?'lw':'fs']:+t.value});t.nextElementSibling.textContent=t.value;edDraw()});
+document.addEventListener('input',e=>{const t=e.target;if(!RT||!['stLw','stFs','stZr'].includes(t.id))return;const sh=RT.sh;sh.style=Object.assign(stOf(sh),{[{stLw:'lw',stFs:'fs',stZr:'zref'}[t.id]]:+t.value});t.nextElementSibling.textContent=t.value+(t.id==='stZr'?'×':'');edDraw()});
 $('#bt').onclick=()=>BT.state==='on'?BT.disconnect():BT.state==='off'&&BT.connect();
 const manGo=()=>{const v=parseL($('#man').value);if(v==null||v<=0){toast('Digite um valor em '+UN());return}$('#man').value='';reading(v,false)};
 $('#manok').onclick=manGo;$('#man').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();manGo()}});
