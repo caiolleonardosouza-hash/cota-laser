@@ -39,6 +39,8 @@ header.top{position:sticky;top:0;z-index:5;background:var(--bg);border-bottom:1p
   padding:calc(env(safe-area-inset-top,0px) + 10px) 16px 10px;display:flex;align-items:center;gap:10px}
 header.top h1{font:700 22px/1.1 var(--f-disp);letter-spacing:.02em;margin:0;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-transform:uppercase}
 .prow{display:flex;gap:8px;align-items:stretch}.prow .item{flex:1;min-width:0}.prow .del{align-self:center}
+#ttl.ed{cursor:pointer}#ttl.ed::after{content:" ✎";font-size:.7em;opacity:.55}
+#ttlin{flex:1;min-width:0;font:700 20px/1.1 var(--f-disp);text-transform:uppercase}
 .back{border:1px solid var(--line);background:var(--surface);border-radius:8px;width:40px;height:40px;font-size:20px;cursor:pointer}
 h2{font:600 18px/1.2 var(--f-disp);text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:22px 0 10px}
 .card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px}
@@ -149,7 +151,7 @@ pre.log{font:11px/1.4 var(--f-num);background:var(--sunk);padding:8px;border-rad
 </style>
 </head>
 <body>
-<header class="top"><button class="back" id="back" type="button" aria-label="Voltar" hidden>‹</button><h1 id="ttl">Cota Laser</h1><button class="back" id="gear" type="button" aria-label="Ajustes">⚙</button></header>
+<header class="top"><button class="back" id="back" type="button" aria-label="Voltar" hidden>‹</button><h1 id="ttl">Cota Laser</h1><input class="txt" id="ttlin" hidden aria-label="Nome"><button class="back" id="gear" type="button" aria-label="Ajustes">⚙</button></header>
 <main class="wrap" id="app"></main>
 
 <div id="dock">
@@ -447,7 +449,11 @@ function updateDock(){$('#rv').textContent=BT.last==null?'—':fl(BT.last);$('#r
 let V={v:'home'};const HIST=[];
 function go(nv,push=true){if(push)HIST.push(V);V=Object.assign({},nv);target=null;render();window.scrollTo(0,0)}
 function back(){V=HIST.pop()||{v:'home'};target=null;render()}
-$('#back').onclick=back;$('#gear').onclick=()=>go({v:'cfg'});
+$('#back').onclick=back;
+function renameObj(){const p=P(V.pid);if(!p)return null;if(V.v==='project')return p;if(V.v==='room')return R(p,V.rid);if(V.v==='photo')return p.photos.find(x=>x.id===V.phid);return null}
+$('#ttl').onclick=()=>{const o=renameObj();if(!o)return;const t=$('#ttl'),i=$('#ttlin');i.value=o.name;t.hidden=true;i.hidden=false;i.focus();i.select()};
+const ttlDone=()=>{const i=$('#ttlin');if(i.hidden)return;const o=renameObj(),v=i.value.trim();if(o&&v){o.name=v;save()}i.hidden=true;render()};
+$('#ttlin').addEventListener('blur',ttlDone);$('#ttlin').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();$('#ttlin').blur()}if(e.key==='Escape'){$('#ttlin').value='';$('#ttlin').blur()}});$('#gear').onclick=()=>go({v:'cfg'});
 history.replaceState({x:0},'');window.addEventListener('popstate',()=>{if(HIST.length){back();history.pushState({x:1},'')}});history.pushState({x:1},'');
 
 /* ===== telas ===== */
@@ -455,7 +461,7 @@ function render(){REG=new Map();ORDER=[];const app=$('#app');let h='';
   const p=P(V.pid),r=R(p,V.rid);
   if(V.v!=='home'&&V.v!=='cfg'&&!p){V={v:'home'}}
   $('#back').hidden=V.v==='home';
-  $('#gear').hidden=V.v!=='home';
+  $('#gear').hidden=V.v!=='home';$('#ttl').classList.toggle('ed',['project','room','photo'].includes(V.v));$('#ttl').hidden=false;$('#ttlin').hidden=true;
   if(V.v==='home'){$('#ttl').textContent='Cota Laser';h=vHome()}
   else if(V.v==='cfg'){$('#ttl').textContent='Ajustes';h=vCfg()}
   else if(V.v==='project'){$('#ttl').textContent=p.name;h=vProject(p)}
@@ -493,7 +499,7 @@ function vProject(p){const tab=V.tab||'rooms',t=totals(p);
    <div class="stat"><small>Parede líquida</small><b>${nf(t.net,2)}<i>m²</i></b></div>
    <div class="stat"><small>Perímetro</small><b>${nf(t.perim,2)}<i>m</i></b></div>
    <div class="stat"><small>Volume</small><b>${nf(t.vol,2)}<i>m³</i></b></div></div>
-  <div class="tabs">${[['rooms','Cômodos'],['plans','Plantas'],['photos','Fotos'],['free','Avulsas'],['cfg','Obra']].map(([k,n])=>`<button class="tab${tab===k?' on':''}" data-act="ptab" data-k="${k}" type="button">${n}</button>`).join('')}</div>`;
+  <div class="tabs">${[['rooms','Cômodos'],['plans','Plantas'],['photos','Fotos'],['free','Avulsas']].map(([k,n])=>`<button class="tab${tab===k?' on':''}" data-act="ptab" data-k="${k}" type="button">${n}</button>`).join('')}</div>`;
   if(tab==='rooms'){h+=`<div class="list" style="margin-top:10px">`;
     for(const r of p.rooms){const c=calc(r);h+=`<button class="item" data-act="openR" data-id="${r.id}"><div class="grow"><b>${esc(r.name)}</b><div class="sub">${r.mode==='rect'?'Retângulo':'Paredes em série'} · PD ${nf(r.h,2)} m · ${r.openings.length} abertura(s)</div></div><div class="num" style="text-align:right">${nf(c.area,2)} m²<div class="sub">${nf(c.perim,2)} m</div></div></button>`}
     h+=`</div><form class="row" data-form="newR" style="margin-top:10px"><input class="txt grow" id="nr" placeholder="Nome do cômodo (ex.: Suíte 1)" required><button class="btn pri">Adicionar</button></form>
@@ -506,8 +512,7 @@ function vProject(p){const tab=V.tab||'rooms',t=totals(p);
     for(const f of p.photos.filter(f=>(f.kind||'photo')==='photo'))h+=`<div class="tw"><button class="thumb" data-act="openPh" data-id="${f.id}" type="button"><img data-ph="${f.id}" alt="${esc(f.name)}"><span>${esc(f.name)} · ${f.dims.length} cota(s)</span></button><button class="btn sm del" data-act="delSh" data-id="${f.id}" type="button">Excluir foto</button></div>`;
     h+=`</div><button class="btn pri" data-act="addPh" type="button" style="margin-top:10px">+ Foto com cota</button>`;setTimeout(thumbs,0)}
   if(tab==='free'){const fr=S.free.filter(f=>f.pid===p.id);h+=(fr.length?freeList(fr):`<p class="hint">Nenhuma ainda.</p>`)}
-  if(tab==='cfg'){h+=`<div class="card list" style="margin-top:10px"><label>Nome da obra<input class="txt" data-act="pname" value="${esc(p.name)}"></label>
-    <div class="row"><button class="btn del" data-act="delP" type="button">Excluir obra</button></div></div>`}
+
   return h}
 async function thumbs(){for(const el of document.querySelectorAll('img[data-ph]')){const p=P(V.pid),ph=p&&p.photos.find(x=>x.id===el.dataset.ph);if(!ph)continue;const u=await photoBlob(ph,500);if(u)el.src=u}}
 
