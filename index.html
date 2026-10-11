@@ -317,7 +317,7 @@ function drawSheet(ctx,im,sh,o={}){const W=sh.w||im.width,H=sh.h||im.height,st=s
   if(!o.noImg)ctx.drawImage(im,0,0,W,H);
   const k=o.k||1,u=Math.max(W,H)/1000*k,lw=Math.max(0.8*k,st.lw*u),fs=Math.max(6*k,st.fs*u),hr=o.hr||10*u,FF=FONTS[st.font]||FONTS.mono;
   sh.dims.forEach((d,i)=>{if(o.skip===i)return;if(o.only!=null&&o.only!==i)return;
-    const sel=o.sel===d.id,col=d.ref?'#00c2ff':(d.color||st.color);
+    const sel=o.sel===d.id,col=d.color||st.color;
     const ex=d.x2-d.x1,ey=d.y2-d.y1,L=Math.hypot(ex,ey)||1,ux=ex/L,uy=ey/L;
     ctx.lineCap='round';ctx.lineJoin='round';
     if(o.thin===i){ctx.setLineDash([]);ctx.lineWidth=o.thinW;ctx.strokeStyle=col;ctx.beginPath();ctx.moveTo(d.x1,d.y1);ctx.lineTo(d.x2,d.y2);ctx.stroke();return}
@@ -581,7 +581,8 @@ function vPhoto(p,ph){const isPlan=ph.kind==='plan',st=stOf(ph),dec=S.settings.d
     <label class="row"><span style="width:110px">Linha</span><select id="stDash" class="grow"><option value="solid"${st.dash!=='dash'?' selected':''}>Contínua</option><option value="dash"${st.dash==='dash'?' selected':''}>Tracejada</option></select></label>
     <label class="row"><span style="width:110px">Fundo do texto</span><select id="stBg" class="grow">${[['box','Caixa escura'],['light','Caixa clara'],['none','Sem caixa, com contorno'],['plain','Só o texto (sem caixa nem contorno)']].map(([k,n])=>`<option value="${k}"${(st.bg||'box')===k?' selected':''}>${n}</option>`).join('')}</select></label>
     <label class="row"><input type="checkbox" id="stOrtho"${st.ortho?' checked':''}> <span class="grow">Travar na horizontal/vertical automaticamente (até 6°)</span></label>
-    <button class="btn sm" data-act="stDef" type="button">Usar este estilo como padrão nas novas fotos/plantas</button></div>`;
+    <button class="btn sm" data-act="stAll" type="button">Aplicar em todas as plantas e fotos desta obra</button>
+    <button class="btn sm" data-act="stDef" type="button">Usar como padrão nas novas plantas e fotos</button></div>`;
   if(isPlan){const sc=sheetScale(ph);
     h+=`<div class="card list" style="margin-top:10px">${sc?`<div class="okbox">Escala: 1 m = ${nf(1/sc,1)} px</div>`:`<div class="warnbox">Sem escala</div>`}
       <div class="row"><label class="row grow">Nova cota como <select data-act="lastCat">${Object.entries(CATS).map(([k,n])=>`<option value="${k}"${ED.lastCat===k?' selected':''}>${n}</option>`).join('')}</select></label>
@@ -589,7 +590,7 @@ function vPhoto(p,ph){const isPlan=ph.kind==='plan',st=stOf(ph),dec=S.settings.d
     const g=catSummary(ph),ks=Object.keys(g);
     if(ks.length)h+=`<div class="tbl" style="margin-top:10px"><table><thead><tr><th>Categoria</th><th>Qtd</th><th>Σ Projeto (m)</th><th>Σ Real (m)</th><th>Δ (cm)</th><th>Fora</th></tr></thead><tbody>${ks.map(k=>{const a=g[k];const dc=a.cmp?(a.rr-a.pp)*100:null;return`<tr><td>${CATS[k]}${k==='parede'?' (perímetro)':''}</td><td>${a.n}</td><td>${nf(a.p,2)}</td><td>${nf(a.r,2)}</td><td>${dc==null?'—':(dc>0?'+':'')+nf(dc,1)}</td><td>${a.bad?`<span class="pill bad">${a.bad}</span>`:a.cmp?'<span class="pill ok">0</span>':'—'}</td></tr>`}).join('')}</tbody></table></div>`}
   h+=`<div class="list" style="margin-top:10px">`;
-  ph.dims.forEach((d,i)=>{const sel=ED.sel===d.id,col=d.ref?'#00c2ff':(d.color||st.color),dc=isPlan?deltaCm(ph,d):null,ok=okD(dc);
+  ph.dims.forEach((d,i)=>{const sel=ED.sel===d.id,col=d.color||st.color,dc=isPlan?deltaCm(ph,d):null,ok=okD(dc);
     h+=`<div class="card dim${sel?' sel':''}" data-act="selD" data-i="${i}"><div class="row"><span class="sw" style="background:${col}"></span><b class="num">C${i+1}</b>
       ${isPlan?`<select data-act="dCat" data-i="${i}" aria-label="Categoria">${Object.entries(CATS).map(([k,n])=>`<option value="${k}"${(d.cat||'outro')===k?' selected':''}>${n}</option>`).join('')}</select>`:''}
       <input class="txt grow" data-act="dLbl" data-i="${i}" value="${esc(d.label||'')}" placeholder="descrição"><button class="btn sm del" data-act="delD" data-i="${i}" type="button" aria-label="Apagar cota">✕</button></div>
@@ -694,7 +695,7 @@ function pmove(e){const R=RT;if(!R||!R.ptrs.has(e.pointerId))return;R.ptrs.set(e
   const dr=R.drag;if(!dr)return;if(Math.hypot(e.clientX-dr.sx,e.clientY-dr.sy)>6)dr.moved=true;if(!dr.moved)return;if(dr.type==='tap')dr.type='pan';
   const d=R.sh.dims[dr.i],pt=toImg(e);
   if(dr.type==='h'||dr.type==='new'){if(dr.end===1){const[x,y]=snap(d.x2,d.y2,pt.x,pt.y);d.x1=x;d.y1=y}else{const[x,y]=snap(d.x1,d.y1,pt.x,pt.y);d.x2=x;d.y2=y}
-    R.lp={cx:e.clientX,cy:e.clientY,pt:dr.end===1?{x:d.x1,y:d.y1}:{x:d.x2,y:d.y2},d,col:d.ref?'#00c2ff':(d.color||stOf(R.sh).color)};sched()}
+    R.lp={cx:e.clientX,cy:e.clientY,pt:dr.end===1?{x:d.x1,y:d.y1}:{x:d.x2,y:d.y2},d,col:d.color||stOf(R.sh).color};sched()}
   else if(dr.type==='lab'){d.lo=[dr.c0[0]+pt.x-dr.p0.x-(d.x1+d.x2)/2,dr.c0[1]+pt.y-dr.p0.y-(d.y1+d.y2)/2];sched()}
   else if(dr.type==='rot'){const c=d._lab;let a=Math.atan2(pt.y-c.cy,pt.x-c.cx)*180/Math.PI+90;if(a>180)a-=360;
     for(const s0 of[0,90,-90,180,-180,lineAng(d),lineAng(d)+180,lineAng(d)-180])if(Math.abs(a-s0)<5){a=s0;break}d.la=Math.round(a*10)/10;sched()}
@@ -762,7 +763,8 @@ document.addEventListener('click',async e=>{const t=e.target.closest('[data-t],[
     case'zoom':return RT&&zoomAt(+t.dataset.k);
     case'zoomFit':ED.z=1;return RT&&applyT();
     case'stOpen':ED.styleOpen=!ED.styleOpen;return render();
-    case'stCol':{const sh=p.photos.find(x=>x.id===V.phid);sh.style=Object.assign(stOf(sh),{color:t.dataset.c});save();return render()}
+    case'stCol':{const sh=p.photos.find(x=>x.id===V.phid);sh.style=Object.assign(stOf(sh),{color:t.dataset.c});sh.dims.forEach(d=>d.color=null);save();return render()}
+    case'stAll':{const sh=p.photos.find(x=>x.id===V.phid),st=stOf(sh);for(const f of p.photos){f.style=Object.assign({},st);f.dims.forEach(d=>{d.color=null;d.hide=false})}save();return toast('Estilo aplicado em todas as plantas e fotos da obra')}
     case'stDef':{const sh=p.photos.find(x=>x.id===V.phid);S.settings.style=stOf(sh);save();return toast('Estilo salvo como padrão')}
     case'selD':return RT&&selectDim(i);
     case'dTxt':{const sh=p.photos.find(x=>x.id===V.phid),d=sh.dims[i],k=t.dataset.k;if(k==='h')d.la=null;if(k==='line')d.la='line';if(k==='reset'){d.lo=null}save();return render()}
@@ -812,7 +814,8 @@ document.addEventListener('change',e=>{const t=e.target,a=t.dataset.act;if(!a&&!
       if(t.id==='svib'){S.settings.vib=t.checked;break}
       if(t.id==='swake'){S.settings.wake=t.checked;break}
       if(t.id==='stol'){S.settings.tol=Math.max(0,pn(t.value)||0);break}
-      if(['stLw','stFs','stZr','stFont','stColX','stOrtho','stEnd','stDash','stBg','stTxt','stLine'].includes(t.id)){const k={stZr:'zref',stLw:'lw',stFs:'fs',stFont:'font',stColX:'color',stOrtho:'ortho',stEnd:'end',stDash:'dash',stBg:'bg',stTxt:'txt',stLine:'line'}[t.id];ph.style=Object.assign(stOf(ph),{[k]:t.type==='checkbox'?t.checked:t.type==='range'?+t.value:t.value});break}
+      if(['stLw','stFs','stZr','stFont','stColX','stOrtho','stEnd','stDash','stBg','stTxt','stLine'].includes(t.id)){const k={stZr:'zref',stLw:'lw',stFs:'fs',stFont:'font',stColX:'color',stOrtho:'ortho',stEnd:'end',stDash:'dash',stBg:'bg',stTxt:'txt',stLine:'line'}[t.id];ph.style=Object.assign(stOf(ph),{[k]:t.type==='checkbox'?t.checked:t.type==='range'?+t.value:t.value});
+        if(k==='color')ph.dims.forEach(d=>d.color=null);if(k==='line')ph.dims.forEach(d=>d.hide=false);break}
       if(t.id==='fileplan'&&t.files[0]){addPlan(t.files[0]);t.value='';return}
       if(t.id==='smin'){S.settings.minOpen=Math.max(0,pn(t.value)||0);break}
       if(t.id==='fileph'&&t.files[0]){addPhoto(t.files[0]);t.value='';return}
