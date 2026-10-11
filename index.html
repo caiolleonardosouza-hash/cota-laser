@@ -208,7 +208,7 @@ const KEY='cotalaser.v1';
 let S;
 function load(){try{S=JSON.parse(localStorage.getItem(KEY))}catch(e){S=null}
   if(!S||!Array.isArray(S.projects)){S={projects:[],free:[],settings:{minOpen:0,dec:3}};seed()}
-  S.free=S.free||[];S.settings=Object.assign({minOpen:0,dec:3,tol:1,vib:true,wake:true},S.settings||{});if(!S.settings.fmt||!FMTS[S.settings.fmt])S.settings.fmt=S.settings.fmt==='cm0'?'cm1':'m3';S.settings.dec=3;
+  S.free=S.free||[];S.settings=Object.assign({minOpen:0,dec:3,tol:1,vib:true,wake:true},S.settings||{});for(const p of S.projects)for(const r of p.rooms||[])delete r.extras;if(!S.settings.fmt||!FMTS[S.settings.fmt])S.settings.fmt=S.settings.fmt==='cm0'?'cm1':'m3';S.settings.dec=3;
   for(const p of S.projects)for(const f of p.photos||[]){f.kind=f.kind||'photo';f.dims=(f.dims||[]).map(d=>Object.assign({id:uid(),ph:[]},d))}}
 function save(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){toast('Não consegui salvar no aparelho (memória cheia?)')}}
 function newRoom(name){return{id:uid(),name,mode:'rect',a:null,b:null,h:null,walls:[{len:null,ang:90}],openings:[],objects:[]}}
@@ -223,7 +223,7 @@ const R=(p,id)=>p&&p.rooms.find(r=>r.id===id);
 /* ===== geometria ===== */
 const WK=w=>w.kind||(w.open?'s':'p'),WKN={p:'P',s:'S/P',v:'VÃO'},WKL={p:'Parede',s:'Sem parede',v:'Vão aberto'};
 function walls(r){if(r.mode==='rect'){const vt=r.virt||{};return(r.a>0&&r.b>0)?[r.a,r.b,r.a,r.b].map((l,k)=>({len:l,ang:90,kind:vt[k]===true?'s':(vt[k]||'p')})):[]}
-  return r.walls.filter(w=>w.len>0)}
+  const a=r.walls.slice();while(a.length&&!(a[a.length-1].len>0))a.pop();return a}
 function geom(r){const ws=walls(r);let x=0,y=0,h=0;const v=[[0,0]];
   for(const w of ws){x+=w.len*Math.cos(h*Math.PI/180);y+=w.len*Math.sin(h*Math.PI/180);v.push([x,y]);h+=(+w.ang||0)}
   let a=0;for(let i=0;i<v.length;i++){const[p,q]=[v[i],v[(i+1)%v.length]];a+=p[0]*q[1]-q[0]*p[1]}
@@ -601,14 +601,14 @@ async function thumbs(){for(const el of document.querySelectorAll('img[data-ph]'
 
 function PJ(k,v){return`<label class="mf cmp" style="cursor:text"><span class="mfl">Proj.</span><input class="pin num" data-act="pj" data-k="${k}" inputmode="decimal" value="${v!=null?fl(v):''}" placeholder="—"></label>`}
 function DL(real,pj){if(real==null||pj==null)return'';const dc=(real-pj)*100,ok=okD(dc);return`<span class="pill ${ok?'ok':'bad'}">${(dc>0?'+':'')+nf(dc,1)}</span>`}
-function wallPj(r,i){return r.mode==='rect'?(i%2?r.bPj:r.aPj):(r.walls.filter(w=>w.len>0)[i]||{}).pj}
+function wallPj(r,i){return r.mode==='rect'?(i%2?r.bPj:r.aPj):(r.walls[i]||{}).pj}
 const dcs=(re,pj)=>re!=null&&pj!=null?(re-pj)*100:null,dtxt=dc=>dc==null?'—':(dc>0?'+':'')+nf(dc,1)+' cm';
-function closeRoom(r,mode){const g=geom(r);if(g.ws.length<2)return;const[ex,ey]=g.v[g.v.length-1];const ws=r.walls.filter(w=>w.len>0),last=ws[ws.length-1];
+function closeRoom(r,mode){const g=geom(r);if(g.ws.length<2)return;const[ex,ey]=g.v[g.v.length-1];const ws=walls(r),last=ws[ws.length-1];
   let hl=0;for(let i=0;i<ws.length-1;i++)hl+=(+ws[i].ang||0);
   const norm=a=>{a=((a%360)+540)%360-180;return Math.abs(a)<1e-9?0:a},segs=[];const dx=-ex,dy=-ey,eps=0.0005;
   if(mode==='d')segs.push([Math.hypot(dx,dy),Math.atan2(dy,dx)*180/Math.PI]);
   else{const X=[Math.abs(dx),dx>=0?0:180],Y=[Math.abs(dy),dy>=0?90:-90],o=mode==='xy'?[X,Y]:[Y,X];for(const sg of o)if(sg[0]>eps)segs.push(sg)}
-  if(!segs.length)return;if(segs.length===2&&Math.abs(norm(segs[0][1]-hl))>179.9)segs.reverse();let H=hl;const tail=r.walls.filter(w=>!(w.len>0));r.walls=r.walls.filter(w=>w.len>0);
+  if(!segs.length)return;if(segs.length===2&&Math.abs(norm(segs[0][1]-hl))>179.9)segs.reverse();let H=hl;const tail=r.walls.slice(ws.length).filter(w=>!(w.len>0));r.walls=ws.slice();
   last.ang=+norm(segs[0][1]-H).toFixed(4);H=segs[0][1];
   segs.forEach((sg,k)=>{const nx=segs[k+1];r.walls.push({len:+sg[0].toFixed(4),ang:nx?+norm(nx[1]-sg[1]).toFixed(4):90,kind:'s'})});
   r.walls.push(tail[0]||{len:null,ang:90});r.autoClose=false}
@@ -626,11 +626,11 @@ function vRoom(p,r){const tab=V.tab||'med',c=calc(r),d=S.settings.dec;
       <div class="dim"><div class="drow"><span class="hint">Tipo:</span>${walls(r).length?walls(r).map((w,k)=>`<span class="tag">P${k+1}</span><button class="btn sm wk wk-${WK(w)}" data-act="rOpen" data-i="${k}" type="button">${WKN[WK(w)]}</button>`).join(''):'<span class="hint">meça comprimento e largura</span>'}</div></div>
       <div class="dim"><div class="drow"><span class="hint">Fotos:</span>${[0,1,2,3].map(k=>`<span class="tag">P${k+1}</span>${WPH(p,r,k)}`).join('')}</div>${[0,1,2,3].map(k=>WMIN(p,r,k)).join('')}</div></div>`;setTimeout(thumbs,0)}
     else{h+=`<div class="list" style="margin-top:6px">`;
-      r.walls.forEach((w,i)=>{const last=i===r.walls.length-1&&w.len==null,pw=i>0?r.walls[i-1]:null,std=!pw||[90,-90,45,-45,135,-135].includes(+pw.ang);
-        const sel=pw?`<select class="cs" style="flex:0 1 66px" data-act="ang" data-i="${i-1}" aria-label="Giro antes de P${i+1}">${[[90,'↰90°'],[-90,'↱90°'],[45,'↰45°'],[-45,'↱45°'],[135,'↰135°'],[-135,'↱135°']].map(([v,n])=>`<option value="${v}"${+pw.ang===v?' selected':''}>${n}</option>`).join('')}<option value="x"${std?'':' selected'}>outro</option></select>`:`<span class="hint" style="flex:0 1 66px;text-align:center">início</span>`;
-        h+=`<div class="dim"><div class="drow"><span class="tag">P${i+1}</span>${sel}${F('w:'+i,'Parede '+(i+1),w.len,v=>{r.walls[i].len=v;if(i===r.walls.length-1)r.walls.push({len:null,ang:90})})}${last?'':PJ('w:'+i,w.pj)}${DL(w.len,w.pj)}${last?'':`<button class="btn sm wk wk-${WK(w)}" data-act="wOpen" data-i="${i}" type="button" aria-label="Tipo: ${WKL[WK(w)]} (toque para trocar)">${WKN[WK(w)]}</button>`+WPH(p,r,i)}<button class="btn sm del xb" data-act="delW" data-i="${i}" type="button" aria-label="Apagar P${i+1}">✕</button></div>
+      r.walls.forEach((w,i)=>{const last=i===r.walls.length-1&&w.len==null,pw=i>0?r.walls[i-1]:null,std=!pw||[90,-90,45,-45,135,-135,0].includes(+pw.ang);
+        const sel=pw?`<select class="cs" style="flex:0 1 66px" data-act="ang" data-i="${i-1}" aria-label="Giro antes de P${i+1}">${[[90,'↰90°'],[-90,'↱90°'],[0,'↑ reto'],[45,'↰45°'],[-45,'↱45°'],[135,'↰135°'],[-135,'↱135°']].map(([v,n])=>`<option value="${v}"${+pw.ang===v?' selected':''}>${n}</option>`).join('')}<option value="x"${std?'':' selected'}>outro</option></select>`:`<span class="hint" style="flex:0 1 66px;text-align:center">início</span>`;
+        h+=`<div class="dim"><div class="drow"><span class="tag">P${i+1}</span>${sel}${F('w:'+i,'Real',w.len,v=>{r.walls[i].len=v;if(i===r.walls.length-1)r.walls.push({len:null,ang:90})})}${last?'':PJ('w:'+i,w.pj)}${DL(w.len,w.pj)}<button class="btn sm wk wk-${WK(w)}" data-act="wOpen" data-i="${i}" type="button" aria-label="Tipo: ${WKL[WK(w)]} (toque para trocar)">${WKN[WK(w)]}</button>${last?'':WPH(p,r,i)}<button class="btn sm del xb" data-act="delW" data-i="${i}" type="button" aria-label="Apagar P${i+1}">✕</button></div>
         ${!std?`<div class="drow" style="margin-top:4px"><span class="hint">Giro antes de P${i+1} (°, + esq / − dir)</span><input class="txt num" style="width:70px" data-act="angx" data-i="${i-1}" inputmode="decimal" value="${nf(+pw.ang,1)}" aria-label="Giro em graus"></div>`:''}${last?'':WMIN(p,r,i)}</div>`});
-      h+=`</div><button class="btn sm" data-act="addW" type="button" style="margin-top:8px">+ Parede</button>`;setTimeout(thumbs,0);
+      {const nW=r.walls.length;h+=`</div><div class="row" style="margin-top:8px"><button class="btn sm" data-act="addW" type="button">+ Parede</button><select class="cs" style="flex:0 1 190px" id="insAt" aria-label="Onde inserir">${`<option value="end">no fim (antes de fechar)</option>`+Array.from({length:Math.max(0,nW-1)},(_,k)=>`<option value="${k}"${String(INS)===String(k)?' selected':''}>entre P${k+1} e P${k+2}</option>`).join('')}</select></div>`};setTimeout(thumbs,0);
       const g=c.g;if(g.ws.length>=3)h+=g.err<0.02?`<p class="okbox">Planta fechada. Erro de fechamento: ${nf(g.err*100,1)} cm.</p>`:r.autoClose?`<div class="okbox row"><span class="grow">Fechado por linha sem parede: ${flu(g.err)} (fora do perímetro)</span><button class="btn sm" data-act="autoC" type="button">Desfazer</button></div>`:`<div class="warnbox list"><span>Não fecha: faltam ${flu(g.err)}. Fechar com trechos sem parede:</span><div class="row"><button class="btn sm" data-act="close" data-k="d" type="button">╲ Reto</button><button class="btn sm" data-act="close" data-k="xy" type="button">⌐ L: ↔ depois ↕</button><button class="btn sm" data-act="close" data-k="yx" type="button">⌙ L: ↕ depois ↔</button></div></div>`}
     {const n=c.g.ws.length;h+=`<h2 style="margin:16px 0 6px">Shafts nos cantos</h2><div class="list">`;
       (r.shafts||[]).forEach((sh,i)=>{const k=sh.corner;h+=`<div class="dim"><div class="drow"><span class="tag">SH${i+1}</span><select class="cs" style="flex:0 1 130px" data-act="shC" data-i="${i}" aria-label="Canto">${Array.from({length:n},(_,j)=>`<option value="${j}"${k===j?' selected':''}>Canto P${j+1}/P${(j+1)%n+1}</option>`).join('')}</select><button class="btn sm del xb" data-act="delSh2" data-i="${i}" type="button">✕</button></div>
@@ -638,12 +638,6 @@ function vRoom(p,r){const tab=V.tab||'med',c=calc(r),d=S.settings.dec;
         ${DL(sh.a,sh.aPj)||DL(sh.b,sh.bPj)?`<div class="drow" style="margin-top:4px;gap:10px"><span class="hint">Δ P${k+1}</span>${DL(sh.a,sh.aPj)||'—'}<span class="hint">Δ P${(k+1)%n+1}</span>${DL(sh.b,sh.bPj)||'—'}</div>`:''}</div>`});
       h+=`</div>${n>=3?`<button class="btn sm" data-act="addSh2" type="button" style="margin-top:8px">+ Shaft</button>`:''}`;
       if(c.shL>0)h+=`<div class="tbl" style="margin-top:8px"><table><thead><tr><th>Parede</th><th>Total</th><th>Alvenaria</th><th>Shaft</th></tr></thead><tbody>${c.g.ws.map((w,j)=>`<tr><td>P${j+1}</td><td>${fl(w.len)}</td><td>${fl(c.netW[j])}</td><td>${c.cut[j]?fl(c.cut[j]):'—'}</td></tr>`).join('')}</tbody></table></div>`}
-    {const nv=c.g.ws.length;if(nv>=1){const ptn=j=>j===0?'Início P1':'Fim P'+j;
-      h+=`<h2 style="margin:16px 0 6px">Paredes extras</h2><div class="list">`;
-      (r.extras||[]).forEach((e,i)=>{h+=`<div class="dim"><div class="drow"><span class="tag">PE${i+1}</span><select class="cs" style="flex:0 1 110px" data-act="exAt" data-i="${i}" aria-label="Ponto de partida">${Array.from({length:nv+1},(_,j)=>`<option value="${j}"${e.at===j?' selected':''}>${ptn(j)}</option>`).join('')}</select>
-        <select class="cs" style="flex:0 1 58px" data-act="exDir" data-i="${i}" aria-label="Direção">${[[0,'→'],[180,'←'],[90,'↑'],[-90,'↓']].map(([v,n])=>`<option value="${v}"${(+e.dir||0)===v?' selected':''}>${n}</option>`).join('')}</select>
-        ${F('e:'+i,'Comprimento',e.len,v=>r.extras[i].len=v)}<button class="btn sm del xb" data-act="delEx" data-i="${i}" type="button">✕</button></div></div>`});
-      h+=`</div><button class="btn sm" data-act="addEx" type="button" style="margin-top:8px">+ Parede extra</button>`}}
     h+=`<div class="plan" style="margin-top:12px">${planSVG(r)||'<div class="plan-empty">Meça as paredes para desenhar a planta.</div>'}</div>`;
     h+=`<div class="stats" style="margin-top:10px"><div class="stat"><small>Área piso</small><b>${nf(c.area,2)}<i>m²</i></b></div><div class="stat"><small>Perímetro</small><b>${fl(c.perim)}<i>${UN()}</i></b></div><div class="stat"><small>Parede líquida</small><b>${nf(c.net,2)}<i>m²</i></b></div><div class="stat"><small>Volume</small><b>${nf(c.vol,2)}<i>m³</i></b></div></div>`}
   if(tab==='open'){const nW=c.g.ws.length;
@@ -674,7 +668,7 @@ function vRoom(p,r){const tab=V.tab||'med',c=calc(r),d=S.settings.dec;
   return h}
 
 /* ===== editor de cotas (foto e planta) ===== */
-let PEND=null;
+let PEND=null,INS='end';
 const ED={id:null,z:1,X:0,Y:0,fit:1,mode:'pan',sel:null,styleOpen:false,lastCat:'parede'};
 let RT=null;
 function vPhoto(p,ph){const isPlan=ph.kind==='plan',st=stOf(ph),dec=S.settings.dec;
@@ -943,8 +937,13 @@ document.addEventListener('click',async e=>{const t=e.target.closest('[data-t],[
     case'stReset':S.settings.style=null;save();toast('Estilo padrão restaurado');return render();
     case'delR':if(!armed())return;p.rooms=p.rooms.filter(x=>x!==r);save();return back();
     case'mode':r.mode=t.dataset.k;if(r.mode==='poly'&&!r.walls.some(w=>w.len>0)&&r.a&&r.b)r.walls=[{len:r.a,ang:90},{len:r.b,ang:90},{len:r.a,ang:90},{len:r.b,ang:90},{len:null,ang:90}];save();return render();
-    case'addW':r.walls.push({len:null,ang:90});save();target='w:'+(r.walls.length-1);return render();
-    case'delW':r.walls.splice(i,1);if(!r.walls.length)r.walls.push({len:null,ang:90});r.openings.forEach(o=>{if(o.wall===i)o.wall=null;else if(o.wall>i)o.wall--});save();return render();
+    case'addW':{const k=INS==='end'||INS==null||+INS>=r.walls.length-1?null:+INS;
+      if(k==null){const lw=r.walls[r.walls.length-1];if(lw&&!(lw.len>0)){target='w:'+(r.walls.length-1);return render()}r.walls.push({len:null,ang:90});target='w:'+(r.walls.length-1)}
+      else{const at=k+1;r.walls.splice(at,0,{len:null,ang:0});r.openings.forEach(o=>{if(o.wall!=null&&o.wall>=at)o.wall++});(r.shafts||[]).forEach(sh=>{if(sh.corner!=null&&sh.corner>=at)sh.corner++});
+        if(r.wph){const n={};for(const key in r.wph)n[+key>=at?+key+1:key]=r.wph[key];r.wph=n}target='w:'+at}
+      INS='end';save();return render()}
+    case'delW':r.walls.splice(i,1);if(!r.walls.length)r.walls.push({len:null,ang:90});r.openings.forEach(o=>{if(o.wall===i)o.wall=null;else if(o.wall>i)o.wall--});
+      (r.shafts||[]).forEach(sh=>{if(sh.corner!=null&&sh.corner>=i&&sh.corner>0)sh.corner--});if(r.wph){const n={};for(const key in r.wph){if(+key===i)continue;n[+key>i?+key-1:key]=r.wph[key]}r.wph=n}save();return render();
     case'addO':r.openings.push({id:uid(),t:t.dataset.k,w:null,h:null,q:1,wall:null});save();target='o:'+(r.openings.length-1)+':w';return render();
     case'delO':r.openings.splice(i,1);save();return render();
     case'addOb':r.objects.push({n:'',a:null,b:null,c:null});save();target='b:'+(r.objects.length-1)+':a';return render();
@@ -981,6 +980,7 @@ document.addEventListener('change',e=>{const t=e.target,a=t.dataset.act;if(!a&&!
     case'pj':setPj(r,t.dataset.k,parseL(t.value));break;
     case'dRef':if(t.checked){if(!(ph.dims[i].proj>0)){t.checked=false;toast('Digite primeiro a medida do projeto desta cota');return}ph.dims.forEach((d,k)=>d.ref=k===i)}else ph.dims[i].ref=false;break;
     default:
+      if(t.id==='insAt'){INS=t.value;return}
       if(t.id==='sfmt'){S.settings.fmt=t.value;S.settings.dec=3;break}
       if(t.id==='svib'){S.settings.vib=t.checked;break}
       if(t.id==='swake'){S.settings.wake=t.checked;break}
