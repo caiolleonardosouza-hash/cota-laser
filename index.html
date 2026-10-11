@@ -252,6 +252,7 @@ function revAreas0(r){const g=geom(r),H=r.h||0,min=+S.settings.minOpen||0,rows=[
     const rv=st.rv||ND,rs=st.rvS||ND;
     rows.push({i,name:WN(r,i),rv,faixa:h1<He?'0 a '+fl(h1):He<H-1e-9?'0 a '+fl(He):'parede toda',area:Math.max(0,lo)});addT(rv,Math.max(0,lo));
     if(h1<He){rows.push({i,name:WN(r,i),rv:rs,faixa:fl(h1)+' a '+fl(He),area:Math.max(0,up)});addT(rs,Math.max(0,up))}});
+  rqTot(r).it.forEach(x=>{if(x.a>1e-9){rows.push({name:'Requadro · '+x.nome,rv:x.rv,faixa:'requadro',area:x.a});addT(x.rv,x.a)}});
   SH.forEach(sh=>{const si=r.shafts.indexOf(sh);shFaces(sh).forEach(f=>{const A=f.len*He,st=sh[f.k]||{},rv=st.rv||ND,nm='SH'+(si+1)+' · '+f.nome;
     if(st.ar>0&&st.ar<A){rows.push({name:nm,rv,faixa:'área informada',area:st.ar});addT(rv,st.ar);const rs=st.rs||ND;rows.push({name:nm,rv:rs,faixa:'restante',area:A-st.ar});addT(rs,A-st.ar)}
     else{rows.push({name:nm,rv,faixa:'face toda',area:A});addT(rv,A)}})});
@@ -264,18 +265,25 @@ function shFaces(sh){const a=sh.a||0,b=sh.b||0,ca=a>=b;return[{k:'fa',len:a,nome
 function shAcUI(r,sh,i){const opt=sel=>revOpts(REVS2,sel);let h='';
   for(const f of shFaces(sh)){const st=sh[f.k]||{},A=f.len*(r.h||0);h+=`<div class="drow" style="margin-top:4px;flex-wrap:wrap;gap:6px"><span class="hint" style="flex:0 0 100%">Face ${f.nome} (${fl(f.len)}${A>0?' · '+nf(A,2)+' m²':''})</span><select class="cs" style="flex:0 1 120px" data-act="shRv" data-i="${i}" data-f="${f.k}" data-k="rv" aria-label="Acabamento">${opt(st.rv)}</select><label class="mf cmp" style="cursor:text;flex:0 1 110px"><span class="mfl">Área (m²)</span><input class="pin num" data-act="shAr" data-i="${i}" data-f="${f.k}" inputmode="decimal" value="${st.ar>0?nf(st.ar,2):''}" placeholder="face toda"></label>${st.ar>0?`<span class="hint">resto</span><select class="cs" style="flex:0 1 110px" data-act="shRv" data-i="${i}" data-f="${f.k}" data-k="rs" aria-label="Restante">${opt(st.rs)}</select>${A>0?`<span class="hint">${nf(Math.max(0,A-st.ar),2)} m²</span>`:''}`:''}</div>`}
   return h+`<label class="row" style="gap:6px;margin-top:6px"><input type="checkbox" data-act="shRod" data-i="${i}"${sh.noRod?'':' checked'}> Rodapé no perímetro do shaft${sh.a>0&&sh.b>0?' ('+flu(sh.a+sh.b)+')':''}</label>`}
-function rqLin(q){return q&&q.on?(q.e||0)+(q.d||0)+(q.t||0):0}
+function rqLin(q){return q&&q.on?(q.e||0)+(q.d||0)+(q.t||0)+(q.h||0):0}
+const wRv=(r,i)=>i==null?null:((WS(r,i)||{}).rv||null);
 function rqTot(r){const it=[];let L=0,A=0;const g=geom(r);
-  r.openings.forEach((o,i)=>{if(!(o.rq&&o.rq.on))return;const q=o.q||1,l=rqLin(o.rq)*q;L+=l;A+=l*(o.rq.esp||0);it.push({nome:(o.t==='vao'?'Vão':o.t[0].toUpperCase()+o.t.slice(1))+' '+(i+1)+(o.wall!=null?' ('+WN(r,o.wall)+')':'')+(q>1?' ×'+q:''),rq:o.rq,q,l,a:l*(o.rq.esp||0)})});
-  if(r.mode==='poly')r.walls.forEach((w,i)=>{if(WK(w)!=='v'||!(w.rq&&w.rq.on))return;const l=rqLin(w.rq);L+=l;A+=l*(w.rq.esp||0);it.push({nome:'Vão '+WN(r,i)+' (trecho)',rq:w.rq,q:1,l,a:l*(w.rq.esp||0)})});
+  r.openings.forEach((o,i)=>{if(!(o.rq&&o.rq.on))return;const q=o.q||1,l=rqLin(o.rq)*q;L+=l;A+=l*(o.rq.esp||0);it.push({nome:(o.t==='vao'?'Vão':o.t[0].toUpperCase()+o.t.slice(1))+' '+(i+1)+(o.wall!=null?' ('+WN(r,o.wall)+')':'')+(q>1?' ×'+q:''),rq:o.rq,q,l,a:l*(o.rq.esp||0),rv:o.rq.rv||wRv(r,o.wall)||ND})});
+  if(r.mode==='poly')r.walls.forEach((w,i)=>{if(WK(w)!=='v'||!(w.rq&&w.rq.on))return;const l=rqLin(w.rq);L+=l;A+=l*(w.rq.esp||0);it.push({nome:'Vão '+WN(r,i)+' (trecho)',rq:w.rq,q:1,l,a:l*(w.rq.esp||0),rv:w.rq.rv||ND})});
+  g.ws.forEach((w,i)=>{const st=WS(r,i)||{},q=st.rqF;if(WK(w)!=='p'||!(q&&q.on))return;const l=q.h||0;L+=l;A+=l*(q.esp||0);it.push({nome:'Fim de '+WN(r,i),rq:q,q:1,l,a:l*(q.esp||0),end:true,rv:q.rv||st.rv||ND})});
   return{L,A,it}}
+function rqRvSel(key,q){return`<select class="cs" style="flex:1 1 200px" data-act="rqRv" data-k="${key}" aria-label="Acabamento do requadro"><option value=""${q.rv?'':' selected'}>Acabamento = mesmo da parede</option>${REVS.map(x=>`<option${q.rv===x?' selected':''}>${esc(x)}</option>`).join('')}</select>`}
+function rqEndUI(r,i){const st=WS(r,i)||{},q=st.rqF||{},key='f-'+i;let h=`<div class="drow" style="margin-top:4px;flex-wrap:wrap"><label class="row" style="gap:6px"><input type="checkbox" data-act="rqOn" data-k="${key}"${q.on?' checked':''}> Requadro no fim da parede</label>`;
+  if(q.on)h+=`<button class="btn sm" data-act="rqDef" data-k="${key}" type="button">= PD</button></div><div class="drow" style="margin-top:4px">${F('q:'+key+':h','Altura',q.h,v=>rqObj(key).h=v)}${F('q:'+key+':esp','Espessura',q.esp,v=>rqObj(key).esp=v)}</div><div class="drow" style="margin-top:4px">${rqRvSel(key,q)}`;
+  return h+`</div>`}
 function rqUI(key,obj,lbl,defH,defT){const q=obj.rq||{};
   let h=`<div class="drow" style="margin-top:4px;flex-wrap:wrap"><label class="row" style="gap:6px"><input type="checkbox" data-act="rqOn" data-k="${key}"${q.on?' checked':''}> Requadro</label>`;
   if(q.on)h+=`${defH!=null||defT!=null?`<button class="btn sm" data-act="rqDef" data-k="${key}" type="button">= ${lbl}</button>`:''}<span class="hint grow" style="text-align:right">${rqLin(q)>0?'linear '+flu(rqLin(q)):''}</span></div>
-    <div class="drow" style="margin-top:4px">${F('q:'+key+':e','Lat. esq.',q.e,v=>rqObj(key).e=v)}${F('q:'+key+':d','Lat. dir.',q.d,v=>rqObj(key).d=v)}${F('q:'+key+':t','Topo',q.t,v=>rqObj(key).t=v)}${F('q:'+key+':esp','Espessura',q.esp,v=>rqObj(key).esp=v)}`;
+    <div class="drow" style="margin-top:4px">${F('q:'+key+':e','Lat. esq.',q.e,v=>rqObj(key).e=v)}${F('q:'+key+':d','Lat. dir.',q.d,v=>rqObj(key).d=v)}${F('q:'+key+':t','Topo',q.t,v=>rqObj(key).t=v)}${F('q:'+key+':esp','Espessura',q.esp,v=>rqObj(key).esp=v)}</div><div class="drow" style="margin-top:4px">${rqRvSel(key,q)}`;
   return h+`</div>`}
-let RQR=null;function rqHost(key){const r=RQR;if(!r)return null;const[k,i]=key.split('-');return k==='o'?r.openings[+i]:r.walls[+i]}
-function rqObj(key){const o=rqHost(key);return o.rq=o.rq||{on:true}}
+let RQR=null;function rqHost(key){const r=RQR;if(!r)return null;const[k,i]=key.split('-');return k==='o'?r.openings[+i]:k==='f'?WS(r,+i):r.walls[+i]}
+const rqF=key=>key[0]==='f'?'rqF':'rq';
+function rqObj(key){const o=rqHost(key),f=rqF(key);return o[f]=o[f]||{on:true}}
 function WNS(r){if(r.mode==='rect')return['P1','P2','P3','P4'];const out=[];let m=0,sb=0;r.walls.forEach((w,i)=>{const pv=r.walls[i-1];if(pv&&m>0&&Math.abs(+pv.ang||0)<1e-6){sb++;out.push('P'+m+'.'+sb)}else{m++;sb=0;out.push('P'+m)}});return out}
 const WN=(r,i)=>i==null?'—':(WNS(r)[i]||'P'+(i+1));
 const WK=w=>w.kind||(w.open?'s':'p'),WKN={p:'P',s:'S/P',v:'VÃO'},WKL={p:'Parede',s:'Sem parede',v:'Vão aberto'};
@@ -528,7 +536,7 @@ function rowsFor(p){const d=S.settings.dec,R3=n=>n==null?null:+(+n).toFixed(3);
     sx.push([r.name,'SH'+(i+1),WN(r,k)+'/'+WN(r,(k+1)%n),WN(r,(k+1)%n),R3(sh.b),R3(sh.bPj),dcs(sh.b,sh.bPj)==null?null:+dcs(sh.b,sh.bPj).toFixed(1)])})}
   const scx=[['Cômodo','Sanca','Canto','Lado 1 (m)','Lado 2 (m)','Largura (m)','Altura (m)','Linear (m)','Bandeja (m²)','Fechamento linear (m²)']];for(const r of p.rooms){const g=geom(r);(r.sancas||[]).forEach((sc,k)=>{const q=scGeo(sc,g.ws);if(!q)return;
     scx.push([r.name,'SC'+(k+1),WN(r,q.k)+'/'+WN(r,q.k2),R3(q.La),R3(q.Lb),R3(q.w),R3(q.h),R3(q.L),R3(q.forro),R3(q.test)])})}
-  const rqx=[['Cômodo','Item','Lat. esq. (m)','Lat. dir. (m)','Topo (m)','Qtd','Linear (m)','Espessura (m)','Área (m²)']];for(const r of p.rooms)rqTot(r).it.forEach(x=>rqx.push([r.name,x.nome,R3(x.rq.e),R3(x.rq.d),R3(x.rq.t),x.q,R3(x.l),R3(x.rq.esp),R3(x.a)]));
+  const rqx=[['Cômodo','Item','Lat. esq. / altura (m)','Lat. dir. (m)','Topo (m)','Qtd','Linear (m)','Espessura (m)','Área (m²)','Acabamento']];for(const r of p.rooms)rqTot(r).it.forEach(x=>rqx.push([r.name,x.nome,R3(x.end?x.rq.h:x.rq.e),x.end?null:R3(x.rq.d),x.end?null:R3(x.rq.t),x.q,R3(x.l),R3(x.rq.esp),R3(x.a),x.rv]));
   const rvx=[['Cômodo','Grupo','Local','Acabamento','Faixa','Área (m²)']];for(const r of p.rooms)revAreas(r).rows.forEach(x=>rvx.push([r.name,x.grp==='t'?'Teto':'Parede',x.name,x.rv,x.faixa,R3(x.area)]));
   const ob=[['Cômodo','Objeto','C (m)','L (m)','A (m)','Área (m²)','Volume (m³)']];for(const r of p.rooms)r.objects.forEach(o=>ob.push([r.name,o.n||'',R3(o.a),R3(o.b),R3(o.c),R3((o.a||0)*(o.b||0)),R3((o.a||0)*(o.b||0)*(o.c||0))]));
   const fr=[['Data/hora','Descrição','Medida (m)']];S.free.filter(f=>f.pid===p.id).forEach(f=>fr.push([new Date(f.t).toLocaleString('pt-BR'),f.label||'',R3(f.v)]));
@@ -753,13 +761,13 @@ function vRoom(p,r){RQR=r;const tab=V.tab||'med',c=calc(r),d=S.settings.dec;
     if(r.mode==='rect'){h+=`<div class="list" style="margin-top:6px"><div class="dim"><div class="drow"><span class="tag">P1/3</span>${F('a','Comprimento',r.a,v=>r.a=v)}${PJ('a',r.aPj)}${DL(r.a,r.aPj)}</div></div>
       <div class="dim"><div class="drow"><span class="tag">P2/4</span>${F('b','Largura',r.b,v=>r.b=v)}${PJ('b',r.bPj)}${DL(r.b,r.bPj)}</div></div>
       <div class="dim"><div class="drow" style="flex-wrap:wrap"><span class="hint">Tipo:</span>${walls(r).length?walls(r).map((w,k)=>`<span class="tag">P${k+1}</span><button class="btn sm wk wk-${WK(w)}" data-act="rOpen" data-i="${k}" type="button">${WKN[WK(w)]}</button>`).join(''):'<span class="hint">meça comprimento e largura</span>'}</div></div>
-      ${walls(r).length?`<div class="dim"><b class="hint">Revestimento</b>${walls(r).map((w,k)=>WK(w)==='p'?`<div class="drow" style="margin-top:4px"><span class="tag">P${k+1}</span></div>${revUI(r,k)}`:'').join('')}</div>`:''}
+      ${walls(r).length?`<div class="dim"><b class="hint">Revestimento</b>${walls(r).map((w,k)=>WK(w)==='p'?`<div class="drow" style="margin-top:4px"><span class="tag">P${k+1}</span></div>${revUI(r,k)}${rqEndUI(r,k)}`:'').join('')}</div>`:''}
       <div class="dim"><div class="drow" style="flex-wrap:wrap"><span class="hint">Fotos:</span>${[0,1,2,3].map(k=>`<span class="tag">P${k+1}</span>${WPH(p,r,k)}`).join('')}</div>${[0,1,2,3].map(k=>WMIN(p,r,k)).join('')}</div></div>`;setTimeout(thumbs,0)}
     else{h+=`<div class="list" style="margin-top:6px">`;
       r.walls.forEach((w,i)=>{const last=i===r.walls.length-1&&w.len==null,pw=i>0?r.walls[i-1]:null,std=!pw||[90,-90,45,-45,135,-135,0].includes(+pw.ang);
         const sel=pw?`<select class="cs" style="flex:0 1 66px" data-act="ang" data-i="${i-1}" aria-label="Giro antes de ${WN(r,i)}">${[[90,'↰90°'],[-90,'↱90°'],[0,'↑ reto'],[45,'↰45°'],[-45,'↱45°'],[135,'↰135°'],[-135,'↱135°']].map(([v,n])=>`<option value="${v}"${+pw.ang===v?' selected':''}>${n}</option>`).join('')}<option value="x"${std?'':' selected'}>outro</option></select>`:`<span class="hint" style="flex:0 1 66px;text-align:center">início</span>`;
         h+=`<div class="dim"><div class="drow"><span class="tag">${WN(r,i)}</span>${sel}${F('w:'+i,'Real',w.len,v=>{r.walls[i].len=v;if(i===r.walls.length-1)r.walls.push({len:null,ang:90})})}${last?'':PJ('w:'+i,w.pj)}${DL(w.len,w.pj)}<button class="btn sm wk wk-${WK(w)}" data-act="wOpen" data-i="${i}" type="button" aria-label="Tipo: ${WKL[WK(w)]} (toque para trocar)">${WKN[WK(w)]}</button>${last?'':WPH(p,r,i)}<button class="btn sm del xb" data-act="delW" data-i="${i}" type="button" aria-label="Apagar ${WN(r,i)}">✕</button></div>
-        ${!last&&WK(w)==='p'?revUI(r,i):''}${!last&&WK(w)==='v'?rqUI('w-'+i,w,'vão',null,w.len):''}${!std?`<div class="drow" style="margin-top:4px"><span class="hint">Giro antes de ${WN(r,i)} (°, + esq / − dir)</span><input class="txt num" style="width:70px" data-act="angx" data-i="${i-1}" inputmode="decimal" value="${nf(+pw.ang,1)}" aria-label="Giro em graus"></div>`:''}${last?'':WMIN(p,r,i)}</div>`});
+        ${!last&&WK(w)==='p'?revUI(r,i)+rqEndUI(r,i):''}${!last&&WK(w)==='v'?rqUI('w-'+i,w,'vão',null,w.len):''}${!std?`<div class="drow" style="margin-top:4px"><span class="hint">Giro antes de ${WN(r,i)} (°, + esq / − dir)</span><input class="txt num" style="width:70px" data-act="angx" data-i="${i-1}" inputmode="decimal" value="${nf(+pw.ang,1)}" aria-label="Giro em graus"></div>`:''}${last?'':WMIN(p,r,i)}</div>`});
       {const nW=r.walls.length;h+=`</div><div class="row" style="margin-top:8px"><button class="btn sm" data-act="addW" type="button">+ Parede</button><select class="cs" style="flex:0 1 190px" id="insAt" aria-label="Onde inserir">${`<option value="end">no fim (antes de fechar)</option>`+Array.from({length:Math.max(0,nW-1)},(_,k)=>`<option value="${k}"${String(INS)===String(k)?' selected':''}>entre ${WN(r,k)} e ${WN(r,k+1)}</option>`).join('')+`<optgroup label="Na mesma reta (continuação)">`+r.walls.map((w,k)=>w.len>0?`<option value="c${k}"${INS==='c'+k?' selected':''}>continuar ${WN(r,k)} → ${(()=>{const nm=WNS({mode:'poly',walls:[...r.walls.slice(0,k+1),{sub:true}]});return nm[nm.length-1]})()}</option>`:'').join('')+`</optgroup>`}</select></div>`};setTimeout(thumbs,0);
       const g=c.g;if(g.ws.length>=3)h+=g.err<0.02?`<p class="okbox">Planta fechada. Erro de fechamento: ${nf(g.err*100,1)} cm.</p>`:r.autoClose?`<div class="okbox row"><span class="grow">Fechado por linha sem parede: ${flu(g.err)} (fora do perímetro)</span><button class="btn sm" data-act="autoC" type="button">Desfazer</button></div>`:`<div class="warnbox list"><span>Não fecha: faltam ${flu(g.err)}. Fechar com trechos sem parede:</span><div class="row"><button class="btn sm" data-act="close" data-k="d" type="button">╲ Reto</button><button class="btn sm" data-act="close" data-k="xy" type="button">⌐ L: ↔ depois ↕</button><button class="btn sm" data-act="close" data-k="yx" type="button">⌙ L: ↕ depois ↔</button></div></div>`}
     {const n=c.g.ws.length;h+=`<h2 style="margin:16px 0 6px">Shafts nos cantos</h2><div class="list">`;
@@ -1053,7 +1061,7 @@ function vReport(p){const t=totals(p),d=new Date();
     ${walls(r).map((w,i)=>{const pj=wallPj(r,i);return`<tr><td>${WK(w)==='p'?'Parede '+WN(r,i):WN(r,i)+' · '+WKL[WK(w)]}</td><td>${fl(w.len)}</td><td>${fl(pj)}</td><td>${dtxt(dcs(w.len,pj))}</td></tr>`}).join('')}
     ${(r.extras||[]).filter(e=>e.len>0).map((e,k)=>`<tr><td>Parede extra PE${k+1}</td><td>${fl(e.len)}</td><td>—</td><td>—</td></tr>`).join('')}
     ${(r.sancas||[]).map((sc,k)=>{const q=scGeo(sc,c.g.ws);return q?`<tr><td>Sanca SC${k+1} · canto ${WN(r,q.k)}/${WN(r,q.k2)}</td><td colspan="3">lados ${fl(q.La)} + ${fl(q.Lb)} · larg ${fl(q.w)} · alt ${fl(q.h)} · bandeja ${nf(q.forro,2)} m² · fechamento linear ${nf(q.test,2)} m²</td></tr>`:''}).join('')}
-    ${rqTot(r).it.map(x=>`<tr><td>Requadro · ${esc(x.nome)}</td><td colspan="3">${fl(x.rq.e)} + ${fl(x.rq.d)} + ${fl(x.rq.t)}${x.q>1?' × '+x.q:''} = ${flu(x.l)} · esp. ${fl(x.rq.esp)}</td></tr>`).join('')}
+    ${rqTot(r).it.map(x=>`<tr><td>Requadro · ${esc(x.nome)}</td><td colspan="3">${x.end?'altura '+flu(x.rq.h):fl(x.rq.e)+' + '+fl(x.rq.d)+' + '+fl(x.rq.t)+(x.q>1?' × '+x.q:'')+' = '+flu(x.l)} · esp. ${fl(x.rq.esp)} · ${esc(x.rv)}</td></tr>`).join('')}
     ${c.vClose?`<tr><td>Fechamento sem parede</td><td>${fl(c.vClose)}</td><td>—</td><td>—</td></tr>`:''}
     ${(r.shafts||[]).map((sh,i)=>{const n=c.g.ws.length,k=sh.corner;return n?`<tr><td>Shaft SH${i+1} · ao longo ${WN(r,k)}</td><td>${fl(sh.a)}</td><td>${fl(sh.aPj)}</td><td>${dtxt(dcs(sh.a,sh.aPj))}</td></tr><tr><td>Shaft SH${i+1} · ao longo ${WN(r,(k+1)%n)}</td><td>${fl(sh.b)}</td><td>${fl(sh.bPj)}</td><td>${dtxt(dcs(sh.b,sh.bPj))}</td></tr>`:''}).join('')}
     ${c.shL?c.g.ws.map((w,j)=>c.cut[j]?`<tr><td>${WN(r,j)} alvenaria + shaft</td><td colspan="3">${fl(c.netW[j])} + ${fl(c.cut[j])} = ${fl(w.len)}</td></tr>`:'').join(''):''}
@@ -1144,7 +1152,7 @@ document.addEventListener('click',async e=>{const t=e.target.closest('[data-t],[
       d.lo=[nx*pn_+(-ny)*pt_, ny*pn_+nx*pt_];save();return render()}
     case'addSh2':{const n=calc(r).g.ws.length;(r.shafts=r.shafts||[]).push({id:uid(),corner:0,a:null,b:null});save();target='s:'+(r.shafts.length-1)+':a';return render()}
     case'addSc':(r.sancas=r.sancas||[]).push({id:uid(),corner:0,a:null,b:null,larg:null,alt:null});save();target='c:'+(r.sancas.length-1)+':a';return render();
-    case'rqDef':{const key=t.dataset.k,o=rqHost(key);if(!o)return;const q=o.rq=o.rq||{on:true};const[k]=key.split('-');
+    case'rqDef':{const key=t.dataset.k,o=rqHost(key);if(!o)return;const[k]=key.split('-');if(k==='f'){const q=rqObj(key);const he=hEff(r);if(he>0)q.h=he;save();target='q:'+key+':esp';return render()}const q=o.rq=o.rq||{on:true};
       if(k==='o'){if(o.h>0){q.e=o.h;q.d=o.h}if(o.w>0)q.t=o.w}else{if(o.len>0)q.t=o.len}save();target='q:'+key+(k==='o'?':esp':':e');return render()}
     case'scAll':{const sc=r.sancas[i],ws=walls(r),n=ws.length,k=t.dataset.k==='a'?sc.corner:(sc.corner+1)%n;sc[t.dataset.k]=ws[k]?ws[k].len:null;save();return render()}
     case'delSc':r.sancas.splice(i,1);save();return render();
@@ -1214,7 +1222,8 @@ document.addEventListener('change',e=>{const t=e.target,a=t.dataset.act;if(!a&&!
     case'shRod':r.shafts[i].noRod=!t.checked;break;
     case'rvT':r.rvT=t.value||null;break;
     case'scRv':r.sancas[i][t.dataset.k]=t.value;break;
-    case'rqOn':{const o=rqHost(t.dataset.k);if(!o)return;o.rq=o.rq||{};o.rq.on=t.checked;if(t.checked&&!o.rq.e&&!o.rq.t)target='q:'+t.dataset.k+':e';break}
+    case'rqOn':{const o=rqHost(t.dataset.k);if(!o)return;const f=rqF(t.dataset.k),q=o[f]=o[f]||{};q.on=t.checked;if(t.checked&&!q.e&&!q.t&&!q.h)target='q:'+t.dataset.k+(f==='rqF'?':h':':e');break}
+    case'rqRv':{const o=rqHost(t.dataset.k);if(!o)return;const f=rqF(t.dataset.k);o[f]=o[f]||{on:true};o[f].rv=t.value||null;break}
     case'shC':r.shafts[i].corner=+t.value;break;
     case'pj':setPj(r,t.dataset.k,parseL(t.value));break;
     case'dRef':if(t.checked){if(!(ph.dims[i].proj>0)){t.checked=false;toast('Digite primeiro a medida do projeto desta cota');return}ph.dims.forEach((d,k)=>d.ref=k===i)}else ph.dims[i].ref=false;break;
