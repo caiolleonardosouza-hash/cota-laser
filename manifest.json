@@ -1,6 +1,6 @@
 {
-  "name": "TrenON",
-  "short_name": "TrenON",
+  "name": "TrenOn",
+  "short_name": "TrenOn",
   "description": "Medição com trena laser via Bluetooth",
   "start_url": "./",
   "scope": "./",
