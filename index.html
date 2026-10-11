@@ -224,13 +224,21 @@ const R=(p,id)=>p&&p.rooms.find(r=>r.id===id);
 const REVS=['Textura','Gesso > Pintura c/ massa acrílica','Gesso > Pintura c/ massa PVA','Gesso > Cerâmica ou porcelanato','Reboco > Pintura c/ massa acrílica','Reboco > Pintura c/ massa PVA','Reboco > Textura','Reboco > Cerâmica ou porcelanato','Outro'];
 const REVS2=['Pintura c/ massa acrílica','Pintura c/ massa PVA','Textura','Cerâmica ou porcelanato','Outro'];
 const ND='Não definido';
+const REVT=['Gesso > Pintura','Textura','Forro de gesso','Outro'];
 function revOpts(list,sel,blank){const L=sel&&!list.includes(sel)&&sel!==ND?[sel,...list]:list;return(blank?`<option value="">—</option>`:`<option value=""${!sel||sel===ND?' selected':''}>— não definido</option>`)+L.map(x=>`<option${sel===x?' selected':''}>${esc(x)}</option>`).join('')}
 function layTot(tot){const o={};for(const[k,v]of Object.entries(tot)){for(const l of(k===ND?[ND]:k.split(' > ')))o[l.trim()]=(o[l.trim()]||0)+v}return o}
-function revTbls(tot,ttl){const ks=Object.keys(tot);if(!ks.length)return'';const L=layTot(tot),lk=Object.keys(L),row=(k,v)=>`<tr><td>${esc(k)}</td><td>${nf(v,2)}</td></tr>`;
-  return`<div class="tbl" style="margin-top:8px"><table><thead><tr><th>${ttl||'Sistema de acabamento'}</th><th>Área (m²)</th></tr></thead><tbody>${ks.map(k=>row(k,tot[k])).join('')}</tbody></table></div>`+
-   (lk.length>ks.length||ks.some(k=>k.includes(' > '))?`<div class="tbl" style="margin-top:8px"><table><thead><tr><th>Por serviço (camada)</th><th>Área (m²)</th></tr></thead><tbody>${lk.map(k=>row(k,L[k])).join('')}</tbody></table></div>`:'')}
+function revTbls(tot,ttl){const ks=Object.keys(tot);if(!ks.length)return'';const L=layTot(tot),lk=Object.keys(L),row=(k,v)=>`<tr><td>${esc(k)}</td><td>${nf(v,2)}</td></tr>`,T=ks.reduce((a,k)=>a+tot[k],0);
+  return`<h3 style="margin:12px 0 2px">${ttl} · total ${nf(T,2)} m²</h3><div class="tbl" style="margin-top:4px"><table><thead><tr><th>Área por material</th><th>m²</th></tr></thead><tbody>${lk.map(k=>row(k,L[k])).join('')}</tbody></table></div>`+
+   `<div class="tbl" style="margin-top:6px"><table><thead><tr><th>Por sistema (sequência)</th><th>m²</th></tr></thead><tbody>${ks.map(k=>row(k,tot[k])).join('')}</tbody></table></div>`}
+function revBlock(tot,totT,pre){return revTbls(tot,(pre||'')+'Parede')+revTbls(totT||{},(pre||'')+'Teto')}
 function WS(r,i){if(r.mode==='rect'){r.revR=r.revR||{};return r.revR[i]=r.revR[i]||{}}return r.walls[i]}
-function revAreas(r){const g=geom(r),H=r.h||0,min=+S.settings.minOpen||0,rows=[],tot={},warn=[];if(!(H>0))return{rows,tot,warn:g.ws.length?['Sem pé-direito: revestimento não calculado.']:[]};
+function revAreas(r){const a=revAreas0(r),tt={},c=calc(r),g=c.g;a.rows.forEach(x=>x.grp='p');a.totT=tt;const add=(k,v)=>{if(v>1e-9)tt[k]=(tt[k]||0)+v};
+  if(c.teto>1e-9){const k=r.rvT||ND;a.rows.push({grp:'t',name:'Teto',rv:k,faixa:c.scF?'teto − bandeja':'teto todo',area:c.teto});add(k,c.teto)}
+  (r.sancas||[]).forEach((sc,si)=>{const q=scGeo(sc,g.ws);if(!q)return;const b=sc.rvB||ND,f=sc.rvF||ND;
+    if(q.forro>1e-9){a.rows.push({grp:'t',name:'SC'+(si+1)+' · bandeja',rv:b,faixa:'bandeja',area:q.forro});add(b,q.forro)}
+    if(q.test>1e-9){a.rows.push({grp:'t',name:'SC'+(si+1)+' · fechamento',rv:f,faixa:'fechamento',area:q.test});add(f,q.test)}});
+  return a}
+function revAreas0(r){const g=geom(r),H=r.h||0,min=+S.settings.minOpen||0,rows=[],tot={},warn=[];if(!(H>0))return{rows,tot,warn:g.ws.length?['Sem pé-direito: revestimento não calculado.']:[]};
   const addT=(k,v)=>{if(v>1e-9)tot[k]=(tot[k]||0)+v};const nW=g.ws.length,cut=g.ws.map(()=>0),SH=[];
   for(const sh of r.shafts||[]){if(sh.corner==null||sh.corner>=nW||!(sh.a>0&&sh.b>0))continue;cut[sh.corner]+=sh.a;cut[(sh.corner+1)%nW]+=sh.b;SH.push(sh)}
   g.ws.forEach((w,i)=>{if(WK(w)!=='p')return;const st=WS(r,i)||{},h1=st.rvH>0?Math.min(st.rvH,H):H,len=Math.max(0,w.len-cut[i]);let lo=len*h1,up=len*(H-h1);
@@ -244,9 +252,6 @@ function revAreas(r){const g=geom(r),H=r.h||0,min=+S.settings.minOpen||0,rows=[]
   SH.forEach(sh=>{const si=r.shafts.indexOf(sh);shFaces(sh).forEach(f=>{const A=f.len*H,st=sh[f.k]||{},rv=st.rv||ND,nm='SH'+(si+1)+' · '+f.nome;
     if(st.ar>0&&st.ar<A){rows.push({name:nm,rv,faixa:'área informada',area:st.ar});addT(rv,st.ar);const rs=st.rs||ND;rows.push({name:nm,rv:rs,faixa:'restante',area:A-st.ar});addT(rs,A-st.ar)}
     else{rows.push({name:nm,rv,faixa:'face toda',area:A});addT(rv,A)}})});
-  (r.sancas||[]).forEach((sc,si)=>{const q=scGeo(sc,g.ws);if(!q)return;const b=sc.rvB||ND,f=sc.rvF||ND;
-    if(q.forro>1e-9){rows.push({name:'SC'+(si+1)+' · bandeja',rv:b,faixa:'bandeja',area:q.forro});addT(b,q.forro)}
-    if(q.test>1e-9){rows.push({name:'SC'+(si+1)+' · fechamento',rv:f,faixa:'fechamento',area:q.test});addT(f,q.test)}});
   if(r.openings.some(o=>o.wall==null&&o.w>0))warn.push('Aberturas sem parede definida não foram descontadas do revestimento.');
   return{rows,tot,warn}}
 function revUI(r,i){const st=WS(r,i)||{},opt=(v,sel)=>revOpts(REVS,sel,true);
@@ -521,12 +526,12 @@ function rowsFor(p){const d=S.settings.dec,R3=n=>n==null?null:+(+n).toFixed(3);
   const scx=[['Cômodo','Sanca','Canto','Lado 1 (m)','Lado 2 (m)','Largura (m)','Altura (m)','Linear (m)','Bandeja (m²)','Fechamento linear (m²)']];for(const r of p.rooms){const g=geom(r);(r.sancas||[]).forEach((sc,k)=>{const q=scGeo(sc,g.ws);if(!q)return;
     scx.push([r.name,'SC'+(k+1),WN(r,q.k)+'/'+WN(r,q.k2),R3(q.La),R3(q.Lb),R3(q.w),R3(q.h),R3(q.L),R3(q.forro),R3(q.test)])})}
   const rqx=[['Cômodo','Item','Lat. esq. (m)','Lat. dir. (m)','Topo (m)','Qtd','Linear (m)','Espessura (m)','Área (m²)']];for(const r of p.rooms)rqTot(r).it.forEach(x=>rqx.push([r.name,x.nome,R3(x.rq.e),R3(x.rq.d),R3(x.rq.t),x.q,R3(x.l),R3(x.rq.esp),R3(x.a)]));
-  const rvx=[['Cômodo','Parede','Revestimento','Faixa (m)','Área (m²)']];for(const r of p.rooms)revAreas(r).rows.forEach(x=>rvx.push([r.name,x.name,x.rv,x.faixa,R3(x.area)]));
+  const rvx=[['Cômodo','Grupo','Local','Acabamento','Faixa','Área (m²)']];for(const r of p.rooms)revAreas(r).rows.forEach(x=>rvx.push([r.name,x.grp==='t'?'Teto':'Parede',x.name,x.rv,x.faixa,R3(x.area)]));
   const ob=[['Cômodo','Objeto','C (m)','L (m)','A (m)','Área (m²)','Volume (m³)']];for(const r of p.rooms)r.objects.forEach(o=>ob.push([r.name,o.n||'',R3(o.a),R3(o.b),R3(o.c),R3((o.a||0)*(o.b||0)),R3((o.a||0)*(o.b||0)*(o.c||0))]));
   const fr=[['Data/hora','Descrição','Medida (m)']];S.free.filter(f=>f.pid===p.id).forEach(f=>fr.push([new Date(f.t).toLocaleString('pt-BR'),f.label||'',R3(f.v)]));
   const px=[['Planta','Cota','Categoria','Descrição','Projeto (m)','Real (m)','Δ (cm)','Status','Fotos']];
   for(const pl of p.photos.filter(f=>f.kind==='plan'))pl.dims.forEach((d,i)=>{const dc=deltaCm(pl,d),ok=okD(dc);px.push([pl.name,'C'+(i+1),d.ref?'Escala':CATS[d.cat||'outro'],d.label||'',R3(projOf(pl,d)),R3(d.val),dc==null?null:+dc.toFixed(1),ok==null?'':ok?'OK':'FORA',(d.ph||[]).length])});
-  return{Resumo:res,'Projeto x Real':px,Paredes:wl,Aberturas:op,Shafts:sx,Sancas:scx,Revestimentos:rvx,'Serviços':(()=>{const a=[['Cômodo','Serviço (camada)','Área (m²)']];for(const r of p.rooms){const L=layTot(revAreas(r).tot);for(const k in L)a.push([r.name,k,R3(L[k])])}return a})(),Requadros:rqx,Objetos:ob,Avulsas:fr}}
+  return{Resumo:res,'Projeto x Real':px,Paredes:wl,Aberturas:op,Shafts:sx,Sancas:scx,Revestimentos:rvx,'Serviços':(()=>{const a=[['Cômodo','Grupo','Material','Área (m²)']];for(const r of p.rooms){const ra=revAreas(r);for(const[g,t]of[['Parede',ra.tot],['Teto',ra.totT]]){const L=layTot(t);for(const k in L)a.push([r.name,g,k,R3(L[k])])}}return a})(),Requadros:rqx,Objetos:ob,Avulsas:fr}}
 function tomb(id){S.del=S.del||{};S.del[id]=Date.now()}
 /* ===== sincronização Google Drive (pasta oculta do app no SEU Drive) ===== */
 const GSC='https://www.googleapis.com/auth/drive.appdata',GAPI='https://www.googleapis.com/drive/v3/files',GUP='https://www.googleapis.com/upload/drive/v3/files';
@@ -740,7 +745,7 @@ function vRoom(p,r){RQR=r;const tab=V.tab||'med',c=calc(r),d=S.settings.dec;
   let h=`<div class="tabs">${[['med','Medidas'],['open','Aberturas'],['obj','Objetos'],['plan','Planta'],['sum','Resumo']].map(([k,n])=>`<button class="tab${tab===k?' on':''}" data-act="rtab" data-k="${k}" type="button">${n}</button>`).join('')}</div>`;
   if(tab==='med'){
     h+=`<div class="row" style="margin:10px 0"><button class="btn sm${r.mode==='rect'?' pri':''}" data-act="mode" data-k="rect" type="button">Retângulo</button><button class="btn sm${r.mode==='poly'?' pri':''}" data-act="mode" data-k="poly" type="button">Paredes em série</button></div>`;
-    h+=`<div class="dim"><div class="drow"><span class="tag">PD</span>${F('h','Pé-direito',r.h,v=>r.h=v)}${PJ('h',r.hPj)}${DL(r.h,r.hPj)}</div></div>`;
+    h+=`<div class="dim"><div class="drow"><span class="tag">PD</span>${F('h','Pé-direito',r.h,v=>r.h=v)}${PJ('h',r.hPj)}${DL(r.h,r.hPj)}</div><div class="drow" style="margin-top:4px"><span class="hint" style="flex:0 0 auto">Teto</span><select class="cs" style="flex:1 1 200px" data-act="rvT" aria-label="Acabamento do teto">${revOpts(REVT,r.rvT)}</select></div></div>`;
     if(r.mode==='rect'){h+=`<div class="list" style="margin-top:6px"><div class="dim"><div class="drow"><span class="tag">P1/3</span>${F('a','Comprimento',r.a,v=>r.a=v)}${PJ('a',r.aPj)}${DL(r.a,r.aPj)}</div></div>
       <div class="dim"><div class="drow"><span class="tag">P2/4</span>${F('b','Largura',r.b,v=>r.b=v)}${PJ('b',r.bPj)}${DL(r.b,r.bPj)}</div></div>
       <div class="dim"><div class="drow" style="flex-wrap:wrap"><span class="hint">Tipo:</span>${walls(r).length?walls(r).map((w,k)=>`<span class="tag">P${k+1}</span><button class="btn sm wk wk-${WK(w)}" data-act="rOpen" data-i="${k}" type="button">${WKN[WK(w)]}</button>`).join(''):'<span class="hint">meça comprimento e largura</span>'}</div></div>
@@ -792,7 +797,7 @@ function vRoom(p,r){RQR=r;const tab=V.tab||'med',c=calc(r),d=S.settings.dec;
     <dt>Parede líquida</dt><dd>${nf(c.net,2)} m²</dd><dt>Rodapé (perímetro − portas/vãos)</dt><dd>${flu(c.rodape)}</dd><dt>Volume</dt><dd>${nf(c.vol,2)} m³</dd>
     ${r.objects.length?`<dt>Objetos (área / volume)</dt><dd>${nf(c.objA,2)} m² / ${nf(c.objV,3)} m³</dd>`:''}
     ${r.mode==='poly'&&c.g.ws.length>=3?`<dt>Erro de fechamento</dt><dd>${nf(c.g.err*100,1)} cm</dd>`:''}</dl></div>
-    ${(()=>{const ra=revAreas(r),ks=Object.keys(ra.tot);return ks.length||ra.warn.length?`<h2 style="margin:16px 0 6px">Revestimentos</h2>${ks.length?revTbls(ra.tot)+`
+    ${(()=>{const ra=revAreas(r),ks=Object.keys(ra.tot).concat(Object.keys(ra.totT));return ks.length||ra.warn.length?`<h2 style="margin:16px 0 6px">Acabamentos</h2>${ks.length?revBlock(ra.tot,ra.totT)+`
       <div class="tbl" style="margin-top:6px"><table><thead><tr><th>Local</th><th>Acabamento</th><th>Faixa</th><th>Área (m²)</th></tr></thead><tbody>${ra.rows.map(x=>`<tr><td>${x.name}</td><td>${esc(x.rv)}</td><td>${x.faixa}</td><td>${nf(x.area,2)}</td></tr>`).join('')}</tbody></table></div>`:''}${ra.warn.map(w=>`<p class="warnbox">${esc(w)}</p>`).join('')}`:''})()}
     <div class="row" style="margin-top:10px"><button class="btn" data-act="copySum" type="button">Copiar resumo</button><button class="btn del" data-act="delR" type="button">Excluir cômodo</button></div>`}
   return h}
@@ -840,7 +845,7 @@ function vGeral(p){initPos(p);const RW=p.rooms.map(rWorld).filter(Boolean),tot=p
   <div class="tbl" style="margin-top:10px"><table><thead><tr><th>Cômodo</th><th>Piso (m²)</th><th>Teto (m²)</th><th>Parede bruta (m²)</th><th>Vãos/aberturas (m²)</th><th>Parede líquida (m²)</th></tr></thead><tbody>
   ${rows.map(({r,c})=>`<tr><td>${esc(r.name)}</td><td>${nf(c.area,2)}</td><td>${nf(c.teto,2)}</td><td>${r.h>0?nf(c.gross,2):'—'}</td><td>${nf(c.ded,2)}</td><td>${r.h>0?nf(c.net,2):'—'}</td></tr>`).join('')}</tbody>
   <tfoot><tr><td>Total</td><td>${nf(T.area,2)}</td><td>${nf(T.teto,2)}</td><td>${nf(T.gross,2)}</td><td>${nf(T.ded,2)}</td><td>${nf(T.net,2)}</td></tr></tfoot></table></div>
-  ${(()=>{const T2={};p.rooms.forEach(r=>{const t=revAreas(r).tot;for(const k in t)T2[k]=(T2[k]||0)+t[k]});const ks=Object.keys(T2);return ks.length?revTbls(T2,'Acabamento (obra)'):''})()}
+  ${(()=>{const T2={},T3={};p.rooms.forEach(r=>{const a=revAreas(r);for(const k in a.tot)T2[k]=(T2[k]||0)+a.tot[k];for(const k in a.totT)T3[k]=(T3[k]||0)+a.totT[k]});return revBlock(T2,T3,'Obra · ')})()}
   ${(()=>{let L=0,A=0;p.rooms.forEach(r=>{const t=rqTot(r);L+=t.L;A+=t.A});return L?`<div class="stats" style="margin-top:10px"><div class="stat"><small>Requadro (obra)</small><b>${fl(L)}<i>${UN()}</i></b></div><div class="stat"><small>Requadro (área)</small><b>${nf(A,2)}<i>m²</i></b></div></div>`:''})()}
   ${semPD.length?`<p class="warnbox">Sem pé-direito: ${semPD.map(x=>esc(x.r.name)).join(', ')} — área de parede não calculada.</p>`:''}`;
   return h}
@@ -1052,7 +1057,7 @@ function vReport(p){const t=totals(p),d=new Date();
       return`<tr><td>${nm} · largura</td><td>${fl(o.w)}</td><td>${fl(o.wPj)}</td><td>${dtxt(dcs(o.w,o.wPj))}</td></tr><tr><td>${nm} · altura</td><td>${fl(o.h)}</td><td>${fl(o.hPj)}</td><td>${dtxt(dcs(o.h,o.hPj))}</td></tr>${o.off!=null||o.offPj!=null?`<tr><td>${nm} · dist. início</td><td>${fl(o.off)}</td><td>${fl(o.offPj)}</td><td>${dtxt(dcs(o.off,o.offPj))}</td></tr>`:''}`}).join('')}
     ${r.objects.map(o=>`<tr><td>${esc(o.n||'Objeto')}</td><td>${fl(o.a)} × ${fl(o.b)} × ${flu(o.c)}</td></tr>`).join('')}
     ${r.mode==='poly'&&c.g.ws.length>=3?`<tr><td>Erro de fechamento</td><td>${nf(c.g.err*100,1)} cm</td></tr>`:''}</tbody></table></div></div></div>`;
-    {const ra=revAreas(r),ks=Object.keys(ra.tot);if(ks.length)h+=revTbls(ra.tot)}
+    {const ra=revAreas(r);h+=revBlock(ra.tot,ra.totT)}
     const phs=p.photos.filter(f=>f.rid===r.id&&(f.kind||'photo')==='photo'&&(!f.link||f.link.wall!=null));if(phs.length)h+=`<div class="two" style="margin-top:8px">${phs.map(f=>`<figure style="margin:0"><img data-rph="${f.id}" alt="${esc(f.name)}"><figcaption class="hint">${esc(f.name)}</figcaption></figure>`).join('')}</div>`;h+=`</div>`}
   for(const pl of p.photos.filter(f=>f.kind==='plan')){const g=catSummary(pl),ks=Object.keys(g),dec=S.settings.dec;
     h+=`<div class="room"><h3>${esc(pl.name)} — projeto × real</h3>${pl.dims.length?`<div class="crops" data-crops="${pl.id}"><span class="hint">Gerando recortes das áreas cotadas…</span></div>`:`<img data-rph="${pl.id}" alt="${esc(pl.name)}">`}`;
@@ -1203,6 +1208,7 @@ document.addEventListener('change',e=>{const t=e.target,a=t.dataset.act;if(!a&&!
     case'shRv':{const sh=r.shafts[i];sh[t.dataset.f]=sh[t.dataset.f]||{};sh[t.dataset.f][t.dataset.k]=t.value;break}
     case'shAr':{const sh=r.shafts[i];sh[t.dataset.f]=sh[t.dataset.f]||{};sh[t.dataset.f].ar=pn(t.value);break}
     case'shRod':r.shafts[i].noRod=!t.checked;break;
+    case'rvT':r.rvT=t.value||null;break;
     case'scRv':r.sancas[i][t.dataset.k]=t.value;break;
     case'rqOn':{const o=rqHost(t.dataset.k);if(!o)return;o.rq=o.rq||{};o.rq.on=t.checked;if(t.checked&&!o.rq.e&&!o.rq.t)target='q:'+t.dataset.k+':e';break}
     case'shC':r.shafts[i].corner=+t.value;break;
