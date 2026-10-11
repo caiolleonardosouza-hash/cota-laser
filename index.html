@@ -280,8 +280,9 @@ function planSVG(r,{W=360,H=270,exp=false}={}){
     const l1=g.ws[k].len,l2=g.ws[(k+1)%n0].len,u1=[(V[0]-P0[0])/l1,(V[1]-P0[1])/l1],u2=[(V2[0]-V[0])/l2,(V2[1]-V[1])/l2];
     const q=[V,[V[0]-u1[0]*sh.a,V[1]-u1[1]*sh.a],[V[0]-u1[0]*sh.a+u2[0]*sh.b,V[1]-u1[1]*sh.a+u2[1]*sh.b],[V[0]+u2[0]*sh.b,V[1]+u2[1]*sh.b]].map(([x,y])=>T([x,-y]));
     o+=`<polygon points="${q.map(p=>p.map(v=>v.toFixed(1)).join(',')).join(' ')}" fill="${exp?'#c8ccd2':'color-mix(in srgb,var(--muted) 45%,transparent)'}" stroke="${C.wall}" stroke-width="1.5"/>`;
-    const cx=q.reduce((s,p)=>s+p[0],0)/4,cy=q.reduce((s,p)=>s+p[1],0)/4,dx=cx-q[0][0],dy=cy-q[0][1],dl=Math.hypot(dx,dy)||1;
-    const lx=cx+dx/dl*30,ly=cy+dy/dl*22,txt='SH'+(si+1)+' '+fl(sh.a)+'×'+fl(sh.b),tw=txt.length*4.3+6;
+    const cx=q.reduce((s,p)=>s+p[0],0)/4,cy=q.reduce((s,p)=>s+p[1],0)/4,dx=q[0][0]-cx,dy=q[0][1]-cy,dl=Math.hypot(dx,dy)||1;
+    const txt='SH'+(si+1)+' '+fl(sh.a)+'×'+fl(sh.b),tw=txt.length*4.3+6;
+    const lx=Math.min(W-tw/2-2,Math.max(tw/2+2,q[0][0]+dx/dl*26+(dx>0?tw/2-6:-(tw/2-6)))),ly=Math.min(H-6,Math.max(9,q[0][1]+dy/dl*20));
     o+=`<line x1="${cx.toFixed(1)}" y1="${cy.toFixed(1)}" x2="${lx.toFixed(1)}" y2="${ly.toFixed(1)}" stroke="${C.mut}" stroke-width="0.8"/>`;
     o+=`<rect x="${(lx-tw/2).toFixed(1)}" y="${(ly-7).toFixed(1)}" width="${tw.toFixed(1)}" height="12" rx="2" fill="${C.bg}" stroke="${C.mut}" stroke-width="0.6"/><text x="${lx.toFixed(1)}" y="${(ly+2).toFixed(1)}" text-anchor="middle" font-size="7.5" font-weight="700" fill="${C.txt}">${txt}</text>`});
   if(closed){const cx=sp.slice(0,-1).reduce((s,p)=>s+p[0],0)/(sp.length-1),cy=sp.slice(0,-1).reduce((s,p)=>s+p[1],0)/(sp.length-1);
