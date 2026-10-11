@@ -384,6 +384,9 @@ async function photoBlob(ph,max=0){const im=await img(ph.id);if(!im)return null;
   if(max&&Math.max(c.width,c.height)>max){const k=max/Math.max(c.width,c.height),c2=document.createElement('canvas');c2.width=c.width*k;c2.height=c.height*k;c2.getContext('2d').drawImage(c,0,0,c2.width,c2.height);return c2.toDataURL('image/jpeg',0.82)}
   if(max)return c.toDataURL('image/jpeg',0.85);
   return new Promise(r=>c.toBlob(r,'image/jpeg',0.92))}
+function planTotals(p){const o={n:0,r:0,p:0,cmp:0,dc:0,bad:0,cmpAll:0};
+  for(const pl of p.photos.filter(f=>f.kind==='plan')){for(const d of pl.dims){if(d.ref)continue;o.n++;const dc=deltaCm(pl,d);if(dc!=null){o.cmpAll++;if(!okD(dc))o.bad++}}
+    const a=catSummary(pl).parede;if(a){o.r+=a.r;o.p+=a.p;o.cmp+=a.cmp;o.dc+=(a.rr-a.pp)*100}}return o}
 function delSheet(p,id){idb.del(id);idb.del('pdf:'+id);PAGES.delete(id);HIS.delete(id);IMG.delete(id);p.photos=p.photos.filter(x=>x.id!==id);
   for(const f of p.photos){for(const d of f.dims)if(d.ph)d.ph=d.ph.filter(x=>x!==id);if(f.link&&f.link.sid===id)delete f.link}save()}
 function catSummary(sh){const g={};for(const d of sh.dims){if(d.ref)continue;const k=d.cat||'outro';const a=g[k]||(g[k]={n:0,p:0,r:0,cmp:0,pp:0,rr:0,bad:0});a.n++;
@@ -512,11 +515,18 @@ function vCfg(){const st=defStyle();return`<h2>Medidas</h2><div class="card list
 function freeList(fr){return`<div class="card list">`+fr.map(f=>`<div class="row"><span class="num" style="font-weight:700;min-width:90px">${flu(f.v)}</span><input class="txt grow" data-act="freeLbl" data-id="${f.id}" value="${esc(f.label)}" placeholder="descrição"><button class="btn sm del" data-act="delFree" data-id="${f.id}" type="button">✕</button></div>`).join('')+`</div>`}
 
 function vProject(p){const tab=V.tab||'rooms',t=totals(p);
-  let h=`<div class="stats" style="margin-top:14px">
-   <div class="stat"><small>Área de piso</small><b>${nf(t.area,2)}<i>m²</i></b></div>
+  const pt=planTotals(p);let h='';
+  if(pt.n)h+=`<div class="stats" style="margin-top:14px">
+   <div class="stat"><small>Perímetro real · plantas</small><b>${nf(pt.r,2)}<i>m</i></b></div>
+   <div class="stat"><small>Perímetro projeto</small><b>${nf(pt.p,2)}<i>m</i></b></div>
+   <div class="stat"><small>Δ real − projeto</small><b>${pt.cmp?(pt.dc>0?'+':'')+nf(pt.dc,1):'—'}<i>cm</i></b></div>
+   <div class="stat"><small>Cotas fora (±${nf(tolCm(),1)} cm)</small><b style="${pt.bad?'color:var(--laser)':''}">${pt.bad}<i>de ${pt.cmpAll}</i></b></div></div>`;
+  if(p.rooms.length||!pt.n)h+=`<div class="stats" style="margin-top:${pt.n?8:14}px">
+   <div class="stat"><small>Área de piso${pt.n?' · cômodos':''}</small><b>${nf(t.area,2)}<i>m²</i></b></div>
    <div class="stat"><small>Parede líquida</small><b>${nf(t.net,2)}<i>m²</i></b></div>
-   <div class="stat"><small>Perímetro</small><b>${nf(t.perim,2)}<i>m</i></b></div>
-   <div class="stat"><small>Volume</small><b>${nf(t.vol,2)}<i>m³</i></b></div></div>
+   <div class="stat"><small>Perímetro${pt.n?' · cômodos':''}</small><b>${nf(t.perim,2)}<i>m</i></b></div>
+   <div class="stat"><small>Volume</small><b>${nf(t.vol,2)}<i>m³</i></b></div></div>`;
+  h+=`
   <div class="tabs">${[['rooms','Cômodos'],['plans','Plantas'],['photos','Fotos'],['free','Avulsas']].map(([k,n])=>`<button class="tab${tab===k?' on':''}" data-act="ptab" data-k="${k}" type="button">${n}</button>`).join('')}</div>`;
   if(tab==='rooms'){h+=`<div class="list" style="margin-top:10px">`;
     for(const r of p.rooms){const c=calc(r);h+=`<button class="item" data-act="openR" data-id="${r.id}"><div class="grow"><b>${esc(r.name)}</b><div class="sub">${r.mode==='rect'?'Retângulo':'Paredes em série'} · PD ${nf(r.h,2)} m · ${r.openings.length} abertura(s)</div></div><div class="num" style="text-align:right">${nf(c.area,2)} m²<div class="sub">${nf(c.perim,2)} m</div></div></button>`}
@@ -524,7 +534,7 @@ function vProject(p){const tab=V.tab||'rooms',t=totals(p);
     <div class="row noprint" style="margin-top:16px"><button class="btn pri" data-act="report" type="button">Relatório / PDF</button><button class="btn" data-act="xlsx" type="button">Excel (.xlsx)</button><button class="btn" data-act="csv" type="button">CSV</button></div>`}
   if(tab==='plans'){const pls=p.photos.filter(f=>f.kind==='plan');
     if(PDFP)h+=`<div class="card list"><b>PDF com ${PDFP.doc.numPages} páginas — escolha a página:</b><div class="row">${Array.from({length:PDFP.doc.numPages},(_,k)=>`<button class="btn sm" data-act="pdfPg" data-k="${k+1}" type="button">${k+1}</button>`).join('')}</div></div>`;
-    h+=`<div class="thumbs">`+pls.map(f=>{const g=catSummary(f);const bad=Object.values(g).reduce((s,a)=>s+a.bad,0);return`<div class="tw"><button class="thumb" data-act="openPh" data-id="${f.id}" type="button"><img data-ph="${f.id}" alt="${esc(f.name)}"><span>${esc(f.name)} · ${f.dims.length} cota(s)${bad?` · <b style="color:var(--laser)">${bad} fora</b>`:''}</span></button><button class="btn sm del" data-act="delSh" data-id="${f.id}" type="button">Excluir planta</button></div>`}).join('')+`</div>
+    h+=`<div class="thumbs">`+pls.map(f=>{const g=catSummary(f);const bad=Object.values(g).reduce((s,a)=>s+a.bad,0);return`<div class="tw"><button class="thumb" data-act="openPh" data-id="${f.id}" type="button"><img data-ph="${f.id}" alt="${esc(f.name)}"><span>${esc(f.name)} · ${f.dims.length} cota(s)${g.parede?` · perím. ${nf(g.parede.r,2)} m`:''}${bad?` · <b style="color:var(--laser)">${bad} fora</b>`:''}</span></button><button class="btn sm del" data-act="delSh" data-id="${f.id}" type="button">Excluir planta</button></div>`}).join('')+`</div>
     <button class="btn pri" data-act="addPlan" type="button" style="margin-top:10px">+ Importar planta (PDF ou imagem)</button>`;setTimeout(thumbs,0)}
   if(tab==='photos'){h+=`<div class="thumbs" style="margin-top:12px">`;
     for(const f of p.photos.filter(f=>(f.kind||'photo')==='photo'))h+=`<div class="tw"><button class="thumb" data-act="openPh" data-id="${f.id}" type="button"><img data-ph="${f.id}" alt="${esc(f.name)}"><span>${esc(f.name)} · ${f.dims.length} cota(s)</span></button><button class="btn sm del" data-act="delSh" data-id="${f.id}" type="button">Excluir foto</button></div>`;

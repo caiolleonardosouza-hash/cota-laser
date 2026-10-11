@@ -1,5 +1,5 @@
 // Cota Laser — funciona offline depois do primeiro acesso
-const C = 'cotalaser-v13';
+const C = 'cotalaser-v14';
 const CORE = ['./', 'index.html', 'manifest.json', 'icon-192.png', 'icon-512.png'];
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(C).then(c => c.addAll(CORE)).then(() => self.skipWaiting()));
