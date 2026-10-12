@@ -701,6 +701,22 @@ function vCfg(){const st=defStyle();return`<h2>Medidas</h2><div class="card list
    <div class="row"><button class="btn" data-act="backup" type="button">Exportar backup</button><button class="btn" data-act="restore" type="button">Importar backup</button></div></div>`}
 function freeList(fr){return`<div class="card list">`+fr.map(f=>`<div class="row"><span class="num" style="font-weight:700;min-width:90px">${flu(f.v)}</span><input class="txt grow" data-act="freeLbl" data-id="${f.id}" value="${esc(f.label)}" placeholder="descrição"><button class="btn sm del" data-act="delFree" data-id="${f.id}" type="button">✕</button></div>`).join('')+`</div>`}
 
+function vSoma(p){const sel=p.sumSel?new Set(p.sumSel):new Set(p.rooms.map(r=>r.id));
+  let h=`<div class="card list" style="margin-top:12px"><div class="row"><b class="grow">Cômodos somados (${p.rooms.filter(r=>sel.has(r.id)).length} de ${p.rooms.length})</b><button class="btn sm" data-act="sumAll" data-k="1" type="button">Todos</button><button class="btn sm" data-act="sumAll" data-k="0" type="button">Nenhum</button></div>`+
+   p.rooms.map(r=>`<label class="row" style="gap:8px"><input type="checkbox" data-act="sumSel" data-id="${r.id}"${sel.has(r.id)?' checked':''}><span class="grow">${esc(r.name)}</span><span class="num hint">${nf(calc(r).area,2)} m²</span></label>`).join('')+`</div>`;
+  const rs=p.rooms.filter(r=>sel.has(r.id));if(!rs.length)return h+`<p class="hint">Marque pelo menos um cômodo.</p>`;
+  const K=['area','teto','perim','vLen','vaoLen','scL','scF','scT','shL','shA','gross','openA','ded','net','rodape','vol'],T={};K.forEach(k=>T[k]=0);let rqL=0,rqA=0;const W={},Tt={};
+  for(const r of rs){const c=calc(r);K.forEach(k=>T[k]+=c[k]||0);const q=rqTot(r);rqL+=q.L;rqA+=q.A;const a=revAreas(r);for(const k in a.tot)W[k]=(W[k]||0)+a.tot[k];for(const k in a.totT)Tt[k]=(Tt[k]||0)+a.totT[k]}
+  h+=`<div class="card" style="margin-top:12px"><dl class="kv">
+    <dt>Área de piso</dt><dd>${nf(T.area,2)} m²</dd><dt>Área de teto</dt><dd>${nf(T.teto,2)} m²</dd><dt>Perímetro (só paredes)</dt><dd>${flu(T.perim)}</dd>
+    ${T.vLen?`<dt>Trechos sem parede</dt><dd>${flu(T.vLen)}</dd>`:''}${T.vaoLen?`<dt>Vãos abertos</dt><dd>${flu(T.vaoLen)}</dd>`:''}
+    ${rqL?`<dt>Requadro (linear)</dt><dd>${flu(rqL)}</dd><dt>Requadro (área)</dt><dd>${nf(rqA,2)} m²</dd>`:''}
+    ${T.scL?`<dt>Sanca (linear)</dt><dd>${flu(T.scL)}</dd><dt>Sanca · bandeja</dt><dd>${nf(T.scF,2)} m²</dd><dt>Sanca · fechamento linear</dt><dd>${nf(T.scT,2)} m²</dd>`:''}
+    ${T.shL?`<dt>Faces de shaft (comprimento)</dt><dd>${flu(T.shL)}</dd><dt>Área ocupada por shafts</dt><dd>${nf(T.shA,2)} m²</dd>`:''}
+    <dt>Parede bruta</dt><dd>${nf(T.gross,2)} m²</dd><dt>Aberturas (total)</dt><dd>${nf(T.openA,2)} m²</dd><dt>Aberturas descontadas</dt><dd>${nf(T.ded,2)} m²</dd>
+    <dt>Parede líquida</dt><dd>${nf(T.net,2)} m²</dd><dt>Rodapé</dt><dd>${flu(T.rodape)}</dd><dt>Volume</dt><dd>${nf(T.vol,2)} m³</dd></dl></div>`;
+  h+=`<div class="tbl" style="margin-top:10px"><table><thead><tr><th>Cômodo</th><th>Piso</th><th>Teto</th><th>Parede líq.</th><th>Rodapé</th></tr></thead><tbody>${rs.map(r=>{const c=calc(r);return`<tr><td>${esc(r.name)}</td><td>${nf(c.area,2)}</td><td>${nf(c.teto,2)}</td><td>${nf(c.net,2)}</td><td>${fl(c.rodape)}</td></tr>`}).join('')}</tbody><tfoot><tr><td>Total</td><td>${nf(T.area,2)}</td><td>${nf(T.teto,2)}</td><td>${nf(T.net,2)}</td><td>${fl(T.rodape)}</td></tr></tfoot></table></div>`;
+  return h+`<h2 style="margin:16px 0 6px">Acabamentos</h2>`+revBlock(W,Tt)}
 function vProject(p){const tab=V.tab||'rooms',t=totals(p);
   const pt=planTotals(p);let h='';
   if(pt.n)h+=`<div class="stats" style="margin-top:14px">
@@ -714,11 +730,12 @@ function vProject(p){const tab=V.tab||'rooms',t=totals(p);
    <div class="stat"><small>Perímetro${pt.n?' · cômodos':''}</small><b>${fl(t.perim)}<i>${UN()}</i></b></div>
    <div class="stat"><small>Volume</small><b>${nf(t.vol,2)}<i>m³</i></b></div></div>`;
   h+=`
-  <div class="tabs">${[['rooms','Cômodos'],['geral','Planta geral'],['plans','Plantas'],['photos','Fotos'],['free','Avulsas']].map(([k,n])=>`<button class="tab${tab===k?' on':''}" data-act="ptab" data-k="${k}" type="button">${n}</button>`).join('')}</div>`;
+  <div class="tabs">${[['rooms','Cômodos'],['soma','Somar cômodos'],['geral','Planta geral'],['plans','Plantas'],['photos','Fotos'],['free','Avulsas']].map(([k,n])=>`<button class="tab${tab===k?' on':''}" data-act="ptab" data-k="${k}" type="button">${n}</button>`).join('')}</div>`;
   if(tab==='rooms'){h+=`<div class="list" style="margin-top:10px">`;
     for(const r of p.rooms){const c=calc(r);h+=`<button class="item" data-act="openR" data-id="${r.id}"><div class="grow"><b>${esc(r.name)}</b><div class="sub">${r.mode==='rect'?'Retângulo':'Paredes em série'} · PD ${flu(r.h)} · ${r.openings.length} abertura(s)</div></div><div class="num" style="text-align:right">${nf(c.area,2)} m²<div class="sub">${flu(c.perim)}</div></div></button>`}
     h+=`</div><form class="row" data-form="newR" style="margin-top:10px"><input class="txt grow" id="nr" placeholder="Nome do cômodo (ex.: Suíte 1)" required><button class="btn pri">Adicionar</button></form>
     <div class="row noprint" style="margin-top:16px"><button class="btn pri" data-act="report" type="button">Relatório / PDF</button><button class="btn" data-act="xlsx" type="button">Excel (.xlsx)</button><button class="btn" data-act="csv" type="button">CSV</button></div>`}
+  if(tab==='soma')h+=vSoma(p);
   if(tab==='plans'){const pls=p.photos.filter(f=>f.kind==='plan');
     if(PDFP)h+=`<div class="card list"><b>PDF com ${PDFP.doc.numPages} páginas — escolha a página:</b><div class="row">${Array.from({length:PDFP.doc.numPages},(_,k)=>`<button class="btn sm" data-act="pdfPg" data-k="${k+1}" type="button">${k+1}</button>`).join('')}</div></div>`;
     h+=`<div class="thumbs">`+pls.map(f=>{const g=catSummary(f);const bad=Object.values(g).reduce((s,a)=>s+a.bad,0);return`<div class="tw"><button class="thumb" data-act="openPh" data-id="${f.id}" type="button"><img data-ph="${f.id}" alt="${esc(f.name)}"><span>${esc(f.name)} · ${f.dims.length} cota(s)${g.parede?` · perím. ${flu(g.parede.r)}`:''}${bad?` · <b style="color:var(--laser)">${bad} fora</b>`:''}</span></button><button class="btn sm del" data-act="delSh" data-id="${f.id}" type="button">Excluir planta</button></div>`}).join('')+`</div>
@@ -1131,6 +1148,7 @@ document.addEventListener('click',async e=>{const t=e.target.closest('[data-t],[
     case'csv':return exportCsv(p);
     case'print':return window.print();
     case'backup':return exportBackup();
+    case'sumAll':p.sumSel=t.dataset.k==='1'?null:[];save();return render();
     case'sync':return syncDrive();
     case'btAll':return BT.connect(true);
     case'restore':return $('#filejs').click();
@@ -1223,6 +1241,7 @@ document.addEventListener('change',e=>{const t=e.target,a=t.dataset.act;if(!a&&!
     case'rvT':r.rvT=t.value||null;break;
     case'scRv':r.sancas[i][t.dataset.k]=t.value;break;
     case'rqOn':{const o=rqHost(t.dataset.k);if(!o)return;const f=rqF(t.dataset.k),q=o[f]=o[f]||{};q.on=t.checked;if(t.checked&&!q.e&&!q.t&&!q.h)target='q:'+t.dataset.k+(f==='rqF'?':h':':e');break}
+    case'sumSel':{const all=p.rooms.map(x=>x.id),cur=new Set(p.sumSel||all);if(t.checked)cur.add(t.dataset.id);else cur.delete(t.dataset.id);p.sumSel=all.filter(id=>cur.has(id));break}
     case'rqRv':{const o=rqHost(t.dataset.k);if(!o)return;const f=rqF(t.dataset.k);o[f]=o[f]||{on:true};o[f].rv=t.value||null;break}
     case'shC':r.shafts[i].corner=+t.value;break;
     case'pj':setPj(r,t.dataset.k,parseL(t.value));break;
