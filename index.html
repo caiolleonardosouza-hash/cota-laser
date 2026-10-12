@@ -329,7 +329,8 @@ function planSVG(r,{W=360,H=270,exp=false}={}){const fl=v=>(v==null||!isFinite(v
   const poly=(closed0?sp.slice(0,-1):sp).map(p=>p.map(n=>n.toFixed(1)).join(',')).join(' ');
   const font='font-family="Barlow,Arial,sans-serif"';
   let o=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" ${font}><rect width="${W}" height="${H}" fill="${C.bg}"/>`;
-  {const sw=closed?7:3;g.ws.forEach((w,i)=>{if(WK(w)!=='p')return;const a=sp[i],b=sp[i+1];o+=`<line x1="${a[0].toFixed(1)}" y1="${a[1].toFixed(1)}" x2="${b[0].toFixed(1)}" y2="${b[1].toFixed(1)}" stroke="${C.wall}" stroke-width="${sw}" stroke-linecap="square"/>`});
+  const fullV=i=>{const w=g.ws[i];return r.openings.some(o=>o.wall===i&&o.t==='vao'&&o.w>=w.len-0.0005&&(o.off==null||o.off<=0.0005))};
+  {const sw=closed?7:3;g.ws.forEach((w,i)=>{if(WK(w)!=='p'||fullV(i))return;const a=sp[i],b=sp[i+1];o+=`<line x1="${a[0].toFixed(1)}" y1="${a[1].toFixed(1)}" x2="${b[0].toFixed(1)}" y2="${b[1].toFixed(1)}" stroke="${C.wall}" stroke-width="${sw}" stroke-linecap="square"/>`});
     if(closed)o+=`<polygon points="${poly}" fill="${C.fill}" stroke="none"/>`;
     const dash=(a,b)=>`<line x1="${a[0].toFixed(1)}" y1="${a[1].toFixed(1)}" x2="${b[0].toFixed(1)}" y2="${b[1].toFixed(1)}" stroke="${C.mut}" stroke-width="1.4" stroke-dasharray="6 4"/>`;
     g.ws.forEach((w,i)=>{const k=WK(w);if(k==='s')o+=dash(sp[i],sp[i+1]);if(k==='v'&&false){const a=sp[i],b=sp[i+1];o+=`<line x1="${a[0].toFixed(1)}" y1="${a[1].toFixed(1)}" x2="${b[0].toFixed(1)}" y2="${b[1].toFixed(1)}" stroke="${C.acc}" stroke-width="2" stroke-dasharray="2 4" stroke-linecap="round"/>`;
@@ -367,8 +368,8 @@ function planSVG(r,{W=360,H=270,exp=false}={}){const fl=v=>(v==null||!isFinite(v
         o+=`<line x1="${(x0+ox).toFixed(1)}" y1="${(y0+oy).toFixed(1)}" x2="${(x1+ox).toFixed(1)}" y2="${(y1+oy).toFixed(1)}" stroke="${col}" stroke-width="0.9"/>`;
         const mx_=(x0+x1)/2-n[0]*17,my_=(y0+y1)/2-n[1]*17,ang=Math.abs(n[0])>0.5?(n[0]>0?90:-90):0;
         o+=`<text transform="translate(${mx_.toFixed(1)},${(my_).toFixed(1)}) rotate(${ang})" y="3" text-anchor="middle" font-size="8" font-weight="${bold?700:500}" fill="${col}">${lab}</text>`};
-      const gap=(t0,t1,lab)=>{const off=closed?3.5:0,G=t=>[a[0]+ex*t+n[0]*off,a[1]+ey*t+n[1]*off],[x0,y0]=G(t0),[x1,y1]=G(t1);o+=`<line x1="${x0.toFixed(1)}" y1="${y0.toFixed(1)}" x2="${x1.toFixed(1)}" y2="${y1.toFixed(1)}" stroke="${C.bg}" stroke-width="${closed?9:5}"/>`;
-        for(const[x,y]of[[x0,y0],[x1,y1]])o+=`<line x1="${(x-n[0]*4.5).toFixed(1)}" y1="${(y-n[1]*4.5).toFixed(1)}" x2="${(x+n[0]*4.5).toFixed(1)}" y2="${(y+n[1]*4.5).toFixed(1)}" stroke="${C.wall}" stroke-width="1.6"/>`;
+      const gap=(t0,t1,lab)=>{const off=closed?3.5:0,G=t=>[a[0]+ex*t+n[0]*off,a[1]+ey*t+n[1]*off],full=fullV(i),e0=t0<=1e-6,e1=t1>=1-1e-6,cl=(closed?7:3)/L;if(!full){if(e0)t0=Math.min(t1,t0+cl);if(e1)t1=Math.max(t0,t1-cl)}const[x0,y0]=G(t0),[x1,y1]=G(t1);if(!full)o+=`<line x1="${x0.toFixed(1)}" y1="${y0.toFixed(1)}" x2="${x1.toFixed(1)}" y2="${y1.toFixed(1)}" stroke="${C.bg}" stroke-width="${closed?9:5}"/>`;
+        if(!full)for(const[x,y,e]of[[x0,y0,e0],[x1,y1,e1]])if(!e)o+=`<line x1="${(x-n[0]*3.5).toFixed(1)}" y1="${(y-n[1]*3.5).toFixed(1)}" x2="${(x+n[0]*3.5).toFixed(1)}" y2="${(y+n[1]*3.5).toFixed(1)}" stroke="${C.wall}" stroke-width="1.6"/>`;
         if(lab){const ang=Math.abs(n[0])>0.5?(n[0]>0?90:-90):0,mx_=(x0+x1)/2-n[0]*(10+off),my_=(y0+y1)/2-n[1]*(10+off);o+=`<text transform="translate(${mx_.toFixed(1)},${my_.toFixed(1)}) rotate(${ang})" y="3" text-anchor="middle" font-size="8" fill="${C.mut}">vão ${lab}</text>`}};
       const tick=t=>{const[x,y]=P(t),ox=-n[0]*9,oy=-n[1]*9;o+=`<line x1="${(x+ox-n[0]*3).toFixed(1)}" y1="${(y+oy-n[1]*3).toFixed(1)}" x2="${x.toFixed(1)}" y2="${y.toFixed(1)}" stroke="${C.acc}" stroke-width="0.9"/>`};
       if(pos.length){let cur=0;const ts=[0];
