@@ -184,6 +184,7 @@ pre.log{font:11px/1.4 var(--f-num);background:var(--sunk);padding:8px;border-rad
   </div>
 </div>
 <div id="toast" hidden></div>
+<div id="pzoom" hidden style="position:fixed;inset:0;z-index:60;background:var(--bg);display:flex;flex-direction:column"><div class="row" style="padding:10px 12px;padding-top:calc(10px + env(safe-area-inset-top,0px));gap:8px"><b class="grow" id="pzT">Planta</b><button class="btn sm" id="pzM" type="button">−</button><button class="btn sm" id="pzP" type="button">+</button><button class="btn sm" id="pzX" type="button">✕</button></div><div id="pzB" style="flex:1;overflow:auto;-webkit-overflow-scrolling:touch;touch-action:pan-x pan-y pinch-zoom"></div></div>
 <input type="file" id="fileph" accept="image/*" capture="environment" hidden>
 <input type="file" id="fileplan" accept="application/pdf,.pdf,image/*" hidden>
 <canvas id="loupe" class="loupe" hidden></canvas>
@@ -350,7 +351,11 @@ function planSVG(r,{W=360,H=270,exp=false}={}){const fl=v=>(v==null||!isFinite(v
     AL=Math.abs(A)>1e-6?[X/(3*A),Y/(3*A)]:[Pp.reduce((s,p)=>s+p[0],0)/Pp.length,Pp.reduce((s,p)=>s+p[1],0)/Pp.length];
     BX.push(boxOf(AL[0],AL[1],nf(CC.area,2)+' m²',14,'middle'),boxOf(AL[0],AL[1]+14,r.name,10,'middle'))}
   /* reserva o espaço das paredes desenhadas */
-  const LJ=[];const wS=BX.length;g.ws.forEach((w,i)=>{const a=sp[i],b=sp[i+1];BX.push([Math.min(a[0],b[0])-2,Math.min(a[1],b[1])-2,Math.max(a[0],b[0])+2,Math.max(a[1],b[1])+2])});
+  const LJ=[];const rbox=(x,y,txt,fs,rt)=>{const tw=String(txt).length*fs*0.56,th=fs,c=Math.abs(Math.cos(rt*Math.PI/180)),sn=Math.abs(Math.sin(rt*Math.PI/180)),hx=c*tw/2+sn*th/2,hy=sn*tw/2+c*th/2;return[x-hx-1,y-hy-1,x+hx+1,y+hy+1]};
+  const hitT=(bb)=>BX.some((c,j)=>(j<wS||j>=wS+g.ws.length)&&bb[0]<c[2]&&c[0]<bb[2]&&bb[1]<c[3]&&c[1]<bb[3]);
+  const place=(pr,txt,fs,cands,att,must)=>LJ.push({L:pr,run:()=>{const c=cands.find(c=>!hitB(rbox(c[0],c[1],txt,fs,c[2])))||(must==='soft'?cands.find(c=>!hitT(rbox(c[0],c[1],txt,fs,c[2]))):null);const u=c||(must===true?cands[0]:null);if(!u)return;BX.push(rbox(u[0],u[1],txt,fs,u[2]));o+=`<text transform="translate(${u[0].toFixed(1)},${u[1].toFixed(1)}) rotate(${u[2].toFixed(1)})" y="${(fs*0.35).toFixed(1)}" text-anchor="middle" font-size="${fs}" ${att}>${txt}</text>`}});
+  const wRot=(ex,ey)=>{let r=Math.atan2(ey,ex)*180/Math.PI;if(r>=89.5)r-=180;if(r<-90.5)r+=180;return r};
+  const wS=BX.length;g.ws.forEach((w,i)=>{const a=sp[i],b=sp[i+1];BX.push([Math.min(a[0],b[0])-2,Math.min(a[1],b[1])-2,Math.max(a[0],b[0])+2,Math.max(a[1],b[1])+2])});
   g.ws.forEach((w,i)=>{const a=sp[i],b=sp[i+1],ex=b[0]-a[0],ey=b[1]-a[1],L=Math.hypot(ex,ey)||1;
     const n=sa>0?[ey/L,-ex/L]:[-ey/L,ex/L];const mx=(a[0]+b[0])/2+n[0]*8,my=(a[1]+b[1])/2+n[1]*10;
     const anc=n[0]>0.5?'start':n[0]<-0.5?'end':'middle';const k=WK(w);
@@ -364,15 +369,16 @@ function planSVG(r,{W=360,H=270,exp=false}={}){const fl=v=>(v==null||!isFinite(v
         cs.push([cx-n[0]*(fs*0.9),cy-n[1]*(fs*0.9),rot])}
       else{for(const d of[9,14])for(const[p,t]of[[-1,0],[-1,1],[-1,-1],[0,1],[0,-1],[1,0],[1,1],[1,-1]])cs.push([cx+n[0]*p*d+ux*t*(d+txt.length*fs*0.28),cy+n[1]*p*d+uy*t*(d+fs*0.5),0])}
       const emit=([x,y,rt])=>{BX.push(rb(x,y,rt));o+=`<text transform="translate(${x.toFixed(1)},${y.toFixed(1)}) rotate(${rt.toFixed(1)})" y="${(fs*0.35).toFixed(1)}" text-anchor="middle" font-size="${fs}" ${att}>${txt}</text>`};
-      LJ.push({L,run:()=>{const c1=cs.find(c=>!hitB(rb(c[0],c[1],c[2])))||(L<20&&cs.find(c=>!hitL(rb(c[0],c[1],c[2]))))||cs[0];emit(c1)}})}
-    if(L>=30){const hasO=r.openings.some(op=>op.wall===i&&op.w>0),k2=hasO?32:12,px=(a[0]+b[0])/2-n[0]*k2,py=(a[1]+b[1])/2-n[1]*k2,bb=boxOf(px,py+3,WN(r,i),9,'middle');if(!hitB(bb)){BX.push(bb);o+=`<text x="${px.toFixed(1)}" y="${(py+3).toFixed(1)}" text-anchor="middle" font-size="9" fill="${C.mut}">${WN(r,i)}</text>`}}
+      LJ.push({L:10000+L,run:()=>{const c1=cs.find(c=>!hitB(rb(c[0],c[1],c[2])))||(L<20&&cs.find(c=>!hitL(rb(c[0],c[1],c[2]))))||cs[0];emit(c1)}})}
+    {const cx=(a[0]+b[0])/2,cy=(a[1]+b[1])/2,ux=ex/L,uy=ey/L,cs=[];for(const d of[11,17,23])for(const t of[0,0.3,-0.3])cs.push([cx-n[0]*d+ux*t*L,cy-n[1]*d+uy*t*L,0]);place(-1000+L,WN(r,i),8.5,cs,`fill="${C.mut}"`,'soft')}
     if(CC.cut[i]>0)putL(mx,my+4+(Math.abs(n[0])>0.5?14:n[1]*13),fl(CC.netW[i])+' + '+fl(CC.cut[i]),8.5,anc,n[0],Math.abs(n[0])>0.5?1.2:n[1],4,`fill="${C.mut}"`);
     {const ops=r.openings.filter(op=>op.wall===i&&op.w>0),TG=op=>op.t==='porta'?'PT':op.t==='janela'?'JA':'VÃO';
       const bad=ops.filter(op=>op.off!=null&&op.off+op.w>w.len+0.0005),pos=ops.filter(op=>op.off!=null&&!bad.includes(op)).sort((x,y)=>x.off-y.off),free=ops.filter(op=>op.off==null);
       const P=t=>[a[0]+ex*t,a[1]+ey*t],Q=t=>[a[0]+ex*t+n[0]*3.5,a[1]+ey*t+n[1]*3.5],dim=(t0,t1,lab,col,bold)=>{const d=9,[x0,y0]=P(t0),[x1,y1]=P(t1),ox=-n[0]*d,oy=-n[1]*d;
         o+=`<line x1="${(x0+ox).toFixed(1)}" y1="${(y0+oy).toFixed(1)}" x2="${(x1+ox).toFixed(1)}" y2="${(y1+oy).toFixed(1)}" stroke="${col}" stroke-width="0.9"/>`;
-        const mx_=(x0+x1)/2-n[0]*17,my_=(y0+y1)/2-n[1]*17,ang=Math.abs(n[0])>0.5?(n[0]>0?90:-90):0;
-        o+=`<text transform="translate(${mx_.toFixed(1)},${(my_).toFixed(1)}) rotate(${ang})" y="3" text-anchor="middle" font-size="8" font-weight="${bold?700:500}" fill="${col}">${lab}</text>`};
+        const segL=Math.hypot(x1-x0,y1-y0),tw=String(lab).length*8*0.56;if(!bold&&segL<tw+2)return;
+        const rt=wRot(ex,ey),cx_=(x0+x1)/2,cy_=(y0+y1)/2,cs=[];for(const d of[16,24,32])cs.push([cx_-n[0]*d,cy_-n[1]*d,rt]);
+        place(bold?5000:1000,lab,8,cs,`font-weight="${bold?700:500}" fill="${col}"`,bold)};
       const gap=(t0,t1,lab)=>{const off=closed?3.5:0,G=t=>[a[0]+ex*t+n[0]*off,a[1]+ey*t+n[1]*off],full=fullV(i),e0=t0<=1e-6,e1=t1>=1-1e-6,cl=(closed?7:3)/L;if(!full){if(e0)t0=Math.min(t1,t0+cl);if(e1)t1=Math.max(t0,t1-cl)}const[x0,y0]=G(t0),[x1,y1]=G(t1);if(!full)o+=`<line x1="${x0.toFixed(1)}" y1="${y0.toFixed(1)}" x2="${x1.toFixed(1)}" y2="${y1.toFixed(1)}" stroke="${C.bg}" stroke-width="${closed?9:5}"/>`;
         if(!full)for(const[x,y,e]of[[x0,y0,e0],[x1,y1,e1]])if(!e)o+=`<line x1="${(x-n[0]*3.5).toFixed(1)}" y1="${(y-n[1]*3.5).toFixed(1)}" x2="${(x+n[0]*3.5).toFixed(1)}" y2="${(y+n[1]*3.5).toFixed(1)}" stroke="${C.wall}" stroke-width="1.6"/>`;
         if(lab){const ang=Math.abs(n[0])>0.5?(n[0]>0?90:-90):0,mx_=(x0+x1)/2-n[0]*(10+off),my_=(y0+y1)/2-n[1]*(10+off);o+=`<text transform="translate(${mx_.toFixed(1)},${my_.toFixed(1)}) rotate(${ang})" y="3" text-anchor="middle" font-size="8" fill="${C.mut}">vão ${lab}</text>`}};
@@ -825,7 +831,7 @@ function vRoom(p,r){RQR=r;const tab=V.tab||'med',c=calc(r),d=S.settings.dec;
         <div class="drow" style="margin-top:4px">${F('c:'+i+':larg','Largura',sc.larg,v=>r.sancas[i].larg=v)}${F('c:'+i+':alt','Altura',sc.alt,v=>r.sancas[i].alt=v)}</div><div class="drow" style="margin-top:4px;flex-wrap:wrap;gap:6px"><span class="hint">Bandeja</span><select class="cs" style="flex:0 1 120px" data-act="scRv" data-i="${i}" data-k="rvB">${revOpts(REVS2,sc.rvB)}</select><span class="hint">Fechamento</span><select class="cs" style="flex:0 1 120px" data-act="scRv" data-i="${i}" data-k="rvF">${revOpts(REVS2,sc.rvF)}</select></div></div>`});
       h+=`</div>${n>=2?`<button class="btn sm" data-act="addSc" type="button" style="margin-top:8px">+ Sanca</button>`:''}`;
       if(c.scL>0)h+=`<div class="tbl" style="margin-top:8px"><table><thead><tr><th>Sanca</th><th>Linear</th><th>Bandeja (m²)</th><th>Fechamento linear (m²)</th></tr></thead><tbody>${(r.sancas||[]).map((sc,i)=>{const q=scGeo(sc,c.g.ws);return q?`<tr><td>SC${i+1} · ${WN(r,q.k)}/${WN(r,q.k2)}</td><td>${fl(q.L)}</td><td>${nf(q.forro,2)}</td><td>${nf(q.test,2)}</td></tr>`:''}).join('')}</tbody><tfoot><tr><td>Total</td><td>${fl(c.scL)}</td><td>${nf(c.scF,2)}</td><td>${nf(c.scT,2)}</td></tr></tfoot></table></div>`}
-    h+=`<div class="plan" style="margin-top:12px">${planSVG(r)||'<div class="plan-empty">Meça as paredes para desenhar a planta.</div>'}</div>`;
+    h+=`<div class="plan" data-act="planZoom" style="margin-top:12px;cursor:zoom-in">${planSVG(r)||'<div class="plan-empty">Meça as paredes para desenhar a planta.</div>'}</div>+(walls(r).length?`<p class="hint" style="margin:4px 0 0;text-align:right">Toque na planta para ampliar</p>`:'');
     h+=`<div class="stats" style="margin-top:10px"><div class="stat"><small>Área piso</small><b>${nf(c.area,2)}<i>m²</i></b></div><div class="stat"><small>Área teto</small><b>${nf(c.teto,2)}<i>m²</i></b></div><div class="stat"><small>Perímetro</small><b>${fl(c.perim)}<i>${UN()}</i></b></div><div class="stat"><small>Parede líquida</small><b>${nf(c.net,2)}<i>m²</i></b></div><div class="stat"><small>Volume</small><b>${nf(c.vol,2)}<i>m³</i></b></div></div>`}
   if(tab==='open'){const nW=c.g.ws.length;
     h+=`<div class="row" style="margin:10px 0"><button class="btn sm" data-act="addO" data-k="porta" type="button">+ Porta</button><button class="btn sm" data-act="addO" data-k="janela" type="button">+ Janela</button><button class="btn sm" data-act="addO" data-k="vao" type="button">+ Vão</button></div><div class="list">`;
@@ -842,7 +848,7 @@ function vRoom(p,r){RQR=r;const tab=V.tab||'med',c=calc(r),d=S.settings.dec;
       <div class="row">${F('b:'+i+':a','Comprim.',o.a,v=>r.objects[i].a=v)}${F('b:'+i+':b','Largura',o.b,v=>r.objects[i].b=v)}${F('b:'+i+':c','Altura',o.c,v=>r.objects[i].c=v)}</div>
       <span class="hint num">${nf((o.a||0)*(o.b||0),2)} m² · ${nf((o.a||0)*(o.b||0)*(o.c||0),3)} m³</span></div>`});
     h+=`</div><button class="btn sm" data-act="addOb" type="button" style="margin-top:8px">+ Objeto</button>`}
-  if(tab==='plan'){const s=planSVG(r,{W:480,H:380});h+=`<div class="plan" style="margin-top:12px">${s||'<div class="plan-empty">Sem paredes medidas.</div>'}</div>`;
+  if(tab==='plan'){const s=planSVG(r,{W:480,H:380});h+=`<div class="plan" data-act="planZoom" style="margin-top:12px;cursor:zoom-in">${s||'<div class="plan-empty">Sem paredes medidas.</div>'}</div>`;
     if(s)h+=`<button class="btn pri" data-act="planPng" type="button">Salvar planta (PNG)</button>`}
   if(tab==='sum'){h+=`<div class="card" style="margin-top:12px"><dl class="kv">
     <dt>Pé-direito</dt><dd>${flu(r.h)}</dd>${c.He<c.H-1e-9?`<dt>Altura de acabamento da parede (forro)</dt><dd>${flu(c.He)}</dd>`:''}<dt>Área de piso${c.shA?' (− shafts)':''}</dt><dd>${nf(c.area,2)} m²</dd><dt>Área de teto${c.scF?' (− bandeja)':''}</dt><dd>${nf(c.teto,2)} m²</dd><dt>Perímetro${c.vLen?' (só paredes)':''}</dt><dd>${flu(c.perim)}</dd>${c.vLen?`<dt>Trechos sem parede</dt><dd>${flu(c.vLen)}</dd>`:''}${c.vaoLen?`<dt>Vãos abertos</dt><dd>${flu(c.vaoLen)}</dd>`:''}${(()=>{const rq=rqTot(r);return rq.L?`<dt>Requadro (linear)</dt><dd>${flu(rq.L)}</dd><dt>Requadro (área = linear × espessura)</dt><dd>${nf(rq.A,2)} m²</dd>`:''})()}${c.scL?`<dt>Sanca de gesso (linear)</dt><dd>${flu(c.scL)}</dd><dt>Sanca · bandeja (horizontal)</dt><dd>${nf(c.scF,2)} m²</dd><dt>Sanca · fechamento linear</dt><dd>${nf(c.scT,2)} m²</dd><dt>Parede coberta pela sanca (descontada)</dt><dd>${nf(c.scW,2)} m²</dd>`:''}${c.exL?`<dt>Paredes extras (fora do cômodo)</dt><dd>${flu(c.exL)}</dd><dt>Área das paredes extras (× PD)</dt><dd>${nf(c.exL*c.H,2)} m²</dd>`:''}
@@ -1149,6 +1155,8 @@ async function fillReportPhotos(){const p=P(V.pid);
     el.innerHTML=cs.map((u,i)=>`<figure style="margin:0"><img src="${u}" alt="Área cotada ${i+1}"><figcaption class="hint">Área ${i+1} de ${cs.length}</figcaption></figure>`).join('')}for(const el of document.querySelectorAll('img[data-rph]')){const ph=p.photos.find(x=>x.id===el.dataset.rph);const u=ph&&await photoBlob(ph,ph.kind==='plan'?2000:1000);if(u)el.src=u}}
 
 /* ===== eventos ===== */
+const PZ={z:1};function pzSet(f){const sv=$('#pzB svg');if(!sv)return;PZ.z=Math.max(1,Math.min(6,PZ.z*f));sv.style.width=(PZ.z*100)+'%'}
+document.addEventListener('click',e=>{const id=e.target.id;if(id==='pzX')$('#pzoom').hidden=true;else if(id==='pzP')pzSet(1.5);else if(id==='pzM')pzSet(1/1.5)});
 document.addEventListener('click',async e=>{const t=e.target.closest('[data-t],[data-act]');if(!t)return;
   if(t.dataset.t){target=target===t.dataset.t?null:t.dataset.t;render();return}
   const a=t.dataset.act,p=P(V.pid),r=R(p,V.rid),i=+t.dataset.i;
@@ -1157,6 +1165,7 @@ document.addEventListener('click',async e=>{const t=e.target.closest('[data-t],[
   if(a==='selD'&&e.target.closest('label,input,select,textarea'))return;
   switch(a){
     case'openP':return go({v:'project',pid:t.dataset.id});
+    case'planZoom':{if(!r)return;const z=$('#pzoom'),B=$('#pzB');PZ.z=1;const pw=560,ph=Math.round(pw*Math.max(0.7,(innerHeight-70)/innerWidth));B.innerHTML=planSVG(r,{W:pw,H:ph})||'';$('#pzT').textContent=r.name;const sv=B.querySelector('svg');if(sv){sv.style.width='100%';sv.style.height='auto';sv.style.display='block'}z.hidden=false;return}
     case'openR':return go({v:'room',pid:p.id,rid:t.dataset.id});
     case'openPh':PEND=null;return go({v:'photo',pid:p.id,phid:t.dataset.id});
     case'ptab':V.tab=t.dataset.k;target=null;if(V.tab==='geral'){GV.fit=true;GV.sel=null}return render();
