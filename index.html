@@ -353,22 +353,31 @@ function planSVG(r,{W=360,H=270,exp=false}={}){
   g.ws.forEach((w,i)=>{const a=sp[i],b=sp[i+1],ex=b[0]-a[0],ey=b[1]-a[1],L=Math.hypot(ex,ey)||1;
     const n=sa>0?[ey/L,-ex/L]:[-ey/L,ex/L];const mx=(a[0]+b[0])/2+n[0]*8,my=(a[1]+b[1])/2+n[1]*10;
     const anc=n[0]>0.5?'start':n[0]<-0.5?'end':'middle';const k=WK(w);
-    putL(mx,my+4,fl(w.len),12,anc,n[0]*0.9,n[1]*0.9+(Math.abs(n[0])>0.5?0.9:0),4,`font-weight="700" fill="${k==='p'?C.txt:k==='v'?C.acc:C.mut}"${k!=='p'?' font-style="italic"':''}`);
+    {const att=`font-weight="700" fill="${k==='p'?C.txt:k==='v'?C.acc:C.mut}"${k!=='p'?' font-style="italic"':''}`,txt=fl(w.len),fs=L<40?10:12,ux=ex/L,uy=ey/L,cs=[];
+      for(let q=0;q<=3;q++)cs.push([mx+n[0]*q*fs*0.9,my+4+n[1]*q*fs*0.9+(Math.abs(n[0])>0.5?q*fs*0.9:0),anc]);
+      for(const sg of[1,-1])for(let q=1;q<=3;q++)cs.push([mx+ux*sg*q*fs*1.6,my+4+uy*sg*q*fs*1.6,anc]);
+      const inn=[(a[0]+b[0])/2-n[0]*14,(a[1]+b[1])/2-n[1]*14+4];cs.push([inn[0],inn[1],n[0]>0.5?'end':n[0]<-0.5?'start':'middle']);
+      let done=false;for(const[x,y,an]of cs){const bb=boxOf(x,y,txt,fs,an);if(!hitB(bb)){BX.push(bb);o+=`<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" text-anchor="${an}" font-size="${fs}" ${att}>${txt}</text>`;done=true;break}}
+      if(!done){const[x,y,an]=cs[0];BX.push(boxOf(x,y,txt,fs,an));o+=`<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" text-anchor="${an}" font-size="${fs}" ${att}>${txt}</text>`}}
     if(L>=30){const hasO=r.openings.some(op=>op.wall===i&&op.w>0),k2=hasO?32:12,px=(a[0]+b[0])/2-n[0]*k2,py=(a[1]+b[1])/2-n[1]*k2,bb=boxOf(px,py+3,WN(r,i),9,'middle');if(!hitB(bb)){BX.push(bb);o+=`<text x="${px.toFixed(1)}" y="${(py+3).toFixed(1)}" text-anchor="middle" font-size="9" fill="${C.mut}">${WN(r,i)}</text>`}}
     if(CC.cut[i]>0)putL(mx,my+4+(Math.abs(n[0])>0.5?14:n[1]*13),fl(CC.netW[i])+' + '+fl(CC.cut[i]),8.5,anc,n[0],Math.abs(n[0])>0.5?1.2:n[1],4,`fill="${C.mut}"`);
-    {const ops=r.openings.filter(op=>op.wall===i&&op.w>0),TG=op=>op.t==='porta'?'PT':op.t==='janela'?'JA':'VÃ';
+    {const ops=r.openings.filter(op=>op.wall===i&&op.w>0),TG=op=>op.t==='porta'?'PT':op.t==='janela'?'JA':'VÃO';
       const bad=ops.filter(op=>op.off!=null&&op.off+op.w>w.len+0.0005),pos=ops.filter(op=>op.off!=null&&!bad.includes(op)).sort((x,y)=>x.off-y.off),free=ops.filter(op=>op.off==null);
       const P=t=>[a[0]+ex*t,a[1]+ey*t],Q=t=>[a[0]+ex*t+n[0]*3.5,a[1]+ey*t+n[1]*3.5],dim=(t0,t1,lab,col,bold)=>{const d=9,[x0,y0]=P(t0),[x1,y1]=P(t1),ox=-n[0]*d,oy=-n[1]*d;
         o+=`<line x1="${(x0+ox).toFixed(1)}" y1="${(y0+oy).toFixed(1)}" x2="${(x1+ox).toFixed(1)}" y2="${(y1+oy).toFixed(1)}" stroke="${col}" stroke-width="0.9"/>`;
         const mx_=(x0+x1)/2-n[0]*17,my_=(y0+y1)/2-n[1]*17,ang=Math.abs(n[0])>0.5?(n[0]>0?90:-90):0;
         o+=`<text transform="translate(${mx_.toFixed(1)},${(my_).toFixed(1)}) rotate(${ang})" y="3" text-anchor="middle" font-size="8" font-weight="${bold?700:500}" fill="${col}">${lab}</text>`};
+      const gap=(t0,t1,lab)=>{const off=closed?3.5:0,G=t=>[a[0]+ex*t+n[0]*off,a[1]+ey*t+n[1]*off],[x0,y0]=G(t0),[x1,y1]=G(t1);o+=`<line x1="${x0.toFixed(1)}" y1="${y0.toFixed(1)}" x2="${x1.toFixed(1)}" y2="${y1.toFixed(1)}" stroke="${C.bg}" stroke-width="${closed?9:5}"/>`;
+        for(const[x,y]of[[x0,y0],[x1,y1]])o+=`<line x1="${(x-n[0]*4.5).toFixed(1)}" y1="${(y-n[1]*4.5).toFixed(1)}" x2="${(x+n[0]*4.5).toFixed(1)}" y2="${(y+n[1]*4.5).toFixed(1)}" stroke="${C.wall}" stroke-width="1.6"/>`;
+        if(lab){const ang=Math.abs(n[0])>0.5?(n[0]>0?90:-90):0,mx_=(x0+x1)/2-n[0]*(10+off),my_=(y0+y1)/2-n[1]*(10+off);o+=`<text transform="translate(${mx_.toFixed(1)},${my_.toFixed(1)}) rotate(${ang})" y="3" text-anchor="middle" font-size="8" fill="${C.mut}">vão ${lab}</text>`}};
       const tick=t=>{const[x,y]=P(t),ox=-n[0]*9,oy=-n[1]*9;o+=`<line x1="${(x+ox-n[0]*3).toFixed(1)}" y1="${(y+oy-n[1]*3).toFixed(1)}" x2="${x.toFixed(1)}" y2="${y.toFixed(1)}" stroke="${C.acc}" stroke-width="0.9"/>`};
       if(pos.length){let cur=0;const ts=[0];
         for(const op of pos){const t0=op.off/w.len,t1=(op.off+op.w)/w.len;if(op.off-cur>0.0005)dim(cur/w.len,t0,fl(op.off-cur),C.acc,false);
-          dim(t0,t1,TG(op)+' '+fl(op.w),C.acc,true);ts.push(t0,t1);cur=op.off+op.w;
-          o+=`<line x1="${Q(t0)[0].toFixed(1)}" y1="${Q(t0)[1].toFixed(1)}" x2="${Q(t1)[0].toFixed(1)}" y2="${Q(t1)[1].toFixed(1)}" stroke="${C.acc}" stroke-width="7"/>`}
-        if(w.len-cur>0.0005)dim(cur/w.len,1,fl(w.len-cur),C.acc,false);ts.push(1);ts.forEach(tick)}
+          if(op.t==='vao')gap(t0,t1,fl(op.w));else{dim(t0,t1,TG(op)+' '+fl(op.w),C.acc,true);
+          o+=`<line x1="${Q(t0)[0].toFixed(1)}" y1="${Q(t0)[1].toFixed(1)}" x2="${Q(t1)[0].toFixed(1)}" y2="${Q(t1)[1].toFixed(1)}" stroke="${C.acc}" stroke-width="7"/>`}ts.push(t0,t1);cur=op.off+op.w}
+        if(w.len-cur>0.0005)dim(cur/w.len,1,fl(w.len-cur),C.acc,false);ts.push(1);if(pos.some(op=>op.t!=='vao')||w.len-cur>0.0005||pos[0].off>0.0005)ts.forEach(tick)}
       free.forEach((op,k)=>{const f=Math.min(1,op.w/w.len),c=(k+1)/(free.length+1),t0=Math.max(0,c-f/2),t1=Math.min(1,c+f/2);
+        if(op.t==='vao'){gap(t0,t1,pos.length?null:fl(op.w));return}
         o+=`<line x1="${Q(t0)[0].toFixed(1)}" y1="${Q(t0)[1].toFixed(1)}" x2="${Q(t1)[0].toFixed(1)}" y2="${Q(t1)[1].toFixed(1)}" stroke="${C.acc}" stroke-width="7"/>`;
         if(!pos.length)dim(t0,t1,TG(op)+' '+fl(op.w),C.acc,true)});
       if(bad.length){const tx=(a[0]+b[0])/2-n[0]*34,ty=(a[1]+b[1])/2-n[1]*34;o+=`<text x="${tx.toFixed(1)}" y="${(ty+3).toFixed(1)}" text-anchor="middle" font-size="9" font-weight="700" fill="${C.err}">⚠ ${bad.map(TG).join(', ')} fora da parede</text>`}}});
@@ -790,7 +799,8 @@ function vRoom(p,r){RQR=r;const tab=V.tab||'med',c=calc(r),d=S.settings.dec;
       <div class="dim"><div class="drow" style="flex-wrap:wrap"><span class="hint">Fotos:</span>${[0,1,2,3].map(k=>`<span class="tag">P${k+1}</span>${WPH(p,r,k)}`).join('')}</div>${[0,1,2,3].map(k=>WMIN(p,r,k)).join('')}</div></div>`;setTimeout(thumbs,0)}
     else{h+=`<div class="list" style="margin-top:6px">`;
       r.walls.forEach((w,i)=>{const last=i===r.walls.length-1&&w.len==null,pw=i>0?r.walls[i-1]:null,std=!pw||[90,-90,45,-45,135,-135,0].includes(+pw.ang);
-        const sel=pw?`<select class="cs" style="flex:0 1 66px" data-act="ang" data-i="${i-1}" aria-label="Giro antes de ${WN(r,i)}">${[[90,'↰90°'],[-90,'↱90°'],[0,'↑ reto'],[45,'↰45°'],[-45,'↱45°'],[135,'↰135°'],[-135,'↱135°']].map(([v,n])=>`<option value="${v}"${+pw.ang===v?' selected':''}>${n}</option>`).join('')}<option value="x"${std?'':' selected'}>outro</option></select>`:`<span class="hint" style="flex:0 1 66px;text-align:center">início</span>`;
+        const pre=r.pre||0,selB=i<pre?`<select class="cs" style="flex:0 1 66px" data-act="angB" data-i="${i}" aria-label="Direção a partir de ${WN(r,i+1)}" title="Direção vindo de ${WN(r,i+1)}">${[[90,'↰90°'],[-90,'↱90°'],[0,'↑ reto'],[45,'↰45°'],[-45,'↱45°'],[135,'↰135°'],[-135,'↱135°']].map(([v,n])=>`<option value="${v}"${Math.abs(-(+w.ang||0)-v)<1e-6?' selected':''}>${n}</option>`).join('')}</select>`:null;
+        const sel=selB?selB:(i>0&&i<=pre)?`<span class="hint" style="flex:0 1 66px;text-align:center">↓</span>`:pw?`<select class="cs" style="flex:0 1 66px" data-act="ang" data-i="${i-1}" aria-label="Giro antes de ${WN(r,i)}">${[[90,'↰90°'],[-90,'↱90°'],[0,'↑ reto'],[45,'↰45°'],[-45,'↱45°'],[135,'↰135°'],[-135,'↱135°']].map(([v,n])=>`<option value="${v}"${+pw.ang===v?' selected':''}>${n}</option>`).join('')}<option value="x"${std?'':' selected'}>outro</option></select>`:`<span class="hint" style="flex:0 1 66px;text-align:center">início</span>`;
         h+=`<div class="dim"><div class="drow"><span class="tag">${WN(r,i)}</span>${sel}${F('w:'+i,'Real',w.len,v=>{r.walls[i].len=v;if(i===r.walls.length-1)r.walls.push({len:null,ang:90})})}${last?'':PJ('w:'+i,w.pj)}${DL(w.len,w.pj)}<button class="btn sm wk wk-${WK(w)}" data-act="wOpen" data-i="${i}" type="button" aria-label="Tipo: ${WKL[WK(w)]} (toque para trocar)">${WKN[WK(w)]}</button>${last?'':WPH(p,r,i)}<button class="btn sm del xb" data-act="delW" data-i="${i}" type="button" aria-label="Apagar ${WN(r,i)}">✕</button></div>
         ${!last&&WK(w)==='p'?revUI(r,i)+rqEndUI(r,i):''}${!last&&WK(w)==='v'?rqUI('w-'+i,w,'vão',null,w.len):''}${!std?`<div class="drow" style="margin-top:4px"><span class="hint">Giro antes de ${WN(r,i)} (°, + esq / − dir)</span><input class="txt num" style="width:70px" data-act="angx" data-i="${i-1}" inputmode="decimal" value="${nf(+pw.ang,1)}" aria-label="Giro em graus"></div>`:''}${last?'':WMIN(p,r,i)}</div>`});
       {const nW=r.walls.length;h+=`</div><div class="row" style="margin-top:8px"><button class="btn sm" data-act="addW" type="button">+ Parede</button><select class="cs" style="flex:0 1 190px" id="insAt" aria-label="Onde inserir">${`<option value="end">no fim (antes de fechar)</option><option value="pre"${INS==='pre'?' selected':''}>antes de ${WN(r,0)} (voltando do início)</option>`+Array.from({length:Math.max(0,nW-1)},(_,k)=>`<option value="${k}"${String(INS)===String(k)?' selected':''}>entre ${WN(r,k)} e ${WN(r,k+1)}</option>`).join('')+`<optgroup label="Na mesma reta (continuação)">`+r.walls.map((w,k)=>w.len>0?`<option value="c${k}"${INS==='c'+k?' selected':''}>continuar ${WN(r,k)} → ${(()=>{const nm=WNS({mode:'poly',walls:[...r.walls.slice(0,k+1),{sub:true}]});return nm[nm.length-1]})()}</option>`:'').join('')+`</optgroup>`}</select></div>`};setTimeout(thumbs,0);
@@ -1227,6 +1237,7 @@ document.addEventListener('click',async e=>{const t=e.target.closest('[data-t],[
 document.addEventListener('change',e=>{const t=e.target,a=t.dataset.act;if(!a&&!t.id)return;const p=P(V.pid),r=R(p,V.rid),i=+t.dataset.i;
   const ph=p&&p.photos.find(x=>x.id===V.phid);
   switch(a){
+    case'angB':r.walls[i].ang=-(+t.value);break;
     case'ang':if(t.value==='x'){r.walls[i].ang=+r.walls[i].ang+0.0001}else r.walls[i].ang=+t.value;break;
     case'angx':{const v=pn(t.value);if(v!=null)r.walls[i].ang=v;break}
     case'oT':r.openings[i].t=t.value;break;
