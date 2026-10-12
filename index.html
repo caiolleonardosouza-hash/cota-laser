@@ -904,6 +904,16 @@ function geralSVG(p,{W,H,vx,vy,k,exp=false,sel=null,cotas=true}){const fl=v=>(v=
       o+=kd==='p'?`<line x1="${f(a[0])}" y1="${f(a[1])}" x2="${f(b[0])}" y2="${f(b[1])}" stroke="${C.wall}" stroke-width="${f(wpx)}" stroke-linecap="square"/>`
         :`<line x1="${f(a[0])}" y1="${f(a[1])}" x2="${f(b[0])}" y2="${f(b[1])}" stroke="${C.mut}" stroke-width="1.2" stroke-dasharray="6 4"/>`});
     if(w.closed&&!(w.g.err<0.02)){const a=sp[sp.length-1],b=sp[0];o+=`<line x1="${f(a[0])}" y1="${f(a[1])}" x2="${f(b[0])}" y2="${f(b[1])}" stroke="${C.mut}" stroke-width="1.2" stroke-dasharray="6 4"/>`}}
+  for(const w of RW){const sp=w.vAll.map(S),cc=S(polyC(w.v));const byW={};(w.r.openings||[]).forEach(op=>{if(op.wall==null||!(op.w>0))return;(byW[op.wall]=byW[op.wall]||[]).push(op)});
+    for(const wi in byW){const i=+wi,wl=w.g.ws[i];if(!wl||!(wl.len>0))continue;const a=sp[i],b=sp[i+1],ex=b[0]-a[0],ey=b[1]-a[1],L=Math.hypot(ex,ey)||1,ux=ex/L,uy=ey/L;
+      const ops=byW[wi],free=ops.filter(op=>op.off==null);
+      ops.forEach(op=>{let t0,t1;if(op.off!=null){if(op.off+op.w>wl.len+0.0005)return;t0=op.off/wl.len;t1=(op.off+op.w)/wl.len}else{const kq=free.indexOf(op),fr=Math.min(1,op.w/wl.len),c=(kq+1)/(free.length+1);t0=Math.max(0,c-fr/2);t1=Math.min(1,c+fr/2)}
+        const P0=[a[0]+ex*t0,a[1]+ey*t0],P1=[a[0]+ex*t1,a[1]+ey*t1],col=op.t==='janela'?C.jan:C.acc;
+        if(op.t==='vao'){const nx=-uy*wpx*0.9,ny=ux*wpx*0.9;o+=`<line x1="${f(P0[0])}" y1="${f(P0[1])}" x2="${f(P1[0])}" y2="${f(P1[1])}" stroke="${C.bg}" stroke-width="${f(wpx+1.5)}"/>`;
+          for(const q of[P0,P1])if(!(q===P0&&t0<1e-6)&&!(q===P1&&t1>1-1e-6))o+=`<line x1="${f(q[0]-nx)}" y1="${f(q[1]-ny)}" x2="${f(q[0]+nx)}" y2="${f(q[1]+ny)}" stroke="${C.wall}" stroke-width="1.4"/>`}
+        else o+=`<line x1="${f(P0[0])}" y1="${f(P0[1])}" x2="${f(P1[0])}" y2="${f(P1[1])}" stroke="${col}" stroke-width="${f(wpx+0.5)}"/>`;
+        if(cotas&&k>=18&&Math.hypot(P1[0]-P0[0],P1[1]-P0[1])>=14){const mx=(P0[0]+P1[0])/2,my=(P0[1]+P1[1])/2,vx_=cc[0]-mx,vy_=cc[1]-my,vl=Math.hypot(vx_,vy_)||1,d=wpx+21,tx=mx+vx_/vl*d,ty=my+vy_/vl*d+3,ang=Math.atan2(ey,ex)*180/Math.PI,ra=ang>90||ang<-90?ang+180:ang;
+          if(vl>d+16)o+=`<text transform="translate(${f(tx)},${f(ty)}) rotate(${f(ra)})" text-anchor="middle" font-size="${Math.max(7,Math.min(9.5,k*0.15)).toFixed(1)}" font-weight="700" fill="${op.t==='vao'?C.mut:col}">${op.t==='porta'?'PT':op.t==='janela'?'JA':'VÃO'} ${fl(op.w)}</text>`}})}}
   if(cotas&&k>=18)for(const w of RW){const sp=w.vAll.map(S),cc=S(polyC(w.v));w.g.ws.forEach((wl,i)=>{const a=sp[i],b=sp[i+1],L=Math.hypot(b[0]-a[0],b[1]-a[1]);if(L<34)return;
       const mx=(a[0]+b[0])/2,my=(a[1]+b[1])/2,vx_=cc[0]-mx,vy_=cc[1]-my,vl=Math.hypot(vx_,vy_)||1,tx=mx+vx_/vl*11,ty=my+vy_/vl*11+3.5,ang=Math.atan2(b[1]-a[1],b[0]-a[0])*180/Math.PI,ra=ang>90||ang<-90?ang+180:ang;
       o+=`<text transform="translate(${f(tx)},${f(ty)}) rotate(${f(ra)})" text-anchor="middle" font-size="${Math.max(8,Math.min(11,k*0.18)).toFixed(1)}" font-weight="600" fill="${WK(wl)==='p'?C.mut:WK(wl)==='v'?C.acc:C.mut}"${WK(wl)!=='p'?' font-style="italic"':''}>${fl(wl.len)}</text>`})}
