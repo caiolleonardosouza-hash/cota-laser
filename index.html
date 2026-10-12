@@ -296,8 +296,9 @@ const WN=(r,i)=>i==null?'—':(WNS(r)[i]||'P'+(i+1));
 const WK=w=>w.kind||(w.open?'s':'p'),WKN={p:'P',s:'S/P',v:'VÃO'},WKL={p:'Parede',s:'Sem parede',v:'Vão aberto'};
 function walls(r){if(r.mode==='rect'){const vt=r.virt||{};return(r.a>0&&r.b>0)?[r.a,r.b,r.a,r.b].map((l,k)=>({len:l,ang:90,kind:vt[k]===true?'s':(vt[k]||'p')})):[]}
   const a=r.walls.slice();while(a.length&&!(a[a.length-1].len>0))a.pop();return a}
-function geom(r){const ws=walls(r);let x=0,y=0,h=0;const v=[[0,0]];
-  for(const w of ws){x+=w.len*Math.cos(h*Math.PI/180);y+=w.len*Math.sin(h*Math.PI/180);v.push([x,y]);h+=(+w.ang||0)}
+function h0(r){let a=0;if(r.mode!=='rect')for(let i=0;i<(r.pre||0)&&i<r.walls.length;i++)a-=(+r.walls[i].ang||0);return a}
+function geom(r){const ws=walls(r);let x=0,y=0,h=h0(r);const v=[[0,0]];
+  for(const w of ws){const L=w.len>0?w.len:0;x+=L*Math.cos(h*Math.PI/180);y+=L*Math.sin(h*Math.PI/180);v.push([x,y]);h+=(+w.ang||0)}
   let a=0;for(let i=0;i<v.length;i++){const[p,q]=[v[i],v[(i+1)%v.length]];a+=p[0]*q[1]-q[0]*p[1]}
   const err=ws.length?Math.hypot(x,y):0;
   return{ws,v,area:ws.length>=3?Math.abs(a)/2:0,err}}
@@ -765,7 +766,7 @@ function scGeo(sc,ws){const n=ws.length;if(sc.corner==null||sc.corner>=n||n<2)re
   const forro=La*w+Lb*w-(La>0&&Lb>0?w*w:0),inner=(La>0?La-(Lb>0?w:0):0)+(Lb>0?Lb-(La>0?w:0):0),ends=(La>0&&La<l1-1e-6?w:0)+(Lb>0&&Lb<l2-1e-6?w:0);
   const tl=Math.max(0,inner+ends);return{k,k2,La,Lb,L:tl,w,h,forro:Math.max(0,forro),test:tl*h}}
 function closeRoom(r,mode){const g=geom(r);if(g.ws.length<2)return;const[ex,ey]=g.v[g.v.length-1];const ws=walls(r),last=ws[ws.length-1];
-  let hl=0;for(let i=0;i<ws.length-1;i++)hl+=(+ws[i].ang||0);
+  let hl=h0(r);for(let i=0;i<ws.length-1;i++)hl+=(+ws[i].ang||0);
   const norm=a=>{a=((a%360)+540)%360-180;return Math.abs(a)<1e-9?0:a},segs=[];const dx=-ex,dy=-ey,eps=0.0005;
   if(mode==='d')segs.push([Math.hypot(dx,dy),Math.atan2(dy,dx)*180/Math.PI]);
   else{const X=[Math.abs(dx),dx>=0?0:180],Y=[Math.abs(dy),dy>=0?90:-90],o=mode==='xy'?[X,Y]:[Y,X];for(const sg of o)if(sg[0]>eps)segs.push(sg)}
@@ -792,7 +793,7 @@ function vRoom(p,r){RQR=r;const tab=V.tab||'med',c=calc(r),d=S.settings.dec;
         const sel=pw?`<select class="cs" style="flex:0 1 66px" data-act="ang" data-i="${i-1}" aria-label="Giro antes de ${WN(r,i)}">${[[90,'↰90°'],[-90,'↱90°'],[0,'↑ reto'],[45,'↰45°'],[-45,'↱45°'],[135,'↰135°'],[-135,'↱135°']].map(([v,n])=>`<option value="${v}"${+pw.ang===v?' selected':''}>${n}</option>`).join('')}<option value="x"${std?'':' selected'}>outro</option></select>`:`<span class="hint" style="flex:0 1 66px;text-align:center">início</span>`;
         h+=`<div class="dim"><div class="drow"><span class="tag">${WN(r,i)}</span>${sel}${F('w:'+i,'Real',w.len,v=>{r.walls[i].len=v;if(i===r.walls.length-1)r.walls.push({len:null,ang:90})})}${last?'':PJ('w:'+i,w.pj)}${DL(w.len,w.pj)}<button class="btn sm wk wk-${WK(w)}" data-act="wOpen" data-i="${i}" type="button" aria-label="Tipo: ${WKL[WK(w)]} (toque para trocar)">${WKN[WK(w)]}</button>${last?'':WPH(p,r,i)}<button class="btn sm del xb" data-act="delW" data-i="${i}" type="button" aria-label="Apagar ${WN(r,i)}">✕</button></div>
         ${!last&&WK(w)==='p'?revUI(r,i)+rqEndUI(r,i):''}${!last&&WK(w)==='v'?rqUI('w-'+i,w,'vão',null,w.len):''}${!std?`<div class="drow" style="margin-top:4px"><span class="hint">Giro antes de ${WN(r,i)} (°, + esq / − dir)</span><input class="txt num" style="width:70px" data-act="angx" data-i="${i-1}" inputmode="decimal" value="${nf(+pw.ang,1)}" aria-label="Giro em graus"></div>`:''}${last?'':WMIN(p,r,i)}</div>`});
-      {const nW=r.walls.length;h+=`</div><div class="row" style="margin-top:8px"><button class="btn sm" data-act="addW" type="button">+ Parede</button><select class="cs" style="flex:0 1 190px" id="insAt" aria-label="Onde inserir">${`<option value="end">no fim (antes de fechar)</option>`+Array.from({length:Math.max(0,nW-1)},(_,k)=>`<option value="${k}"${String(INS)===String(k)?' selected':''}>entre ${WN(r,k)} e ${WN(r,k+1)}</option>`).join('')+`<optgroup label="Na mesma reta (continuação)">`+r.walls.map((w,k)=>w.len>0?`<option value="c${k}"${INS==='c'+k?' selected':''}>continuar ${WN(r,k)} → ${(()=>{const nm=WNS({mode:'poly',walls:[...r.walls.slice(0,k+1),{sub:true}]});return nm[nm.length-1]})()}</option>`:'').join('')+`</optgroup>`}</select></div>`};setTimeout(thumbs,0);
+      {const nW=r.walls.length;h+=`</div><div class="row" style="margin-top:8px"><button class="btn sm" data-act="addW" type="button">+ Parede</button><select class="cs" style="flex:0 1 190px" id="insAt" aria-label="Onde inserir">${`<option value="end">no fim (antes de fechar)</option><option value="pre"${INS==='pre'?' selected':''}>antes de ${WN(r,0)} (voltando do início)</option>`+Array.from({length:Math.max(0,nW-1)},(_,k)=>`<option value="${k}"${String(INS)===String(k)?' selected':''}>entre ${WN(r,k)} e ${WN(r,k+1)}</option>`).join('')+`<optgroup label="Na mesma reta (continuação)">`+r.walls.map((w,k)=>w.len>0?`<option value="c${k}"${INS==='c'+k?' selected':''}>continuar ${WN(r,k)} → ${(()=>{const nm=WNS({mode:'poly',walls:[...r.walls.slice(0,k+1),{sub:true}]});return nm[nm.length-1]})()}</option>`:'').join('')+`</optgroup>`}</select></div>`};setTimeout(thumbs,0);
       const g=c.g;if(g.ws.length>=3)h+=g.err<0.02?`<p class="okbox">Planta fechada. Erro de fechamento: ${nf(g.err*100,1)} cm.</p>`:r.autoClose?`<div class="okbox row"><span class="grow">Fechado por linha sem parede: ${flu(g.err)} (fora do perímetro)</span><button class="btn sm" data-act="autoC" type="button">Desfazer</button></div>`:`<div class="warnbox list"><span>Não fecha: faltam ${flu(g.err)}. Fechar com trechos sem parede:</span><div class="row"><button class="btn sm" data-act="close" data-k="d" type="button">╲ Reto</button><button class="btn sm" data-act="close" data-k="xy" type="button">⌐ L: ↔ depois ↕</button><button class="btn sm" data-act="close" data-k="yx" type="button">⌙ L: ↕ depois ↔</button></div></div>`}
     {const n=c.g.ws.length;h+=`<h2 style="margin:16px 0 6px">Shafts nos cantos</h2><div class="list">`;
       (r.shafts||[]).forEach((sh,i)=>{const k=sh.corner;h+=`<div class="dim"><div class="drow"><span class="tag">SH${i+1}</span><select class="cs" style="flex:0 1 130px" data-act="shC" data-i="${i}" aria-label="Canto">${Array.from({length:n},(_,j)=>`<option value="${j}"${k===j?' selected':''}>Canto ${WN(r,j)}/${WN(r,(j+1)%n)}</option>`).join('')}</select><button class="btn sm del xb" data-act="delSh2" data-i="${i}" type="button">✕</button></div>
@@ -1201,12 +1202,14 @@ document.addEventListener('click',async e=>{const t=e.target.closest('[data-t],[
         r.walls.splice(at,0,{len:null,ang:w.ang,sub:true,kind:w.kind,rv:w.rv,rvH:w.rvH,rvS:w.rvS});w.ang=0;
         r.openings.forEach(o=>{if(o.wall!=null&&o.wall>=at)o.wall++});(r.shafts||[]).forEach(sh=>{if(sh.corner!=null&&sh.corner>=at)sh.corner++});(r.sancas||[]).forEach(sc=>{if(sc.corner!=null&&sc.corner>=at)sc.corner++});
         if(r.wph){const n={};for(const key in r.wph)n[+key>=at?+key+1:key]=r.wph[key];r.wph=n}target='w:'+at;INS='end';save();return render()}
+      if(INS==='pre'){r.walls.unshift({len:null,ang:90});r.pre=(r.pre||0)+1;r.openings.forEach(o=>{if(o.wall!=null)o.wall++});(r.shafts||[]).forEach(sh=>{if(sh.corner!=null)sh.corner++});(r.sancas||[]).forEach(sc=>{if(sc.corner!=null)sc.corner++});
+        if(r.wph){const n={};for(const key in r.wph)n[+key+1]=r.wph[key];r.wph=n}target='w:0';INS='end';save();return render()}
       const k=INS==='end'||INS==null||+INS>=r.walls.length-1?null:+INS;
       if(k==null){const lw=r.walls[r.walls.length-1];if(lw&&!(lw.len>0)){target='w:'+(r.walls.length-1);return render()}r.walls.push({len:null,ang:90});target='w:'+(r.walls.length-1)}
       else{const at=k+1;r.walls.splice(at,0,{len:null,ang:0});r.openings.forEach(o=>{if(o.wall!=null&&o.wall>=at)o.wall++});(r.shafts||[]).forEach(sh=>{if(sh.corner!=null&&sh.corner>=at)sh.corner++});(r.sancas||[]).forEach(sc=>{if(sc.corner!=null&&sc.corner>=at)sc.corner++});
         if(r.wph){const n={};for(const key in r.wph)n[+key>=at?+key+1:key]=r.wph[key];r.wph=n}target='w:'+at}
       INS='end';save();return render()}
-    case'delW':r.walls.splice(i,1);if(!r.walls.length)r.walls.push({len:null,ang:90});r.openings.forEach(o=>{if(o.wall===i)o.wall=null;else if(o.wall>i)o.wall--});
+    case'delW':if(i<(r.pre||0))r.pre--;r.walls.splice(i,1);if(!r.walls.length)r.walls.push({len:null,ang:90});r.openings.forEach(o=>{if(o.wall===i)o.wall=null;else if(o.wall>i)o.wall--});
       (r.shafts||[]).forEach(sh=>{if(sh.corner!=null&&sh.corner>=i&&sh.corner>0)sh.corner--});(r.sancas||[]).forEach(sc=>{if(sc.corner!=null&&sc.corner>=i&&sc.corner>0)sc.corner--});if(r.wph){const n={};for(const key in r.wph){if(+key===i)continue;n[+key>i?+key-1:key]=r.wph[key]}r.wph=n}save();return render();
     case'addO':r.openings.push({id:uid(),t:t.dataset.k,w:null,h:null,q:1,wall:null});save();target='o:'+(r.openings.length-1)+':w';return render();
     case'delO':r.openings.splice(i,1);save();return render();
