@@ -383,7 +383,7 @@ function planSVG(r,{W=360,H=270,exp=false,detail=false}={}){const fl=v=>(v==null
         const segL=Math.hypot(x1-x0,y1-y0),tw=String(lab).length*8*0.56;if(!bold&&segL<tw+2)return;
         const rt=wRot(ex,ey),cx_=(x0+x1)/2,cy_=(y0+y1)/2,cs=[];for(const d of[16,24,32])cs.push([cx_-n[0]*d,cy_-n[1]*d,rt]);
         place(bold?5000:1000,lab,8,cs,`font-weight="${bold?700:500}" fill="${col}"`,bold?(detail?true:'soft'):false)};
-      const gap=(t0,t1,lab)=>{const off=closed?3.5:0,G=t=>[a[0]+ex*t+n[0]*off,a[1]+ey*t+n[1]*off],full=fullV(i),e0=t0<=1e-6,e1=t1>=1-1e-6,cl=(closed?7:3)/L;if(!full){if(e0)t0=Math.min(t1,t0+cl);if(e1)t1=Math.max(t0,t1-cl)}const[x0,y0]=G(t0),[x1,y1]=G(t1);if(!full)o+=`<line x1="${x0.toFixed(1)}" y1="${y0.toFixed(1)}" x2="${x1.toFixed(1)}" y2="${y1.toFixed(1)}" stroke="${C.bg}" stroke-width="${closed?9:5}"/>`;
+      const gap=(t0,t1,lab)=>{const off=closed?3.5:0,G=t=>[a[0]+ex*t+n[0]*off,a[1]+ey*t+n[1]*off],full=fullV(i),e0=t0<=1e-6,e1=t1>=1-1e-6,cl=(closed?7:3)/L;if(!full){if(e0)t0=Math.min(t1,t0+cl/2);if(e1)t1=Math.max(t0,t1-cl/2)}const[x0,y0]=G(t0),[x1,y1]=G(t1);if(!full)o+=`<line x1="${x0.toFixed(1)}" y1="${y0.toFixed(1)}" x2="${x1.toFixed(1)}" y2="${y1.toFixed(1)}" stroke="${C.bg}" stroke-width="${closed?9:5}"/>`;
         if(!full)for(const[x,y,e]of[[x0,y0,e0],[x1,y1,e1]])if(!e)o+=`<line x1="${(x-n[0]*3.5).toFixed(1)}" y1="${(y-n[1]*3.5).toFixed(1)}" x2="${(x+n[0]*3.5).toFixed(1)}" y2="${(y+n[1]*3.5).toFixed(1)}" stroke="${C.wall}" stroke-width="1.6"/>`;
         if(lab){const ang=Math.abs(n[0])>0.5?(n[0]>0?90:-90):0,mx_=(x0+x1)/2-n[0]*(10+off),my_=(y0+y1)/2-n[1]*(10+off);o+=`<text transform="translate(${mx_.toFixed(1)},${my_.toFixed(1)}) rotate(${ang})" y="3" text-anchor="middle" font-size="8" fill="${C.mut}">vão ${lab}</text>`}};
       const tick=t=>{const[x,y]=P(t),ox=-n[0]*9,oy=-n[1]*9;o+=`<line x1="${(x+ox-n[0]*3).toFixed(1)}" y1="${(y+oy-n[1]*3).toFixed(1)}" x2="${x.toFixed(1)}" y2="${y.toFixed(1)}" stroke="${C.acc}" stroke-width="0.9"/>`};
@@ -845,7 +845,7 @@ function vRoom(p,r){RQR=r;const tab=V.tab||'med',c=calc(r),d=S.settings.dec;
       <div class="drow" style="margin-top:4px">${F('o:'+i+':w','Largura '+(o.t==='vao'?'vão':o.t),o.w,v=>r.openings[i].w=v)}${PJ('o:'+i+':w',o.wPj)}<span class="sep"></span>${F('o:'+i+':h','Altura '+(o.t==='vao'?'vão':o.t),o.h,v=>r.openings[i].h=v)}${PJ('o:'+i+':h',o.hPj)}</div>
       ${DL(o.w,o.wPj)||DL(o.h,o.hPj)?`<div class="drow" style="margin-top:4px;gap:10px"><span class="hint">Δ larg.</span>${DL(o.w,o.wPj)||'—'}<span class="hint">Δ alt.</span>${DL(o.h,o.hPj)||'—'}</div>`:''}
       ${(()=>{const ws=walls(r),wl=o.wall!=null&&ws[o.wall]?ws[o.wall].len:null;return wl!=null&&o.off!=null&&o.w!=null&&o.off+o.w>wl+0.0005?`<div class="warnbox" style="margin-top:6px">Início (${fl(o.off)}) + largura (${fl(o.w)}) = ${fl(o.off+o.w)} passa do comprimento de P${o.wall+1} (${fl(wl)}). Confira a parede escolhida ou a medida.</div>`:''})()}
-      <div class="drow" style="margin-top:4px">${F('o:'+i+':off','Início '+wn,o.off,v=>r.openings[i].off=v)}${PJ('o:'+i+':off',o.offPj)}${DL(o.off,o.offPj)}${o.t==='janela'?F('o:'+i+':pe','Peitoril',o.pe,v=>r.openings[i].pe=v):''}</div>${rqUI('o-'+i,o,o.t==='vao'?'vão':o.t,o.h,o.w)}</div>`});
+      <div class="drow" style="margin-top:4px">${F('o:'+i+':off','Início '+wn,o.off,v=>r.openings[i].off=v)}<button class="btn sm" data-act="off0" data-i="${i}" type="button" title="Começa no canto da parede"${o.off===0?' disabled':''}>0 · no canto</button>${PJ('o:'+i+':off',o.offPj)}${DL(o.off,o.offPj)}${o.t==='janela'?F('o:'+i+':pe','Peitoril',o.pe,v=>r.openings[i].pe=v):''}</div>${rqUI('o-'+i,o,o.t==='vao'?'vão':o.t,o.h,o.w)}</div>`});
     {const rq=rqTot(r);h+=`</div><p class="hint">Total aberturas: <b class="num">${nf(c.openA,2)} m²</b> · descontado da parede: <b class="num">${nf(c.ded,2)} m²</b>${rq.L?` · requadro: <b class="num">${flu(rq.L)}</b> (${nf(rq.A,2)} m²)`:''}</p>`}}
   if(tab==='obj'){h+=`<div class="list" style="margin-top:10px">`;
     r.objects.forEach((o,i)=>{h+=`<div class="card list"><div class="row"><input class="txt grow" data-act="obN" data-i="${i}" value="${esc(o.n||'')}" placeholder="nome do objeto"><button class="btn sm del" data-act="delOb" data-i="${i}" type="button">✕</button></div>
@@ -1172,6 +1172,7 @@ document.addEventListener('click',async e=>{const t=e.target.closest('[data-t],[
     case'planZoom':{if(!r)return;const z=$('#pzoom'),B=$('#pzB');PZ.z=1;const pw=560,ph=Math.round(pw*Math.max(0.7,(innerHeight-70)/innerWidth));B.innerHTML=planSVG(r,{W:pw,H:ph,detail:true})||'';$('#pzT').textContent=r.name;const sv=B.querySelector('svg');if(sv){sv.style.width='100%';sv.style.height='auto';sv.style.display='block'}z.hidden=false;return}
     case'openR':return go({v:'room',pid:p.id,rid:t.dataset.id});
     case'openPh':PEND=null;return go({v:'photo',pid:p.id,phid:t.dataset.id});
+    case'off0':{if(!r||!r.openings[i])return;r.openings[i].off=0;if(target==='o:'+i+':off')target=null;save();toast('Início do vão no canto (0)');return render()}
     case'ptab':V.tab=t.dataset.k;target=null;if(V.tab==='geral'){GV.fit=true;GV.sel=null}return render();
     case'gZoom':{if(!GR)return;const f=+t.dataset.k,cx=GV.vx+GR.w/2/GV.k,cy=GV.vy-GR.h/2/GV.k;GV.k*=f;GV.vx=cx-GR.w/2/GV.k;GV.vy=cy+GR.h/2/GV.k;return gDraw()}
     case'gFit':if(GR){gFit();gDraw()}return;
@@ -1309,7 +1310,7 @@ document.addEventListener('submit',e=>{e.preventDefault();const f=e.target.datas
   if(f==='newR'){const n=$('#nr').value.trim();if(!n)return;const p=P(V.pid),r=newRoom(n);p.rooms.push(r);save();go({v:'room',pid:p.id,rid:r.id});target='h';render()}});
 document.addEventListener('input',e=>{const t=e.target;if(!RT||!['stLw','stFs','stZr'].includes(t.id))return;const sh=RT.sh;sh.style=Object.assign(stOf(sh),{[{stLw:'lw',stFs:'fs',stZr:'zref'}[t.id]]:+t.value});t.nextElementSibling.textContent=t.value+(t.id==='stZr'?'×':'');edDraw()});
 $('#bt').onclick=()=>BT.state==='on'?BT.disconnect():BT.state==='off'&&BT.connect();
-const manGo=()=>{const v=parseL($('#man').value);if(v==null||v<=0){toast('Digite um valor em '+UN());return}$('#man').value='';reading(v,false)};
+const manGo=()=>{const v=parseL($('#man').value),z0=target&&/:off$/.test(target);if(v==null||v<0||(v===0&&!z0)){toast('Digite um valor em '+UN());return}$('#man').value='';reading(v,false)};
 $('#manok').onclick=manGo;$('#man').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();manGo()}});
 
 /* ===== início ===== */
