@@ -884,7 +884,7 @@ function vRoom(p,r){RQR=r;const tab=V.tab||'med',c=calc(r),d=S.settings.dec;
 const GV={pid:null,vx:0,vy:0,k:40,sel:null,cotas:true,step:0.01,fit:true};
 let GR=null;
 function rWorld(r){const g=geom(r);if(g.ws.length<2)return null;const ps=r.pos||{x:0,y:0,rot:0},a=(ps.rot||0)*Math.PI/180,c=Math.cos(a),s=Math.sin(a);
-  const tf=([x,y])=>[x*c-y*s+(ps.x||0),x*s+y*c+(ps.y||0)];const closed=g.err<0.02&&g.ws.length>=3;
+  const fx=ps.flip?-1:1,tf=([x0,y])=>{const x=x0*fx;return[x*c-y*s+(ps.x||0),x*s+y*c+(ps.y||0)]};const closed=g.err<0.02&&g.ws.length>=3;
   const v=(closed?g.v.slice(0,-1):g.v).map(tf),vAll=g.v.map(tf);return{r,g,v,vAll,closed:closed||(r.mode==='poly'&&r.autoClose)}}
 function initPos(p){let x=0;for(const r of p.rooms){if(r.pos)continue;const g=geom(r);if(g.ws.length<2)continue;const xs=g.v.map(q=>q[0]),ys=g.v.map(q=>q[1]);
   r.pos={x:x-Math.min(...xs),y:-Math.min(...ys),rot:0};x+=Math.max(...xs)-Math.min(...xs)+1}}
@@ -923,11 +923,13 @@ function geralSVG(p,{W,H,vx,vy,k,exp=false,sel=null,cotas=true}){const fl=v=>(v=
 function vGeral(p){initPos(p);const RW=p.rooms.map(rWorld).filter(Boolean),tot=p.rooms.reduce((s,r)=>s+calc(r).area,0),sr=p.rooms.find(r=>r.id===GV.sel);
   if(!RW.length)return`<div class="plan-empty" style="margin-top:14px">Meça as paredes dos cômodos para montar a planta geral.</div>`;
   let h=`<div class="tools noprint"><button class="btn sm" data-act="gZoom" data-k="0.7" type="button" aria-label="Diminuir">−</button><button class="btn sm" data-act="gZoom" data-k="1.4" type="button" aria-label="Aumentar">+</button><button class="btn sm" data-act="gFit" type="button">Ajustar</button><button class="btn sm" data-act="gRotAll" data-k="-90" type="button" title="Gira a planta inteira 90° no sentido horário">⟳ Girar planta</button><button class="btn sm${GV.cotas?' pri':''}" data-act="gCot" type="button">Cotas</button><button class="btn sm" data-act="gPng" type="button">Salvar PNG</button></div>
-  <div class="stage" id="gstage" style="height:min(62vh,560px)"></div>`;
-  h+=sr?`<div class="card list" style="margin-top:8px"><div class="row"><b class="grow">${esc(sr.name)}</b><button class="btn sm" data-act="gRot" data-k="90" type="button">⟲ 90°</button><button class="btn sm" data-act="gRot" data-k="-90" type="button">⟳ 90°</button></div>
+`;
+  h+=sr?`<div class="card list" style="margin:8px 0"><div class="row"><b class="grow">${esc(sr.name)}</b><button class="btn sm" data-act="gRot" data-k="90" type="button">⟲ 90°</button><button class="btn sm" data-act="gRot" data-k="-90" type="button">⟳ 90°</button><button class="btn sm" data-act="gFlip" type="button" title="Espelha o cômodo (use quando ele foi medido no sentido contrário)">⇋ Espelhar</button><button class="btn sm" data-act="gDesel" type="button" aria-label="Fechar">✕</button></div>
     <div class="row"><span class="hint grow">Giro atual: ${nf(((((sr.pos&&sr.pos.rot)||0)%360)+360)%360,0)}°</span><button class="btn sm" data-act="gRot" data-k="15" type="button">⟲ 15°</button><button class="btn sm" data-act="gRot" data-k="-15" type="button">⟳ 15°</button><button class="btn sm" data-act="gRot" data-k="1" type="button">⟲ 1°</button><button class="btn sm" data-act="gRot" data-k="-1" type="button">⟳ 1°</button></div>
     <div class="row"><span class="hint">Ajuste fino</span><button class="btn sm" data-act="gNud" data-k="-1,0" type="button">←</button><button class="btn sm" data-act="gNud" data-k="0,1" type="button">↑</button><button class="btn sm" data-act="gNud" data-k="0,-1" type="button">↓</button><button class="btn sm" data-act="gNud" data-k="1,0" type="button">→</button>
     <select id="gStep" class="cs" style="flex:0 1 90px" aria-label="Passo">${[[0.01,'1 cm'],[0.05,'5 cm'],[0.15,'15 cm'],[0.5,'50 cm']].map(([v,n])=>`<option value="${v}"${GV.step===v?' selected':''}>${n}</option>`).join('')}</select></div></div>`:`<p class="hint">Toque num cômodo para selecionar e girar. “Girar planta” gira o conjunto todo. Arraste o cômodo para posicionar; os cantos encaixam sozinhos.</p>`;
+  h+=`<div class="stage" id="gstage" style="height:min(62vh,560px)"></div>`;
+  
   const rows=p.rooms.map(r=>({r,c:calc(r)})),T={area:0,teto:0,gross:0,ded:0,net:0};rows.forEach(({c})=>{T.area+=c.area;T.teto+=c.teto;T.gross+=c.gross;T.ded+=c.ded;T.net+=c.net});
   const semPD=rows.filter(x=>!(x.r.h>0)&&x.c.perim>0);
   h+=`<div class="stats" style="margin-top:10px"><div class="stat"><small>Área de piso</small><b>${nf(T.area,2)}<i>m²</i></b></div><div class="stat"><small>Área de teto</small><b>${nf(T.teto,2)}<i>m²</i></b></div><div class="stat"><small>Área de parede líquida</small><b>${nf(T.net,2)}<i>m²</i></b></div></div>
@@ -1206,6 +1208,8 @@ document.addEventListener('click',async e=>{const t=e.target.closest('[data-t],[
     case'gRotAll':{const RS=p.rooms.filter(x=>rWorld(x));if(!RS.length)return;const d=+t.dataset.k,b=gBounds(RS.map(rWorld)),C=[(b[0]+b[2])/2,(b[1]+b[3])/2],a=d*Math.PI/180,co=Math.cos(a),si=Math.sin(a);
       for(const x of RS){const c0=polyC(rWorld(x).v),tg=[C[0]+(c0[0]-C[0])*co-(c0[1]-C[1])*si,C[1]+(c0[0]-C[0])*si+(c0[1]-C[1])*co];x.pos.rot=(((x.pos.rot||0)+d)%360+360)%360;const c1=polyC(rWorld(x).v);x.pos.x+=tg[0]-c1[0];x.pos.y+=tg[1]-c1[1]}
       GV.fit=true;save();return render()}
+    case'gFlip':{const r=p.rooms.find(x=>x.id===GV.sel);if(!r)return;const c0=polyC(rWorld(r).v);r.pos.flip=!r.pos.flip;const c1=polyC(rWorld(r).v);r.pos.x+=c0[0]-c1[0];r.pos.y+=c0[1]-c1[1];save();return render()}
+    case'gDesel':GV.sel=null;return render();
     case'gNud':{const r=p.rooms.find(x=>x.id===GV.sel);if(!r)return;const[dx,dy]=t.dataset.k.split(',').map(Number);r.pos.x+=dx*GV.step;r.pos.y+=dy*GV.step;save();return render()}
     case'gPng':{const RW=p.rooms.map(rWorld).filter(Boolean),b=gBounds(RW);if(!b)return;const W=1600,H=Math.round(W*Math.min(1.6,Math.max(0.5,(b[3]-b[1]+1.8)/(b[2]-b[0]+1.8))));
       const blob=await svgToPng(geralSVG(p,{W,H,exp:true,cotas:GV.cotas}),1.5);return saveBlob(blob,slug(p.name)+'_planta_geral.png')}
