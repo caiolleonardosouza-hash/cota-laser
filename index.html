@@ -331,7 +331,8 @@ function planSVG(r,{W=360,H=270,exp=false}={}){const fl=v=>(v==null||!isFinite(v
   const font='font-family="Barlow,Arial,sans-serif"';
   let o=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" ${font}><rect width="${W}" height="${H}" fill="${C.bg}"/>`;
   const fullV=i=>{const w=g.ws[i];return r.openings.some(o=>o.wall===i&&o.t==='vao'&&o.w>=w.len-0.0005&&(o.off==null||o.off<=0.0005))};
-  {const sw=closed?7:3;g.ws.forEach((w,i)=>{if(WK(w)!=='p'||fullV(i))return;const a=sp[i],b=sp[i+1];o+=`<line x1="${a[0].toFixed(1)}" y1="${a[1].toFixed(1)}" x2="${b[0].toFixed(1)}" y2="${b[1].toFixed(1)}" stroke="${C.wall}" stroke-width="${sw}" stroke-linecap="square"/>`});
+  {const sw=closed?7:3,nW=g.ws.length,isP=j=>{if(closed0)j=(j+nW)%nW;return j>=0&&j<nW&&WK(g.ws[j])==='p'&&!fullV(j)};g.ws.forEach((w,i)=>{if(!isP(i))return;const a=sp[i],b=sp[i+1],L=Math.hypot(b[0]-a[0],b[1]-a[1])||1,ux=(b[0]-a[0])/L,uy=(b[1]-a[1])/L,e0=isP(i-1)?sw/2:0,e1=isP(i+1)?sw/2:0;
+    o+=`<line x1="${(a[0]-ux*e0).toFixed(1)}" y1="${(a[1]-uy*e0).toFixed(1)}" x2="${(b[0]+ux*e1).toFixed(1)}" y2="${(b[1]+uy*e1).toFixed(1)}" stroke="${C.wall}" stroke-width="${sw}" stroke-linecap="butt"/>`});
     if(closed)o+=`<polygon points="${poly}" fill="${C.fill}" stroke="none"/>`;
     const dash=(a,b)=>`<line x1="${a[0].toFixed(1)}" y1="${a[1].toFixed(1)}" x2="${b[0].toFixed(1)}" y2="${b[1].toFixed(1)}" stroke="${C.mut}" stroke-width="1.4" stroke-dasharray="6 4"/>`;
     g.ws.forEach((w,i)=>{const k=WK(w);if(k==='s')o+=dash(sp[i],sp[i+1]);if(k==='v'&&false){const a=sp[i],b=sp[i+1];o+=`<line x1="${a[0].toFixed(1)}" y1="${a[1].toFixed(1)}" x2="${b[0].toFixed(1)}" y2="${b[1].toFixed(1)}" stroke="${C.acc}" stroke-width="2" stroke-dasharray="2 4" stroke-linecap="round"/>`;
