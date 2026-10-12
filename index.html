@@ -240,16 +240,16 @@ function revAreas(r){const a=revAreas0(r),tt={},c=calc(r),g=c.g;a.rows.forEach(x
   return a}
 const trM=()=>{const v=S.settings.trCm;return(v==null?5:+v)/100};
 function hEff(r){const H=r.h||0;if(r.rvT==='Forro de gesso'&&r.fEsp>0)return Math.max(0,Math.min(H,H-r.fEsp+trM()));return H}
+const isCer=k=>/cer[aâ]mic/i.test(k||'');
 const ovl=(a,b,c,d)=>Math.max(0,Math.min(b,d)-Math.max(a,c));
 function revAreas0(r){const g=geom(r),H=r.h||0,min=+S.settings.minOpen||0,rows=[],tot={},warn=[];if(!(H>0))return{rows,tot,warn:g.ws.length?['Sem pé-direito: revestimento não calculado.']:[]};
   const addT=(k,v)=>{if(v>1e-9)tot[k]=(tot[k]||0)+v};const nW=g.ws.length,cut=g.ws.map(()=>0),nc=g.ws.map(()=>0),SH=[],He=hEff(r),tr=trM();
   for(const sh of r.shafts||[]){if(sh.corner==null||sh.corner>=nW||!(sh.a>0&&sh.b>0))continue;cut[sh.corner]+=sh.a;cut[(sh.corner+1)%nW]+=sh.b;nc[sh.corner]++;nc[(sh.corner+1)%nW]++;SH.push(sh)}
-  g.ws.forEach((w,i)=>{if(WK(w)!=='p')return;const st=WS(r,i)||{},h1=st.rvH>0?Math.min(st.rvH,He):He,len=Math.max(0,Math.min(w.len,w.len-cut[i]+tr*nc[i]));let lo=len*h1,up=len*(He-h1);
+  g.ws.forEach((w,i)=>{if(WK(w)!=='p')return;const st=WS(r,i)||{},h1=st.rvH>0?Math.min(st.rvH,He):He,rv=st.rv||ND,rs=st.rvS||ND,tL=isCer(rv)?0:tr,tU=isCer(rs)?0:tr,lenB=t=>Math.max(0,Math.min(w.len,w.len-cut[i]+t*nc[i]));let lo=lenB(tL)*h1,up=lenB(tU)*(He-h1);
     for(const o of r.openings){if(o.wall!==i||!(o.w>0&&o.h>0))continue;const q=o.q||1;if(o.w*o.h<=min)continue;
       let z0=o.t==='janela'?o.pe:0;if(z0==null){if(h1<He)warn.push('Janela em '+WN(r,i)+' sem peitoril: descontada da faixa de cima.');z0=h1<He?h1:0}
       lo-=o.w*q*ovl(z0,z0+o.h,0,h1);up-=o.w*q*ovl(z0,z0+o.h,h1,He)}
-    for(const sc of r.sancas||[]){const q=scGeo(sc,g.ws);if(!q)continue;const L=(q.k===i?q.La:0)+(q.k2===i?q.Lb:0);if(!L)continue;const zb=H-Math.min(q.h,H)+tr;lo-=L*ovl(zb,He,0,h1);up-=L*ovl(zb,He,h1,He)}
-    const rv=st.rv||ND,rs=st.rvS||ND;
+    for(const sc of r.sancas||[]){const q=scGeo(sc,g.ws);if(!q)continue;const L=(q.k===i?q.La:0)+(q.k2===i?q.Lb:0);if(!L)continue;const a=H-Math.min(q.h,H);lo-=L*ovl(a+tL,He,0,h1);up-=L*ovl(a+tU,He,h1,He)}
     rows.push({i,name:WN(r,i),rv,faixa:h1<He?'0 a '+fl(h1):He<H-1e-9?'0 a '+fl(He):'parede toda',area:Math.max(0,lo)});addT(rv,Math.max(0,lo));
     if(h1<He){rows.push({i,name:WN(r,i),rv:rs,faixa:fl(h1)+' a '+fl(He),area:Math.max(0,up)});addT(rs,Math.max(0,up))}});
   rqTot(r).it.forEach(x=>{if(x.a>1e-9){rows.push({name:'Requadro · '+x.nome,rv:x.rv,faixa:'requadro',area:x.a});addT(x.rv,x.a)}});
