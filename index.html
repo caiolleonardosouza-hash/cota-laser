@@ -350,16 +350,21 @@ function planSVG(r,{W=360,H=270,exp=false}={}){const fl=v=>(v==null||!isFinite(v
     AL=Math.abs(A)>1e-6?[X/(3*A),Y/(3*A)]:[Pp.reduce((s,p)=>s+p[0],0)/Pp.length,Pp.reduce((s,p)=>s+p[1],0)/Pp.length];
     BX.push(boxOf(AL[0],AL[1],nf(CC.area,2)+' m²',14,'middle'),boxOf(AL[0],AL[1]+14,r.name,10,'middle'))}
   /* reserva o espaço das paredes desenhadas */
-  g.ws.forEach((w,i)=>{const a=sp[i],b=sp[i+1];BX.push([Math.min(a[0],b[0])-2,Math.min(a[1],b[1])-2,Math.max(a[0],b[0])+2,Math.max(a[1],b[1])+2])});
+  const wS=BX.length;g.ws.forEach((w,i)=>{const a=sp[i],b=sp[i+1];BX.push([Math.min(a[0],b[0])-2,Math.min(a[1],b[1])-2,Math.max(a[0],b[0])+2,Math.max(a[1],b[1])+2])});
   g.ws.forEach((w,i)=>{const a=sp[i],b=sp[i+1],ex=b[0]-a[0],ey=b[1]-a[1],L=Math.hypot(ex,ey)||1;
     const n=sa>0?[ey/L,-ex/L]:[-ey/L,ex/L];const mx=(a[0]+b[0])/2+n[0]*8,my=(a[1]+b[1])/2+n[1]*10;
     const anc=n[0]>0.5?'start':n[0]<-0.5?'end':'middle';const k=WK(w);
-    {const att=`font-weight="700" fill="${k==='p'?C.txt:k==='v'?C.acc:C.mut}"${k!=='p'?' font-style="italic"':''}`,txt=fl(w.len),fs=L<40?10:12,ux=ex/L,uy=ey/L,cs=[];
-      for(let q=0;q<=3;q++)cs.push([mx+n[0]*q*fs*0.9,my+4+n[1]*q*fs*0.9+(Math.abs(n[0])>0.5?q*fs*0.9:0),anc]);
-      for(const sg of[1,-1])for(let q=1;q<=3;q++)cs.push([mx+ux*sg*q*fs*1.6,my+4+uy*sg*q*fs*1.6,anc]);
-      const inn=[(a[0]+b[0])/2-n[0]*12,(a[1]+b[1])/2-n[1]*12+4],ic=[inn[0],inn[1],n[0]>0.5?'end':n[0]<-0.5?'start':'middle'];if(L<20)cs.unshift(ic);else cs.push(ic);
-      let done=false;for(const[x,y,an]of cs){const bb=boxOf(x,y,txt,fs,an);if(!hitB(bb)){BX.push(bb);o+=`<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" text-anchor="${an}" font-size="${fs}" ${att}>${txt}</text>`;done=true;break}}
-      if(!done){const[x,y,an]=cs[0];BX.push(boxOf(x,y,txt,fs,an));o+=`<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" text-anchor="${an}" font-size="${fs}" ${att}>${txt}</text>`}}
+    {const att=`font-weight="700" fill="${k==='p'?C.txt:k==='v'?C.acc:C.mut}"${k!=='p'?' font-style="italic"':''}`,txt=fl(w.len),fs=L<40?10:12,ux=ex/L,uy=ey/L,cs=[],wE=wS+g.ws.length;
+      let rot=Math.atan2(ey,ex)*180/Math.PI;if(rot>=89.5)rot-=180;if(rot<-90.5)rot+=180;
+      const rb=(x,y,rt)=>{const tw=txt.length*fs*0.56,th=fs,c=Math.abs(Math.cos(rt*Math.PI/180)),sn=Math.abs(Math.sin(rt*Math.PI/180)),hx=c*tw/2+sn*th/2,hy=sn*tw/2+c*th/2;return[x-hx-1,y-hy-1,x+hx+1,y+hy+1]};
+      const hitL=bb=>BX.some((c,j)=>(j<wS||j>=wE)&&bb[0]<c[2]&&c[0]<bb[2]&&bb[1]<c[3]&&c[1]<bb[3]);
+      const cx=(a[0]+b[0])/2,cy=(a[1]+b[1])/2;
+      if(L>=20){const d0=(closed?7:3)+fs*0.7;for(let q=0;q<=3;q++)cs.push([cx+n[0]*(d0+q*fs),cy+n[1]*(d0+q*fs),rot]);
+        for(const sg of[1,-1])for(let q=1;q<=2;q++)cs.push([cx+n[0]*d0+ux*sg*q*fs*1.8,cy+n[1]*d0+uy*sg*q*fs*1.8,rot]);
+        cs.push([cx-n[0]*(fs*0.9),cy-n[1]*(fs*0.9),rot])}
+      else{for(const d of[9,14])for(const[p,t]of[[-1,0],[-1,1],[-1,-1],[0,1],[0,-1],[1,0],[1,1],[1,-1]])cs.push([cx+n[0]*p*d+ux*t*(d+txt.length*fs*0.28),cy+n[1]*p*d+uy*t*(d+fs*0.5),0])}
+      const emit=([x,y,rt])=>{BX.push(rb(x,y,rt));o+=`<text transform="translate(${x.toFixed(1)},${y.toFixed(1)}) rotate(${rt.toFixed(1)})" y="${(fs*0.35).toFixed(1)}" text-anchor="middle" font-size="${fs}" ${att}>${txt}</text>`};
+      const c1=cs.find(c=>!hitB(rb(c[0],c[1],c[2])))||(L<20&&cs.find(c=>!hitL(rb(c[0],c[1],c[2]))))||cs[0];emit(c1)}
     if(L>=30){const hasO=r.openings.some(op=>op.wall===i&&op.w>0),k2=hasO?32:12,px=(a[0]+b[0])/2-n[0]*k2,py=(a[1]+b[1])/2-n[1]*k2,bb=boxOf(px,py+3,WN(r,i),9,'middle');if(!hitB(bb)){BX.push(bb);o+=`<text x="${px.toFixed(1)}" y="${(py+3).toFixed(1)}" text-anchor="middle" font-size="9" fill="${C.mut}">${WN(r,i)}</text>`}}
     if(CC.cut[i]>0)putL(mx,my+4+(Math.abs(n[0])>0.5?14:n[1]*13),fl(CC.netW[i])+' + '+fl(CC.cut[i]),8.5,anc,n[0],Math.abs(n[0])>0.5?1.2:n[1],4,`fill="${C.mut}"`);
     {const ops=r.openings.filter(op=>op.wall===i&&op.w>0),TG=op=>op.t==='porta'?'PT':op.t==='janela'?'JA':'VÃO';
