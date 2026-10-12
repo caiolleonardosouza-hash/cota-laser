@@ -314,7 +314,7 @@ function calc(r){const g=geom(r),H=r.h||0,min=+S.settings.minOpen||0;
 function totals(p){const t={area:0,teto:0,perim:0,gross:0,openA:0,net:0,rodape:0,vol:0};for(const r of p.rooms){const c=calc(r);for(const k in t)t[k]+=c[k]}return t}
 
 /* ===== planta (SVG) ===== */
-function planSVG(r,{W=360,H=270,exp=false}={}){
+function planSVG(r,{W=360,H=270,exp=false}={}){const fl=v=>(v==null||!isFinite(v))?'—':nf(v*UF().k,UF().k===1?2:UF().d);
   const g=geom(r);if(g.ws.length<1)return'';
   const C=exp?{bg:'#ffffff',fill:'#e8eef9',wall:'#19201d',txt:'#19201d',mut:'#5b6661',acc:'#c9321b',err:'#c9321b'}
             :{bg:'var(--surface)',fill:'color-mix(in srgb,var(--accent) 10%,var(--surface))',wall:'var(--ink)',txt:'var(--ink)',mut:'var(--muted)',acc:'var(--laser)',err:'var(--laser)'};
@@ -356,7 +356,7 @@ function planSVG(r,{W=360,H=270,exp=false}={}){
     {const att=`font-weight="700" fill="${k==='p'?C.txt:k==='v'?C.acc:C.mut}"${k!=='p'?' font-style="italic"':''}`,txt=fl(w.len),fs=L<40?10:12,ux=ex/L,uy=ey/L,cs=[];
       for(let q=0;q<=3;q++)cs.push([mx+n[0]*q*fs*0.9,my+4+n[1]*q*fs*0.9+(Math.abs(n[0])>0.5?q*fs*0.9:0),anc]);
       for(const sg of[1,-1])for(let q=1;q<=3;q++)cs.push([mx+ux*sg*q*fs*1.6,my+4+uy*sg*q*fs*1.6,anc]);
-      const inn=[(a[0]+b[0])/2-n[0]*14,(a[1]+b[1])/2-n[1]*14+4];cs.push([inn[0],inn[1],n[0]>0.5?'end':n[0]<-0.5?'start':'middle']);
+      const inn=[(a[0]+b[0])/2-n[0]*12,(a[1]+b[1])/2-n[1]*12+4],ic=[inn[0],inn[1],n[0]>0.5?'end':n[0]<-0.5?'start':'middle'];if(L<20)cs.unshift(ic);else cs.push(ic);
       let done=false;for(const[x,y,an]of cs){const bb=boxOf(x,y,txt,fs,an);if(!hitB(bb)){BX.push(bb);o+=`<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" text-anchor="${an}" font-size="${fs}" ${att}>${txt}</text>`;done=true;break}}
       if(!done){const[x,y,an]=cs[0];BX.push(boxOf(x,y,txt,fs,an));o+=`<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" text-anchor="${an}" font-size="${fs}" ${att}>${txt}</text>`}}
     if(L>=30){const hasO=r.openings.some(op=>op.wall===i&&op.w>0),k2=hasO?32:12,px=(a[0]+b[0])/2-n[0]*k2,py=(a[1]+b[1])/2-n[1]*k2,bb=boxOf(px,py+3,WN(r,i),9,'middle');if(!hitB(bb)){BX.push(bb);o+=`<text x="${px.toFixed(1)}" y="${(py+3).toFixed(1)}" text-anchor="middle" font-size="9" fill="${C.mut}">${WN(r,i)}</text>`}}
@@ -861,7 +861,7 @@ function gBounds(RW){const all=RW.flatMap(w=>w.vAll);if(!all.length)return null;
 function polyC(P){let A=0,X=0,Y=0;for(let i=0;i<P.length;i++){const p0=P[i],p1=P[(i+1)%P.length],cr=p0[0]*p1[1]-p1[0]*p0[1];A+=cr;X+=(p0[0]+p1[0])*cr;Y+=(p0[1]+p1[1])*cr}
   return Math.abs(A)>1e-9?[X/(3*A),Y/(3*A)]:[P.reduce((s,q)=>s+q[0],0)/P.length,P.reduce((s,q)=>s+q[1],0)/P.length]}
 function inPoly(pt,P){let c=false;for(let i=0,j=P.length-1;i<P.length;j=i++){const a=P[i],b=P[j];if((a[1]>pt[1])!==(b[1]>pt[1])&&pt[0]<(b[0]-a[0])*(pt[1]-a[1])/(b[1]-a[1])+a[0])c=!c}return c}
-function geralSVG(p,{W,H,vx,vy,k,exp=false,sel=null,cotas=true}){
+function geralSVG(p,{W,H,vx,vy,k,exp=false,sel=null,cotas=true}){const fl=v=>(v==null||!isFinite(v))?'—':nf(v*UF().k,UF().k===1?2:UF().d);
   const RW=p.rooms.map(rWorld).filter(Boolean);
   const C=exp?{bg:'#ffffff',fill:'#e8eef9',fillS:'#d6e2fb',wall:'#19201d',txt:'#19201d',mut:'#5b6661',acc:'#c9321b'}
             :{bg:'var(--surface)',fill:'color-mix(in srgb,var(--accent) 10%,var(--surface))',fillS:'color-mix(in srgb,var(--accent) 24%,var(--surface))',wall:'var(--ink)',txt:'var(--ink)',mut:'var(--muted)',acc:'var(--laser)'};
