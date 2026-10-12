@@ -278,19 +278,22 @@ const wRv=(r,i)=>i==null?null:((WS(r,i)||{}).rv||null);
 function rqTot(r){const it=[];let L=0,A=0;const g=geom(r);
   r.openings.forEach((o,i)=>{if(!(o.rq&&o.rq.on))return;const q=o.q||1,l=rqLin(o.rq)*q;L+=l;A+=l*(o.rq.esp||0);it.push({nome:(o.t==='vao'?'Vão':o.t[0].toUpperCase()+o.t.slice(1))+' '+(i+1)+(o.wall!=null?' ('+WN(r,o.wall)+')':'')+(q>1?' ×'+q:''),rq:o.rq,q,l,a:l*(o.rq.esp||0),rv:o.rq.rv||wRv(r,o.wall)||ND})});
   if(r.mode==='poly')r.walls.forEach((w,i)=>{if(WK(w)!=='v'||!(w.rq&&w.rq.on))return;const l=rqLin(w.rq);L+=l;A+=l*(w.rq.esp||0);it.push({nome:'Vão '+WN(r,i)+' (trecho)',rq:w.rq,q:1,l,a:l*(w.rq.esp||0),rv:w.rq.rv||ND})});
-  g.ws.forEach((w,i)=>{const st=WS(r,i)||{},q=st.rqF;if(WK(w)!=='p'||!(q&&q.on))return;const l=q.h||0;L+=l;A+=l*(q.esp||0);it.push({nome:'Fim de '+WN(r,i),rq:q,q:1,l,a:l*(q.esp||0),end:true,rv:q.rv||st.rv||ND})});
+  g.ws.forEach((w,i)=>{const st=WS(r,i)||{};if(WK(w)!=='p')return;for(const[f,lb]of[['rqI','Início de '],['rqF','Fim de ']]){const q=st[f];if(!(q&&q.on))continue;const l=q.h||0;L+=l;A+=l*(q.esp||0);it.push({nome:lb+WN(r,i),rq:q,q:1,l,a:l*(q.esp||0),end:true,rv:q.rv||st.rv||ND})}});
   return{L,A,it}}
 function rqRvSel(key,q){return`<select class="cs" style="flex:1 1 200px" data-act="rqRv" data-k="${key}" aria-label="Acabamento do requadro"><option value=""${q.rv?'':' selected'}>Acabamento = mesmo da parede</option>${REVS.map(x=>`<option${q.rv===x?' selected':''}>${esc(x)}</option>`).join('')}</select>`}
-function rqEndUI(r,i){const st=WS(r,i)||{},q=st.rqF||{},key='f-'+i;let h=`<div class="drow" style="margin-top:4px;flex-wrap:wrap"><label class="row" style="gap:6px"><input type="checkbox" data-act="rqOn" data-k="${key}"${q.on?' checked':''}> Requadro no fim da parede</label>`;
-  if(q.on)h+=`<button class="btn sm" data-act="rqDef" data-k="${key}" type="button">= PD</button></div><div class="drow" style="margin-top:4px">${F('q:'+key+':h','Altura',q.h,v=>rqObj(key).h=v)}${F('q:'+key+':esp','Espessura',q.esp,v=>rqObj(key).esp=v)}</div><div class="drow" style="margin-top:4px">${rqRvSel(key,q)}`;
-  return h+`</div>`}
+function rqEndUI(r,i){const st=WS(r,i)||{};let h='';
+  for(const[f,p,lb]of[['rqI','i','Requadro no início da parede'],['rqF','f','Requadro no fim da parede']]){const q=st[f]||{},key=p+'-'+i;
+    h+=`<div class="drow" style="margin-top:4px;flex-wrap:wrap"><label class="row" style="gap:6px"><input type="checkbox" data-act="rqOn" data-k="${key}"${q.on?' checked':''}> ${lb}</label>`;
+    if(q.on)h+=`<button class="btn sm" data-act="rqDef" data-k="${key}" type="button">= PD</button></div><div class="drow" style="margin-top:4px">${F('q:'+key+':h','Altura',q.h,v=>rqObj(key).h=v)}${F('q:'+key+':esp','Espessura',q.esp,v=>rqObj(key).esp=v)}</div><div class="drow" style="margin-top:4px">${rqRvSel(key,q)}`;
+    h+=`</div>`}
+  return h}
 function rqUI(key,obj,lbl,defH,defT){const q=obj.rq||{};
   let h=`<div class="drow" style="margin-top:4px;flex-wrap:wrap"><label class="row" style="gap:6px"><input type="checkbox" data-act="rqOn" data-k="${key}"${q.on?' checked':''}> Requadro</label>`;
   if(q.on)h+=`${defH!=null||defT!=null?`<button class="btn sm" data-act="rqDef" data-k="${key}" type="button">= ${lbl}</button>`:''}<span class="hint grow" style="text-align:right">${rqLin(q)>0?'linear '+flu(rqLin(q)):''}</span></div>
     <div class="drow" style="margin-top:4px">${F('q:'+key+':e','Lat. esq.',q.e,v=>rqObj(key).e=v)}${F('q:'+key+':d','Lat. dir.',q.d,v=>rqObj(key).d=v)}${F('q:'+key+':t','Topo',q.t,v=>rqObj(key).t=v)}${F('q:'+key+':esp','Espessura',q.esp,v=>rqObj(key).esp=v)}</div><div class="drow" style="margin-top:4px">${rqRvSel(key,q)}`;
   return h+`</div>`}
-let RQR=null;function rqHost(key){const r=RQR;if(!r)return null;const[k,i]=key.split('-');return k==='o'?r.openings[+i]:k==='f'?WS(r,+i):r.walls[+i]}
-const rqF=key=>key[0]==='f'?'rqF':'rq';
+let RQR=null;function rqHost(key){const r=RQR;if(!r)return null;const[k,i]=key.split('-');return k==='o'?r.openings[+i]:(k==='f'||k==='i')?WS(r,+i):r.walls[+i]}
+const rqF=key=>key[0]==='f'?'rqF':key[0]==='i'?'rqI':'rq';
 function rqObj(key){const o=rqHost(key),f=rqF(key);return o[f]=o[f]||{on:true}}
 function WNS(r){if(r.mode==='rect')return['P1','P2','P3','P4'];const out=[];let m=0,sb=0;r.walls.forEach((w,i)=>{const pv=r.walls[i-1];if(pv&&m>0&&Math.abs(+pv.ang||0)<1e-6){sb++;out.push('P'+m+'.'+sb)}else{m++;sb=0;out.push('P'+m)}});return out}
 const WN=(r,i)=>i==null?'—':(WNS(r)[i]||'P'+(i+1));
@@ -1205,7 +1208,7 @@ document.addEventListener('click',async e=>{const t=e.target.closest('[data-t],[
       d.lo=[nx*pn_+(-ny)*pt_, ny*pn_+nx*pt_];save();return render()}
     case'addSh2':{const n=calc(r).g.ws.length;(r.shafts=r.shafts||[]).push({id:uid(),corner:0,a:null,b:null});save();target='s:'+(r.shafts.length-1)+':a';return render()}
     case'addSc':(r.sancas=r.sancas||[]).push({id:uid(),corner:0,a:null,b:null,larg:null,alt:null});save();target='c:'+(r.sancas.length-1)+':a';return render();
-    case'rqDef':{const key=t.dataset.k,o=rqHost(key);if(!o)return;const[k]=key.split('-');if(k==='f'){const q=rqObj(key);const he=hEff(r);if(he>0)q.h=he;save();target='q:'+key+':esp';return render()}const q=o.rq=o.rq||{on:true};
+    case'rqDef':{const key=t.dataset.k,o=rqHost(key);if(!o)return;const[k]=key.split('-');if(k==='f'||k==='i'){const q=rqObj(key);const he=hEff(r);if(he>0)q.h=he;save();target='q:'+key+':esp';return render()}const q=o.rq=o.rq||{on:true};
       if(k==='o'){if(o.h>0){q.e=o.h;q.d=o.h}if(o.w>0)q.t=o.w}else{if(o.len>0)q.t=o.len}save();target='q:'+key+(k==='o'?':esp':':e');return render()}
     case'scAll':{const sc=r.sancas[i],ws=walls(r),n=ws.length,k=t.dataset.k==='a'?sc.corner:(sc.corner+1)%n;sc[t.dataset.k]=ws[k]?ws[k].len:null;save();return render()}
     case'delSc':r.sancas.splice(i,1);save();return render();
@@ -1278,7 +1281,7 @@ document.addEventListener('change',e=>{const t=e.target,a=t.dataset.act;if(!a&&!
     case'shRod':r.shafts[i].noRod=!t.checked;break;
     case'rvT':r.rvT=t.value||null;break;
     case'scRv':r.sancas[i][t.dataset.k]=t.value;break;
-    case'rqOn':{const o=rqHost(t.dataset.k);if(!o)return;const f=rqF(t.dataset.k),q=o[f]=o[f]||{};q.on=t.checked;if(t.checked&&!q.e&&!q.t&&!q.h)target='q:'+t.dataset.k+(f==='rqF'?':h':':e');break}
+    case'rqOn':{const o=rqHost(t.dataset.k);if(!o)return;const f=rqF(t.dataset.k),q=o[f]=o[f]||{};q.on=t.checked;if(t.checked&&!q.e&&!q.t&&!q.h)target='q:'+t.dataset.k+(f!=='rq'?':h':':e');break}
     case'sumSel':{const all=p.rooms.map(x=>x.id),cur=new Set(p.sumSel||all);if(t.checked)cur.add(t.dataset.id);else cur.delete(t.dataset.id);p.sumSel=all.filter(id=>cur.has(id));break}
     case'rqRv':{const o=rqHost(t.dataset.k);if(!o)return;const f=rqF(t.dataset.k);o[f]=o[f]||{on:true};o[f].rv=t.value||null;break}
     case'shC':r.shafts[i].corner=+t.value;break;
