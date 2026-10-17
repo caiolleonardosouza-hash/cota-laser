@@ -331,6 +331,32 @@ function calc(r){const g=geom(r),H=r.h||0,min=+S.settings.minOpen||0;
   let scL=0,scF=0,scT=0,scW=0;for(const sc of r.sancas||[]){const q=scGeo(sc,g.ws);if(!q)continue;scL+=q.L;scF+=q.forro;scT+=q.test;const al=Math.min(q.h,H||Infinity);if(WK(g.ws[q.k])==='p')scW+=q.La*al;if(WK(g.ws[q.k2])==='p')scW+=q.Lb*al}
   const exL=(r.extras||[]).reduce((s,e)=>s+(e.len>0?e.len:0),0);return{g,exL,nd,rqA,areaSq,dSq,errF,teto:Math.max(0,area-scF),pint:Math.max(0,area-scF)+scF+scT,scL,scF,scT,scW,perim,perimAll,vLen,vaoLen,vClose,area,area0,H,gross,openA,ded,net:H>0?Object.values(revAreas0(r).tot).reduce((a,v)=>a+v,0):0,He,rodape:Math.max(0,perim-passW-shNR),vol:area*H,objA,objV,shA,shL,alv:Math.max(0,perim-shL),cut,netW:g.ws.map((w,i)=>Math.max(0,w.len-cut[i]))}}
 function outA(c){return c.net-(c.gross-c.openA)-c.rqA-c.nd}
+/* memória de cálculo dos números resumo do cômodo: [item, cálculo, resultado] */
+function memRows(r,c){c=c||calc(r);const g=c.g,L=v=>fl(v),A=v=>nf(v,2),j=(a,op)=>a.length?a.join(op):'0',out=[],u=UN();
+  const pw=g.ws.map((w,i)=>[w,i]).filter(([w])=>WK(w)==='p'),xw=g.ws.map((w,i)=>[w,i]).filter(([w])=>WK(w)!=='p');
+  const scs=(r.sancas||[]).map((sc,i)=>[scGeo(sc,g.ws),i]).filter(x=>x[0]);
+  const shs=(r.shafts||[]).filter(sh=>sh.corner!=null&&sh.corner<g.ws.length);
+  out.push(['Área piso',(r.mode==='rect'?L(r.a)+' × '+L(r.b):'área do polígono das paredes (coordenadas) = '+A(c.area0))+(c.shA?' − shafts '+shs.map(sh=>L(sh.a)+'×'+L(sh.b)).join(' − '):''),A(c.area)+' m²']);
+  if(scs.length)scs.forEach(([q,i])=>{out.push(['SC'+(i+1)+' · bandeja',(q.La>0&&q.Lb>0?'('+L(q.La)+' + '+L(q.Lb)+') × '+L(q.w)+' − '+L(q.w)+'²':L(q.La||q.Lb)+' × '+L(q.w)),A(q.forro)+' m²']);
+    {const l1=g.ws[q.k].len||0,l2=g.ws[q.k2].len||0,pt=[];if(q.La>0)pt.push(q.Lb>0?'('+L(q.La)+' − '+L(q.w)+')':L(q.La));if(q.Lb>0)pt.push(q.La>0?'('+L(q.Lb)+' − '+L(q.w)+')':L(q.Lb));const rt=(q.La>0&&q.La<l1-1e-6?1:0)+(q.Lb>0&&q.Lb<l2-1e-6?1:0);if(rt)pt.push((rt>1?'2 × ':'')+L(q.w)+' (retorno'+(rt>1?'s':'')+')');
+    out.push(['SC'+(i+1)+' · linear',pt.join(' + '),L(q.L)+' '+u])}
+    out.push(['SC'+(i+1)+' · fechamento linear',L(q.L)+' × '+L(q.h),A(q.test)+' m²'])});
+  out.push(['Área teto',A(c.area)+(c.scF?' − bandeja '+A(c.scF):''),A(c.teto)+' m²']);
+  if(c.scF)out.push(['Pintura teto + sanca',A(c.teto)+' + bandeja '+A(c.scF)+' + fechamento '+A(c.scT),A(c.pint)+' m²']);
+  out.push(['Perímetro (paredes)',j(pw.map(([w,i])=>WN(r,i)+' '+L(w.len)),' + ')+(xw.length?' (fora: '+xw.map(([w,i])=>WN(r,i)+' '+WKL[WK(w)].toLowerCase()).join(', ')+')':''),L(c.perim)+' '+u]);
+  if(c.H>0){out.push(['Parede bruta',L(c.perim)+' × pé-direito '+L(c.He)+(Math.abs(c.He-c.H)>1e-9?' (PD '+L(c.H)+' até o forro)':''),A(c.gross)+' m²']);
+    const op=r.openings.filter(o=>(o.w||0)*(o.h||0)>0);
+    out.push(['Aberturas',op.length?op.map(o=>L(o.w)+'×'+L(o.h)+((o.q||1)>1?'×'+o.q:'')).join(' + '):'nenhuma',A(c.openA)+' m²']);
+    if(c.rqA)out.push(['Requadro',rqTot(r).it.map(x=>L(x.l)+'×'+L(x.rq.esp)).join(' + '),A(c.rqA)+' m²']);
+    if(c.nd)out.push(['Aberturas não descontadas','≤ '+nf(+S.settings.minOpen||0,2)+' m² ou fora de parede',A(c.nd)+' m²']);
+    const o=outA(c);
+    out.push(['Parede líquida',A(c.gross)+' − '+A(c.openA)+(c.rqA?' + '+A(c.rqA):'')+(c.nd?' + '+A(c.nd):'')+(Math.abs(o)>0.005?(o>0?' + ':' − ')+A(Math.abs(o))+' (sanca/forro/shaft)':''),A(c.net)+' m²'])}
+  const pas=r.openings.filter(o=>o.t!=='janela'&&(o.w||0)>0);
+  out.push(['Rodapé',L(c.perim)+(pas.length?' − portas/vãos '+pas.map(o=>L(o.w)+((o.q||1)>1?'×'+o.q:'')).join(' − '):'')+(c.perim-c.rodape-pas.reduce((s,o)=>s+(o.w||0)*(o.q||1),0)>1e-6?' − shaft':''),L(c.rodape)+' '+u]);
+  if(c.H>0)out.push(['Volume',A(c.area)+' × '+L(c.H),nf(c.vol,2)+' m³']);
+  return out}
+function memHTML(r,c){return`<div class="tbl" style="margin-top:6px"><table><thead><tr><th>Item</th><th>Cálculo</th><th>Resultado</th></tr></thead><tbody>${memRows(r,c).map(x=>`<tr><td>${esc(x[0])}</td><td style="white-space:normal">${esc(x[1])}</td><td>${esc(x[2])}</td></tr>`).join('')}</tbody></table></div>`}
+
 function totals(p){const t={area:0,teto:0,pint:0,perim:0,gross:0,openA:0,net:0,rodape:0,vol:0,rqA:0,nd:0,areaSq:0,dSq:0};for(const r of p.rooms){const c=calc(r);for(const k in t)t[k]+=c[k]}return t}
 
 /* ===== planta (SVG) ===== */
@@ -592,7 +618,7 @@ function rowsFor(p){const d=S.settings.dec,R3=n=>n==null?null:+(+n).toFixed(3);
   const fr=[['Data/hora','Descrição','Medida (m)']];S.free.filter(f=>f.pid===p.id).forEach(f=>fr.push([new Date(f.t).toLocaleString('pt-BR'),f.label||'',R3(f.v)]));
   const px=[['Planta','Cota','Categoria','Descrição','Projeto (m)','Real (m)','Δ (cm)','Status','Fotos']];
   for(const pl of p.photos.filter(f=>f.kind==='plan'))pl.dims.forEach((d,i)=>{const dc=deltaCm(pl,d),ok=okD(dc);px.push([pl.name,'C'+(i+1),d.ref?'Escala':CATS[d.cat||'outro'],d.label||'',R3(projOf(pl,d)),R3(d.val),dc==null?null:+dc.toFixed(1),ok==null?'':ok?'OK':'FORA',(d.ph||[]).length])});
-  return{Resumo:res,'Projeto x Real':px,Paredes:wl,Aberturas:op,Shafts:sx,Sancas:scx,Revestimentos:rvx,'Serviços':(()=>{const a=[['Cômodo','Grupo','Material','Área (m²)']];for(const r of p.rooms){const ra=revAreas(r);for(const[g,t,tS]of[['Parede',ra.tot,ra.totS],['Teto',ra.totT,ra.totTS]]){const L=layTot(t,tS);for(const k in L)a.push([r.name,g,k,R3(L[k])])}}return a})(),Requadros:rqx,Objetos:ob,Avulsas:fr}}
+  return{Resumo:res,'Projeto x Real':px,Paredes:wl,Aberturas:op,Shafts:sx,Sancas:scx,Revestimentos:rvx,'Serviços':(()=>{const a=[['Cômodo','Grupo','Material','Área (m²)']];for(const r of p.rooms){const ra=revAreas(r);for(const[g,t,tS]of[['Parede',ra.tot,ra.totS],['Teto',ra.totT,ra.totTS]]){const L=layTot(t,tS);for(const k in L)a.push([r.name,g,k,R3(L[k])])}}return a})(),Requadros:rqx,Objetos:ob,Avulsas:fr,'Memória de cálculo':(()=>{const a=[['Cômodo','Item','Cálculo','Resultado']];for(const r of p.rooms)memRows(r).forEach(x=>a.push([r.name,...x]));return a})()}}
 function tomb(id){S.del=S.del||{};S.del[id]=Date.now()}
 /* ===== sincronização Google Drive (pasta oculta do app no SEU Drive) ===== */
 const GSC='https://www.googleapis.com/auth/drive.appdata',GAPI='https://www.googleapis.com/drive/v3/files',GUP='https://www.googleapis.com/upload/drive/v3/files';
@@ -854,7 +880,7 @@ function vRoom(p,r){RQR=r;const tab=V.tab||'med',c=calc(r),d=S.settings.dec;
       h+=`</div>${n>=2?`<button class="btn sm" data-act="addSc" type="button" style="margin-top:8px">+ Sanca</button>`:''}`;
       if(c.scL>0)h+=`<div class="tbl" style="margin-top:8px"><table><thead><tr><th>Sanca</th><th>Linear</th><th>Bandeja (m²)</th><th>Fechamento linear (m²)</th></tr></thead><tbody>${(r.sancas||[]).map((sc,i)=>{const q=scGeo(sc,c.g.ws);return q?`<tr><td>SC${i+1} · ${WN(r,q.k)}/${WN(r,q.k2)}</td><td>${fl(q.L)}</td><td>${nf(q.forro,2)}</td><td>${nf(q.test,2)}</td></tr>`:''}).join('')}</tbody><tfoot><tr><td>Total</td><td>${fl(c.scL)}</td><td>${nf(c.scF,2)}</td><td>${nf(c.scT,2)}</td></tr></tfoot></table></div>`}
     h+=`<div class="plan" data-act="planZoom" style="margin-top:12px;cursor:zoom-in">${planSVG(r)||'<div class="plan-empty">Meça as paredes para desenhar a planta.</div>'}</div>`+(walls(r).length?`<p class="hint" style="margin:4px 0 0;text-align:right">Toque na planta para ampliar</p>`:'');
-    h+=`<div class="stats" style="margin-top:10px"><div class="stat"><small>Área piso</small><b>${nf(c.area,2)}<i>m²</i></b></div><div class="stat"><small>Área teto</small><b>${nf(c.teto,2)}<i>m²</i></b></div>${c.scF?`<div class="stat"><small>Pintura teto + sanca</small><b>${nf(c.pint,2)}<i>m²</i></b></div>`:''}<div class="stat"><small>Perímetro</small><b>${fl(c.perim)}<i>${UN()}</i></b></div><div class="stat"><small>Parede líquida</small><b>${nf(c.net,2)}<i>m²</i></b></div><div class="stat"><small>Volume</small><b>${nf(c.vol,2)}<i>m³</i></b></div></div>`}
+    h+=`<div class="stats" style="margin-top:10px"><div class="stat"><small>Área piso</small><b>${nf(c.area,2)}<i>m²</i></b></div><div class="stat"><small>Área teto</small><b>${nf(c.teto,2)}<i>m²</i></b></div>${c.scF?`<div class="stat"><small>Pintura teto + sanca</small><b>${nf(c.pint,2)}<i>m²</i></b></div>`:''}<div class="stat"><small>Perímetro</small><b>${fl(c.perim)}<i>${UN()}</i></b></div><div class="stat"><small>Parede líquida</small><b>${nf(c.net,2)}<i>m²</i></b></div><div class="stat"><small>Volume</small><b>${nf(c.vol,2)}<i>m³</i></b></div></div><details style="margin-top:10px"><summary><b>Memória de cálculo</b></summary>${memHTML(r,c)}</details>`}
   if(tab==='open'){const nW=c.g.ws.length;
     h+=`<div class="row" style="margin:10px 0"><button class="btn sm" data-act="addO" data-k="porta" type="button">+ Porta</button><button class="btn sm" data-act="addO" data-k="janela" type="button">+ Janela</button><button class="btn sm" data-act="addO" data-k="vao" type="button">+ Vão</button></div><div class="list">`;
     r.openings.forEach((o,i)=>{const wn=o.wall!=null?WN(r,o.wall):'parede';h+=`<div class="dim"><div class="drow"><select class="cs" data-act="oT" data-i="${i}">${['porta','janela','vao'].map(t=>`<option value="${t}"${o.t===t?' selected':''}>${t==='vao'?'Vão':t[0].toUpperCase()+t.slice(1)}</option>`).join('')}</select>
@@ -1152,6 +1178,7 @@ function vReport(p){const t=totals(p),d=new Date();
       return`<tr><td>${nm} · largura</td><td>${fl(o.w)}</td><td>${fl(o.wPj)}</td><td>${dtxt(dcs(o.w,o.wPj))}</td></tr><tr><td>${nm} · altura</td><td>${fl(o.h)}</td><td>${fl(o.hPj)}</td><td>${dtxt(dcs(o.h,o.hPj))}</td></tr>${o.off!=null||o.offPj!=null?`<tr><td>${nm} · dist. início</td><td>${fl(o.off)}</td><td>${fl(o.offPj)}</td><td>${dtxt(dcs(o.off,o.offPj))}</td></tr>`:''}`}).join('')}
     ${r.objects.map(o=>`<tr><td>${esc(o.n||'Objeto')}</td><td>${fl(o.a)} × ${fl(o.b)} × ${flu(o.c)}</td></tr>`).join('')}
     ${r.mode==='poly'&&c.g.ws.length>=3?`<tr><td>Erro de fechamento</td><td>${nf(c.g.err*100,1)} cm</td></tr><tr><td>Piso em esquadro (giros 90°)</td><td>${nf(c.areaSq,2)} m²</td></tr><tr><td>Δ piso real − esquadro</td><td>${nf(c.dSq,2)} m²</td></tr>`:''}</tbody></table></div></div></div>`;
+    h+=`<h3 style="margin:12px 0 2px">Memória de cálculo</h3>${memHTML(r,c)}`;
     {const ra=revAreas(r);h+=revBlock(ra)}
     const phs=p.photos.filter(f=>f.rid===r.id&&(f.kind||'photo')==='photo'&&(!f.link||f.link.wall!=null));if(phs.length)h+=`<div class="two" style="margin-top:8px">${phs.map(f=>`<figure style="margin:0"><img data-rph="${f.id}" alt="${esc(f.name)}"><figcaption class="hint">${esc(f.name)}</figcaption></figure>`).join('')}</div>`;h+=`</div>`}
   for(const pl of p.photos.filter(f=>f.kind==='plan')){const g=catSummary(pl),ks=Object.keys(g),dec=S.settings.dec;
